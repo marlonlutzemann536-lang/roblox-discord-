@@ -283,7 +283,7 @@ const commandDefinitions = [
     new SlashCommandBuilder().setName('server-banner').setDescription('Gibt das aktuelle Server-Banner als hochauflösenden Link aus'),
     new SlashCommandBuilder().setName('membercount').setDescription('Gibt die exakte Anzahl der menschlichen Mitglieder und Bots aus'),
     new SlashCommandBuilder().setName('bot-nick').setDescription('Ändert den Server-Spitznamen des AeroGuard-Bots').addStringOption(o => o.setName('name').setDescription('Spitzname').setRequired(true)),
-    new SlashCommandBuilder().setName('invites').setDescription('Zeigt alle aktiven Einladungslinks des Servers an'),
+    new SlashCommandBuilder().setName('invites').setDescription('Zeigt alle active Einladungslinks des Servers an'),
     new SlashCommandBuilder().setName('invite-create').setDescription('Erstellt einen permanenten Einladungslink für diesen Kanal'),
     new SlashCommandBuilder().setName('channel-topic').setDescription('Ändert die Beschreibung des aktuellen Kanals').addStringOption(o => o.setName('thema').setDescription('Kanalbeschreibung').setRequired(true)),
     new SlashCommandBuilder().setName('category-create').setDescription('Erstellt eine neue Kanalkategorie im Server').addStringOption(o => o.setName('name').setDescription('Kategorie-Name').setRequired(true)),
@@ -477,7 +477,7 @@ client.on('messageCreate', async message => {
                 const targetId = message.content.split(' ')[1];
                 if (!targetId || !activeTickets.has(targetId)) return message.author.send('❌ Ungültige Ticket-ID.');
                 ownerActiveSession.set(OWNER_ID, targetId);
-                return message.author.send suicide(`✅ **Tunnel aktiv!** Du chattest jetzt mit **${activeTickets.get(targetId).username}**. Schließen mit \`/close\`.`);
+                return message.author.send(`✅ **Tunnel aktiv!** Du chattest jetzt mit **${activeTickets.get(targetId).username}**. Schließen mit \`/close\`.`);
             }
             return message.author.send('🔮 **System:** Nutze `/tickets` oder `/open ID`, um dich zu verbinden.');
         }
