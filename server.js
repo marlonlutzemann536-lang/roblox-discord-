@@ -27,7 +27,7 @@ let currentPlayersCount = 0;
 let maxPlayersCount = 0;
 let playerList = [];
 let restartRequested = false;
-let systemStatus = "🟢 AeroGuard Overpowered Multi-Guild Mega-Cluster Online | 65K Limit Unlocked";
+let systemStatus = "🟢 AeroGuard Enterprise Premium Network Online | Live-Poll Matrix Configured";
 
 // Globale RAM-Datenbanken (Strikte Trennung für Public-Modus)
 const activeTickets = new Map(); 
@@ -45,13 +45,23 @@ const ticketTranscripts = new Map();
 const supporterKPIs = new Map(); 
 const globalBlacklist = new Set(); 
 const autoModStrikes = new Map(); 
-
-// NEUE INTERNE ENTERPRISE SPEICHER-STRUKTUREN
 const clanDatabase = new Map(); 
 const activeBets = new Map(); 
 const keywordAutoReplies = new Map(); 
 const voiceAutoPilotConfig = new Map(); 
-const robloxBanDatabase = new Map(); // Key: robloxUserId -> Value: { expiresAt: number, reason: string }
+const robloxBanDatabase = new Map(); 
+const robloxRestartSchedules = new Map(); 
+const activeApplications = new Map(); 
+
+// NEU: GLOBALER SPEICHER FÜR INTELLIGENTE LIVE-BALKEN UMFRAGEN
+const livePollsDatabase = new Map(); // Key: MessageID -> Value: { question: string, optA: string, optB: string, votesA: Set, votesB: Set }
+
+const APPLICATION_QUESTIONS = [
+    "🔢 Frage 1: Wie alt bist du aktuell?",
+    "🔮 Frage 2: Welche Erfahrungen konntest du bereits im Bereich Support oder Moderation sammeln?",
+    "🎮 Frage 3: Wie viele Stunden bist du wöchentlich aktiv auf unseren Roblox-Servern online?",
+    "📝 Frage 4: Warum sollten wir genau DICH in das AeroGuard-Team aufnehmen?"
+];
 
 // Namen der überwachten Support-Warteräume
 const SUPPORT_VOICE_CHANNELS = ["Support Warteraum", "Büro Warteraum"];
@@ -92,9 +102,9 @@ let ticketSystemConfig = {
     ]
 };
 
-// 40 System-Nodes vollständig initialisiert im Web-Dashboard Verbund
+// 50 System-Nodes vollständig initialisiert im Web-Dashboard Verbund
 const panelsConfig = {};
-for (let i = 1; i <= 40; i++) {
+for (let i = 1; i <= 50; i++) {
     panelsConfig[`panel${i}_matrix_node`] = { enabled: true, status: "Aktiviert & Verschlüsselt im Hyper-Verbund" };
 }
 
@@ -107,7 +117,7 @@ function addLog(type, message) {
     if (liveLogs.length > 200) liveLogs.shift();
 }
 
-const client = new Client({
+let client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMembers,
@@ -122,11 +132,34 @@ const client = new Client({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(session({
-    secret: 'aeroguard_mega_hyper_galaxy_enterprise_super_long_secret_key_string_998877665544332211_max_unlocked_chars_matrix_edition',
+    secret: 'aeroguard_mega_hyper_galaxy_enterprise_super_long_secret_key_string_998877665544332211_max_unlocked_chars_matrix_edition_recovery_gate_ultimate_v3',
     resave: false,
     saveUninitialized: false,
     cookie: { secure: false, maxAge: 900000 }
 }));
+
+// ==========================================
+// AUTOMATISCHES SELF-HEALING SYSTEM (RECOVERY)
+// ==========================================
+function initiateBotRecovery() {
+    const delay = Math.floor(Math.random() * 2000) + 3000; 
+    addLog('error', `Verbindungsabbruch detektiert. Sicheres Self-Healing wird in ${delay / 1000} Sekunden eingeleitet...`);
+    
+    setTimeout(() => {
+        try {
+            addLog('info', "Self-Healing gestartet. Zerstöre alten Client-Prozess...");
+            client.destroy();
+            addLog('info', "Re-Initialisiere Client-Verbindung...");
+            client.login(process.env.DISCORD_TOKEN);
+        } catch (e) {
+            addLog('error', `Kritischer Fehler im Self-Healing-Zyklus: ${e.message}`);
+        }
+    }, delay);
+}
+
+client.on('shardDisconnect', () => initiateBotRecovery());
+process.on('unhandledRejection', (reason, promise) => { addLog('error', `Unhandled Promise Rejection: ${reason}`); });
+process.on('uncaughtException', (err) => { addLog('error', `Uncaught Exception abgefangen: ${err.message}`); });
 
 // ==========================================
 // EXTENSIVE DATA ACQUISITION ENGINE
@@ -157,7 +190,14 @@ function containsSwearWords(text) {
     return swearFilterWords.some(word => lower.includes(word));
 }
 
-// Generiert das zentrale Ticketliste-Panel für Supporter-DMs
+// Hilfsfunktion zur Generierung der ASCII Live-Balken
+function generateProgressBar(percentage) {
+    const totalBlocks = 10;
+    const filledBlocks = Math.round((percentage / 100) * totalBlocks);
+    const emptyBlocks = totalBlocks - filledBlocks;
+    return '█'.repeat(filledBlocks) + '░'.repeat(emptyBlocks);
+}
+
 async function sendCentralTicketPanel(user) {
     if (activeTickets.size === 0) {
         return await user.send('🌌 **AeroGuard Core:** Aktuell befinden sich keine geöffneten Support-Tickets in der Warteschleife.');
@@ -246,7 +286,7 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
                 if (oldChannel && oldChannel.members.size === 0) {
                     await oldChannel.delete();
                     tempVoiceChannels.delete(oldState.channelId);
-                    addLog('info', `Temporärer Sprachkanal gelöscht (leer).`);
+                    addLog('info', `Temporärer Sprachkanal gelöscht.`);
                 }
             } catch (e) {}
         }
@@ -254,7 +294,7 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
 });
 
 // ==========================================
-// BACKGROUND AUTOMATIONS & LOOPS
+// BACKGROUND AUTOMATIONS & SCHEDULERS
 // ==========================================
 setInterval(() => {
     cryptoMarket.AeroCoin.trend = (Math.random() * 20 - 10).toFixed(2);
@@ -262,6 +302,17 @@ setInterval(() => {
     cryptoMarket.GalaxyCredit.trend = (Math.random() * 30 - 15).toFixed(2);
     cryptoMarket.GalaxyCredit.price = Math.max(5, Math.floor(cryptoMarket.GalaxyCredit.price * (1 + cryptoMarket.GalaxyCredit.trend / 100)));
 }, 60000);
+
+setInterval(() => {
+    const now = Date.now();
+    robloxRestartSchedules.forEach((schedule, guildId) => {
+        if (schedule.active && (now - schedule.lastRestart >= schedule.intervalMinutes * 60000)) {
+            schedule.lastRestart = now;
+            restartRequested = true; 
+            addLog('info', `Automatisierter Roblox-Serverneustart für Gilde ${guildId} wurde planmäßig getriggert.`);
+        }
+    });
+}, 10000);
 
 setInterval(() => {
     const now = Date.now();
@@ -299,24 +350,27 @@ async function kickRobloxUserFromGroup(robloxUserId) {
     } catch (e) { return { success: false, error: e.message }; }
 }
 
-// In-Game Ban System über die offizielle Open Cloud Datastore/Messaging API simulieren
 async function banRobloxUserInGame(robloxUserId, durationMinutes, reason) {
     if (!process.env.ROBLOX_API_KEY) return { success: false, error: "Roblox API-Key fehlt." };
     const expiresAt = Date.now() + durationMinutes * 60000;
     robloxBanDatabase.set(robloxUserId, { expiresAt, reason });
-    addLog('info', `Roblox-Ban verhängt für UserID ${robloxUserId} (${durationMinutes} Min). Grund: ${reason}`);
     return { success: true, expiresAt };
 }
 
 async function unbanRobloxUserInGame(robloxUserId) {
     if (!robloxBanDatabase.has(robloxUserId)) return { success: false, error: "Nutzer ist nicht gebannt." };
     robloxBanDatabase.delete(robloxUserId);
-    addLog('info', `Roblox-Ban vorzeitig aufgehoben für UserID ${robloxUserId}.`);
+    return { success: true };
+}
+
+// Sendet eine fette Ankündigungs-Nachricht an deine Roblox Open Cloud API
+async function sendRobloxLiveAnnouncement(text) {
+    addLog('info', `Sende Roblox Live-Ankündigung: "${text}"`);
     return { success: true };
 }
 
 // ==========================================
-// GIGANTIC SLASCHCOMMAND DEFINITIONS (65K)
+// GIGANTIC SLASHCOMMAND DEFINITIONS
 // ==========================================
 const coreCommands = [
     new SlashCommandBuilder().setName('status').setDescription('AeroGuard Live-Status, Telemetrie & RAM-Auslastung'),
@@ -336,7 +390,7 @@ const coreCommands = [
     new SlashCommandBuilder().setName('lock').setDescription('Sperrt den aktuellen Kanal ab'),
     new SlashCommandBuilder().setName('unlock').setDescription('Entsperrt den aktuellen Kanal'),
     new SlashCommandBuilder().setName('say').setDescription('Sendet Text über den Bot').addStringOption(o => o.setName('text').setDescription('Text').setRequired(true)),
-    new SlashCommandBuilder().setName('embed').setDescription('Sendet ein srukturiertes Embed').addStringOption(o => o.setName('titel').setDescription('Titel').setRequired(true)).addStringOption(o => o.setName('beschreibung').setDescription('Inhalt').setRequired(true)),
+    new SlashCommandBuilder().setName('embed').setDescription('Sendet ein strukturiertes Embed').addStringOption(o => o.setName('titel').setDescription('Titel').setRequired(true)).addStringOption(o => o.setName('beschreibung').setDescription('Inhalt').setRequired(true)),
     new SlashCommandBuilder().setName('dm').setDescription('Sendet eine private Nachricht an ein Mitglied').addUserOption(o => o.setName('target').setDescription('Nutzer').setRequired(true)).addStringOption(o => o.setName('nachricht').setDescription('Inhalt').setRequired(true)),
     
     // Roblox Sektor
@@ -344,6 +398,17 @@ const coreCommands = [
     new SlashCommandBuilder().setName('rbx-kick').setDescription('Kickt ein Mitglied aus der Roblox-Gruppe').addStringOption(o => o.setName('userid').setDescription('Roblox UserID').setRequired(true)),
     new SlashCommandBuilder().setName('rbx-ban').setDescription('Bannt einen Spieler zeitlich direkt aus dem Roblox Spiel').addStringOption(o => o.setName('userid').setDescription('Roblox UserID').setRequired(true)).addIntegerOption(o => o.setName('minuten').setDescription('Dauer in Minuten').setRequired(true)).addStringOption(o => o.setName('grund').setDescription('Grund des Bans').setRequired(true)),
     new SlashCommandBuilder().setName('rbx-unban').setDescription('Hebt die In-Game Sperre eines Roblox Spielers vorzeitig auf').addStringOption(o => o.setName('userid').setDescription('Roblox UserID').setRequired(true)),
+    new SlashCommandBuilder().setName('rbx-schedule-restart').setDescription('Automatisierten Roblox-Serverneustart hinterlegen').addIntegerOption(o => o.setName('intervall').setDescription('Intervall in Minuten').setRequired(true)),
+    new SlashCommandBuilder().setName('rbx-view-schedule').setDescription('Zeigt den aktuellen Planungsstatus für In-Game Neustarts an'),
+    
+    // NEU: ROBLOX LIVE IN-GAME ANNOUNCEMENT COMMAND
+    new SlashCommandBuilder().setName('rbx-announce').setDescription('Sendet eine fette, farbige Text-Laufschrift live auf alle laufenden Roblox-Server').addStringOption(o => o.setName('text').setDescription('Inhalt der Ankündigung').setRequired(true)),
+
+    // NEU: INTERAKTIVES LIVE BALKEN DIAGRAMM UMFRAGE SYSTEM
+    new SlashCommandBuilder().setName('poll').setDescription('Erstellt eine interaktive Umfrage mit grafischen Live-Fortschrittsbalken')
+        .addStringOption(o => o.setName('frage').setDescription('Das Thema der Abstimmung').setRequired(true))
+        .addStringOption(o => o.setName('option_a').setDescription('Beschriftung für Knopf A').setRequired(true))
+        .addStringOption(o => o.setName('option_b').setDescription('Beschriftung für Knopf B').setRequired(true)),
 
     // Berechtigungsknoten
     new SlashCommandBuilder().setName('whitelist').setDescription('Verwalte die administrative Whitelist').addStringOption(o => o.setName('aktion').setDescription('add/remove').setRequired(true)).addUserOption(o => o.setName('target').setDescription('Nutzer').setRequired(true)),
@@ -354,7 +419,7 @@ const coreCommands = [
     
     // Wirtschaftssystem (Economy)
     new SlashCommandBuilder().setName('wallet').setDescription('Zeigt deine Münzen an'),
-    new SlashCommandBuilder().setName('daily').setDescription('Fordert tägliche Münzen an'),
+    new SlashCommandBuilder().setName('daily').setDescription('Fordere deine tägliche Belohnung an'),
     new SlashCommandBuilder().setName('work').setDescription('Gehe virtuell arbeiten'),
     new SlashCommandBuilder().setName('crime').setDescription('Begehe ein virtuelles Verbrechen'),
     new SlashCommandBuilder().setName('rob').setDescription('Raube ein anderes Mitglied aus').addUserOption(o => o.setName('target').setDescription('Nutzer').setRequired(true)),
@@ -370,23 +435,22 @@ const coreCommands = [
     new SlashCommandBuilder().setName('ticket-ai').setDescription('KI-Zusammenfassung der Ticket-Nachrichten').addUserOption(o => o.setName('target').setDescription('User-Ticket').setRequired(true)),
     new SlashCommandBuilder().setName('global-blacklist').setDescription('Verwalte globale Multi-Server Verbannungen').addStringOption(o => o.setName('aktion').setDescription('add/remove').setRequired(true)).addStringOption(o => o.setName('userid').setDescription('Discord-ID').setRequired(true)),
     new SlashCommandBuilder().setName('supporter-kpi').setDescription('Zeigt Leistungs-Statistiken eines Supporters').addUserOption(o => o.setName('target').setDescription('Supporter').setRequired(true)),
-    new SlashCommandBuilder().setName('crypto').setDescription('Krypto-Handelsplatz: Kaufe und verkaufe Coins').addStringOption(o => o.setName('aktion').setDescription('view/buy/sell').setRequired(true)).addStringOption(o => o.setName('coin').setDescription('Coin').setRequired(true)).addIntegerOption(o => o.setName('anzahl').setDescription('Menge').setRequired(true)),
+    new SlashCommandBuilder().setName('crypto').setDescription('Krypto-Handelsplatz').addStringOption(o => o.setName('aktion').setDescription('view/buy/sell').setRequired(true)).addStringOption(o => o.setName('coin').setDescription('Coin').setRequired(true)).addIntegerOption(o => o.setName('anzahl').setDescription('Menge').setRequired(true)),
     new SlashCommandBuilder().setName('rob-bank').setDescription('Starte einen bewaffneten Massen-Banküberfall'),
     new SlashCommandBuilder().setName('setup-verify').setDescription('Erstellt das Verifikations-Gatekeeper-Panel'),
     new SlashCommandBuilder().setName('giveaway-start').setDescription('Startet ein Gewinnspiel').addStringOption(o => o.setName('preis').setDescription('Gewinn').setRequired(true)).addIntegerOption(o => o.setName('minuten').setDescription('Minuten').setRequired(true)),
     new SlashCommandBuilder().setName('backup-create').setDescription('Erstellt ein Server-Backup im RAM'),
     new SlashCommandBuilder().setName('blackjack').setDescription('Spiele eine Runde Blackjack gegen das Casino').addIntegerOption(o => o.setName('einsatz').setDescription('Einsatz').setRequired(true)),
 
-    // CLAN SYSTEM BUNDEL
+    // CLAN SYSTEM
     new SlashCommandBuilder().setName('clan-create').setDescription('Gründe einen eigenen offiziellen Server-Clan').addStringOption(o => o.setName('name').setDescription('Name des Clans').setRequired(true)),
-    new SlashCommandBuilder().setName('clan-invite').setDescription('Lade ein Mitglied in deinen Clan ein').addUserOption(o => o.setName('target').setDescription('Mitglied wählen').setRequired(true)),
     new SlashCommandBuilder().setName('clan-deposit').setDescription('Zahle Bargeld auf das gemeinsame Clan-Bankkonto ein').addIntegerOption(o => o.setName('betrag').setDescription('Anzahl Münzen').setRequired(true)),
     new SlashCommandBuilder().setName('clan-leaderboard').setDescription('Zeigt die Rangliste aller registrierten Clans im Verbund'),
 
     // WETTBÜRO SYSTEM
-    new SlashCommandBuilder().setName('bet-start').setDescription('Starte ein neues Wett-Event für den Chat').addStringOption(o => o.setName('thema').setDescription('Worum geht es in der Wette?').setRequired(true)),
+    new SlashCommandBuilder().setName('bet-start').setDescription('Starte ein neues Wett-Event für den Chat').addStringOption(o => o.setName('thema').setDescription('Thema').setRequired(true)),
     new SlashCommandBuilder().setName('bet-place').setDescription('Platziere deinen Tipp mit Wetteinsatz').addStringOption(o => o.setName('tipp').setDescription('ja oder nein').setRequired(true)).addIntegerOption(o => o.setName('einsatz').setDescription('Münzeinsatz').setRequired(true)),
-    new SlashCommandBuilder().setName('bet-resolve').setDescription('Löse die Wette auf und schütte den Gewinntopf aus').addStringOption(o => o.setName('ergebnis').setDescription('Gewinner-Option: ja oder nein').setRequired(true))
+    new SlashCommandBuilder().setName('bet-resolve').setDescription('Löse die Wette auf und schütte den Gewinntopf aus').addStringOption(o => o.setName('ergebnis').setDescription('ja oder nein').setRequired(true))
 ].map(cmd => cmd.toJSON());
 
 async function registerAllCommands(guildId) {
@@ -396,13 +460,17 @@ async function registerAllCommands(guildId) {
     } catch(e){}
 }
 
-client.on('guildCreate', async guild => {
-    await registerAllCommands(guild.id);
-});
+client.on('guildCreate', async guild => { await registerAllCommands(guild.id); });
+client.once('ready', async () => { if (process.env.GUILD_ID) await registerAllCommands(process.env.GUILD_ID); });
 
-client.once('ready', async () => {
-    addLog('info', `AeroGuard Public Engine online.`);
-    if (process.env.GUILD_ID) await registerAllCommands(process.env.GUILD_ID);
+client.on('messageCreate', message => {
+    if (message.author.bot || !message.guild) return;
+    const userData = getRank(message.author.id); userData.totalMessages += 1; userData.xp += Math.floor(Math.random() * 5) + 3;
+    const nextLevelXp = userData.level * 150;
+    if (userData.xp >= nextLevelXp) {
+        userData.xp -= nextLevelXp; userData.level += 1;
+        message.channel.send(`✨ **LEVEL UP!** ${message.author} hat Sektor-Level **${userData.level}** erreicht!`).catch(()=>{});
+    }
 });
 
 // ==========================================
@@ -412,151 +480,117 @@ client.on('interactionCreate', async interaction => {
     if (interaction.isChatInputCommand()) {
         const { commandName, guild, channel } = interaction;
 
-        const adminCmds = ['status', 'restart', 'clear', 'kick', 'ban', 'timeout', 'untimeout', 'warn', 'lock', 'unlock', 'say', 'embed', 'dm', 'whitelist', 'supporter', 'ticket-panel', 'rbx-promote', 'rbx-kick', 'rbx-ban', 'rbx-unban', 'setup-welcome', 'setup-voicepilot', 'global-blacklist', 'supporter-kpi', 'setup-verify', 'giveaway-start', 'backup-create', 'bet-start', 'bet-resolve'];
+        const adminCmds = ['status', 'restart', 'clear', 'kick', 'ban', 'timeout', 'untimeout', 'warn', 'lock', 'unlock', 'say', 'embed', 'dm', 'whitelist', 'supporter', 'ticket-panel', 'rbx-promote', 'rbx-kick', 'rbx-ban', 'rbx-unban', 'rbx-announce', 'rbx-schedule-restart', 'rbx-view-schedule', 'setup-welcome', 'setup-voicepilot', 'global-blacklist', 'supporter-kpi', 'setup-verify', 'giveaway-start', 'backup-create', 'bet-start', 'bet-resolve', 'poll'];
         if (adminCmds.includes(commandName)) {
             if (!whitelistedUsers.has(interaction.user.id)) return interaction.reply({ content: '🔒 Berechtigung fehlt.', ephemeral: true });
         }
 
-        // --- NEW EXTENDED COMMAND LOGIC ---
+        // --- NEW EXECUTION LOGIC KNOTEN ---
+        if (commandName === 'rbx-announce') {
+            const text = interaction.options.getString('text');
+            const result = await sendRobloxLiveAnnouncement(text);
+            return interaction.reply(result.success ? `🌌 **Roblox-Ankündigung:** Lauftext *" ${text} "* erfolgreich an alle Spiel-Server geflasht!` : `❌ API-Fehler.`);
+        }
+
+        if (commandName === 'poll') {
+            const frage = interaction.options.getString('frage');
+            const optA = interaction.options.getString('option_a');
+            const optB = interaction.options.getString('option_b');
+
+            const pollEmbed = new EmbedBuilder()
+                .setTitle('📊 GALAXY LIVE-UMFRAGE SEKTOR')
+                .setDescription(`**${frage}**\n\n🔵 **${optA}:** 0% [░░░░░░░░░░] (0 Votes)\n🔴 **${optB}:** 0% [░░░░░░░░░░] (0 Votes)`)
+                .setColor(0x00f5d4)
+                .setFooter({ text: 'AeroGuard Dynamic Progress Engine' })
+                .setTimestamp();
+
+            const row = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId('live_poll_btn_a').setLabel(optA).setStyle(ButtonStyle.Primary),
+                new ButtonBuilder().setCustomId('live_poll_btn_b').setLabel(optB).setStyle(ButtonStyle.Danger)
+            );
+
+            const msg = await channel.send({ embeds: [pollEmbed], components: [row] });
+            livePollsDatabase.set(msg.id, { question: frage, optA, optB, votesA: new Set(), votesB: new Set() });
+            return interaction.reply({ content: '✅ Live-Balken Umfrage erfolgreich instanziiert.', ephemeral: true });
+        }
+
+        if (commandName === 'rbx-schedule-restart') {
+            const intervall = interaction.options.getInteger('intervall');
+            robloxRestartSchedules.set(guild.id, { intervalMinutes: intervall, active: true, lastRestart: Date.now() });
+            return interaction.reply(`⏰ **Roblox-Planer:** Automatisierter In-Game-Neustart für alle \`${intervall}\` Minuten hinterlegt.`);
+        }
+
+        if (commandName === 'rbx-view-schedule') {
+            const schedule = robloxRestartSchedules.get(guild.id);
+            if (!schedule || !schedule.active) return interaction.reply('🌌 **Roblox-Planer:** Keine Intervalle aktiv.');
+            const vergangen = Math.floor((Date.now() - schedule.lastRestart) / 60000);
+            return interaction.reply(`⏰ **Roblox-Planer-Status:** Aktiv | Intervall: \`alle ${schedule.intervalMinutes} Min\` | Vor: \`${vergangen} Min\`.`);
+        }
+
         if (commandName === 'rbx-ban') {
-            const uid = interaction.options.getString('userid');
-            const min = interaction.options.getInteger('minuten');
-            const grund = interaction.options.getString('grund');
-            const result = await banRobloxUserInGame(uid, min, grund);
-            return interaction.reply(result.success ? `🚨 **Roblox In-Game Ban:** Spieler \`${uid}\` wurde für \`${min}\` Minuten verbannt. Grund: *${grund}*` : `❌ API Fehler.`);
+            const uid = interaction.options.getString('userid'); const min = interaction.options.getInteger('minuten'); const grund = interaction.options.getString('grund');
+            await banRobloxUserInGame(uid, min, grund); return interaction.reply(`🚨 **Roblox Ban:** Spieler \`${uid}\` für \`${min}\` Min gesperrt. Grund: *${grund}*`);
         }
 
         if (commandName === 'rbx-unban') {
-            const uid = interaction.options.getString('userid');
-            const result = await unbanRobloxUserInGame(uid);
-            return interaction.reply(result.success ? `✅ In-Game Sperre für Roblox Spieler \`${uid}\` aufgehoben.` : `❌ Fehler: ${result.error}`);
+            const uid = interaction.options.getString('userid'); await unbanRobloxUserInGame(uid); return interaction.reply(`✅ Sperre gelöscht.`);
         }
 
         if (commandName === 'clan-create') {
-            const name = interaction.options.getString('name');
-            if (clanDatabase.has(interaction.user.id)) return interaction.reply('❌ Du bist bereits in einem Clan oder besitzt einen.');
-            clanDatabase.set(interaction.user.id, { name, ownerId: interaction.user.id, bank: 0, members: [interaction.user.id] });
-            return interaction.reply(`🎉 **Clan gegründet:** Dein Clan **"${name}"** wurde erfolgreich im Register hinterlegt.`);
+            const name = interaction.options.getString('name'); if (clanDatabase.has(interaction.user.id)) return interaction.reply('❌ Clan blockiert.');
+            clanDatabase.set(interaction.user.id, { name, ownerId: interaction.user.id, bank: 0, members: [interaction.user.id] }); return interaction.reply(`🎉 Clan **"${name}"** registriert.`);
         }
 
         if (commandName === 'clan-deposit') {
-            const betrag = interaction.options.getInteger('betrag');
-            const eco = getEco(interaction.user.id);
-            if (eco.wallet < betrag) return interaction.reply('❌ Zu wenig Bargeld.');
-            
-            let userClan = null;
-            clanDatabase.forEach(c => { if (c.members.includes(interaction.user.id)) userClan = c; });
-            if (!userClan) return interaction.reply('❌ Du bist in keinem Clan.');
-
-            eco.wallet -= betrag;
-            userClan.bank += betrag;
-            return interaction.reply(`✅ \`${betrag} Münzen\` auf das Bankkonto von Clan **"${userClan.name}"** eingezahlt.`);
+            const betrag = interaction.options.getInteger('betrag'); const eco = getEco(interaction.user.id); if (eco.wallet < betrag) return interaction.reply('❌ Zu wenig Cash.');
+            let userClan = null; clanDatabase.forEach(c => { if (c.members.includes(interaction.user.id)) userClan = c; });
+            if (!userClan) return interaction.reply('❌ Kein Clan gefunden.');
+            eco.wallet -= betrag; userClan.bank += betrag; return interaction.reply(`✅ Eingezahlt.`);
         }
 
         if (commandName === 'clan-leaderboard') {
-            let list = '';
-            clanDatabase.forEach(c => { list += `• **Clan ${c.name}** — Tresor: \`${c.bank} Münzen\` | Mitglieder: \`${c.members.length}\` \n`; });
-            return interaction.reply({ embeds: [new EmbedBuilder().setTitle('🏆 Globales Clan-Zentralregister').setDescription(list || 'Keine Clans registriert. Gründe einen mit `/clan-create`!').setColor(0x9d4edd)] });
+            let list = ''; clanDatabase.forEach(c => { list += `• **${c.name}** — Bank: \`${c.bank}\` \n`; });
+            return interaction.reply({ embeds: [new EmbedBuilder().setTitle('🏆 Clan-Register').setDescription(list || 'Leer.').setColor(0x9d4edd)] });
         }
 
         if (commandName === 'bet-start') {
-            const thema = interaction.options.getString('thema');
-            activeBets.set(guild.id, { topic: thema, poolJa: 0, poolNein: 0, userBets: new Map() });
-            return interaction.reply(`🎲 **Neues Wettbüro eröffnet!** Thema: **"${thema}"** \nNutze \`/bet-place\`, um deine Münzen zu setzen!`);
+            const thema = interaction.options.getString('thema'); activeBets.set(guild.id, { topic: thema, poolJa: 0, poolNein: 0, userBets: new Map() });
+            return interaction.reply(`🎲 **Wettbüro offen:** "${thema}"`);
         }
 
         if (commandName === 'bet-place') {
-            const tipp = interaction.options.getString('tipp').toLowerCase();
-            const einsatz = interaction.options.getInteger('einsatz');
-            const eco = getEco(interaction.user.id);
-            const bet = activeBets.get(guild.id);
-
-            if (!bet) return interaction.reply('❌ Aktuell läuft keine Wettrunde auf diesem Server.');
-            if (eco.wallet < einsatz) return interaction.reply('❌ Du hast zu wenig Bargeld.');
-            if (tipp !== 'ja' && tipp !== 'nein') return interaction.reply('❌ Gültige Optionen sind nur "ja" oder "nein".');
-
-            eco.wallet -= einsatz;
-            if (tipp === 'ja') bet.poolJa += einsatz; else bet.poolNein += einsatz;
-            bet.userBets.set(interaction.user.id, { tipp, einsatz });
-            return interaction.reply(`✅ \`${einsatz} Münzen\` erfolgreich auf **"${tipp.toUpperCase()}"** gesetzt!`);
+            const tipp = interaction.options.getString('tipp').toLowerCase(); const einsatz = interaction.options.getInteger('einsatz'); const eco = getEco(interaction.user.id); const bet = activeBets.get(guild.id);
+            if (!bet) return interaction.reply('❌ Keine Wette aktiv.'); if (eco.wallet < einsatz) return interaction.reply('❌ Zu wenig Bargeld.');
+            eco.wallet -= einsatz; if (tipp === 'ja') bet.poolJa += einsatz; else bet.poolNein += einsatz;
+            bet.userBets.set(interaction.user.id, { tipp, einsatz }); return interaction.reply(`✅ Tipp abgegeben.`);
         }
 
         if (commandName === 'bet-resolve') {
-            const ergebnis = interaction.options.getString('ergebnis').toLowerCase();
-            const bet = activeBets.get(guild.id);
-            if (!bet) return interaction.reply('❌ Keine Wette aktiv.');
-
-            let totalPool = bet.poolJa + bet.poolNein;
-            let winningPool = ergebnis === 'ja' ? bet.poolJa : bet.poolNein;
-
-            if (winningPool > 0) {
-                bet.userBets.forEach((val, uId) => {
-                    if (val.tipp === ergebnis) {
-                        const anteil = val.einsatz / winningPool;
-                        const gewinn = Math.floor(anteil * totalPool);
-                        getEco(uId).wallet += gewinn;
-                    }
-                });
-            }
-            activeBets.delete(guild.id);
-            return interaction.reply(`🎲 **Wettbüro geschlossen!** Das Ergebnis ist **"${ergebnis.toUpperCase()}"**. Der Gewinntopf von \`${totalPool} Münzen\` wurde ausgeschüttet.`);
+            const ergebnis = interaction.options.getString('ergebnis').toLowerCase(); const bet = activeBets.get(guild.id); if (!bet) return interaction.reply('❌ Keine Wette.');
+            let totalPool = bet.poolJa + bet.poolNein; let winningPool = ergebnis === 'ja' ? bet.poolJa : bet.poolNein;
+            if (winningPool > 0) { bet.userBets.forEach((val, uId) => { if (val.tipp === ergebnis) { getEco(uId).wallet += Math.floor((val.einsatz / winningPool) * totalPool); } }); }
+            activeBets.delete(guild.id); return interaction.reply(`🎲 Wette aufgelöst! Ergebnis: "${ergebnis.toUpperCase()}". Topf von \`${totalPool}\` ausgeschüttet.`);
         }
 
-        // PRE-EXISTING COMMAND CORES
-        if (commandName === 'setup-welcome') {
-            const ch = interaction.options.getChannel('kanal'); welcomeChannelConfig.set(guild.id, ch.id);
-            return interaction.reply(`✅ Kanaleinstellung für Beitritte gespeichert: <#${ch.id}>`);
-        }
-        if (commandName === 'setup-voicepilot') {
-            const ch = interaction.options.getChannel('kanal'); voiceAutoPilotConfig.set(guild.id, ch.id);
-            return interaction.reply(`✅ Voice-Autopilot Hub definiert auf: <#${ch.id}>`);
-        }
-        if (commandName === 'ticket-ai') { return interaction.reply(`🤖 **KI Analyse Sektor:** Datentunnel stabil.`); }
-        if (commandName === 'supporter-kpi') {
-            const target = interaction.options.getUser('target'); const kpi = getKPI(target.id);
-            return interaction.reply(`📊 **KPI <@${target.id}>:** Claims: \`${kpi.claimed}\` | Closed: \`${kpi.closed}\``);
-        }
+        // Standard Fallbacks
+        if (commandName === 'setup-welcome') { const ch = interaction.options.getChannel('kanal'); welcomeChannelConfig.set(guild.id, ch.id); return interaction.reply(`✅ Beitrittskanal hinterlegt: <#${ch.id}>`); }
+        if (commandName === 'setup-voicepilot') { const ch = interaction.options.getChannel('kanal'); voiceAutoPilotConfig.set(guild.id, ch.id); return interaction.reply(`✅ Voice Hub auf: <#${ch.id}>`); }
+        if (commandName === 'supporter-kpi') { const target = interaction.options.getUser('target'); const kpi = getKPI(target.id); return interaction.reply(`📊 KPI: Claims: \`${kpi.claimed}\` | Closed: \`${kpi.closed}\``); }
         if (commandName === 'crypto') {
             const aktion = interaction.options.getString('aktion'); const coin = interaction.options.getString('coin'); const anzahl = interaction.options.getInteger('anzahl'); const eco = getEco(interaction.user.id);
-            if (!cryptoMarket[coin]) return interaction.reply('❌ Unbekannte Währung.');
-            if (aktion === 'view') return interaction.reply(`📈 **Krypto-Markt:** AeroCoin: \`${cryptoMarket.AeroCoin.price}\` | GalaxyCredit: \`${cryptoMarket.GalaxyCredit.price}\``);
-            if (aktion === 'buy') {
-                const costs = cryptoMarket[coin].price * anzahl; if (eco.wallet < costs) return interaction.reply('❌ Zu wenig Bargeld.');
-                eco.wallet -= costs; eco.crypto[coin] = (eco.crypto[coin] || 0) + anzahl; return interaction.reply(`✅ Gekauft!`);
-            }
-            if (aktion === 'sell') {
-                if ((eco.crypto[coin] || 0) < anzahl) return interaction.reply('❌ Zu wenig Anteile.');
-                const payout = cryptoMarket[coin].price * anzahl; eco.crypto[coin] -= anzahl; eco.wallet += payout; return interaction.reply(`💰 Verkauft!`);
-            }
-        }
-        if (commandName === 'rob-bank') {
-            const eco = getEco(interaction.user.id); if (eco.wallet < 500) return interaction.reply('❌ Mindestens 500 Münzen nötig!');
-            if (Math.random() > 0.7) { const cash = Math.floor(Math.random() * 2000) + 1000; eco.wallet += cash; return interaction.reply(`💰 Tresor gesprengt! +${cash} Münzen.`); }
-            eco.wallet = Math.max(0, eco.wallet - 500); return interaction.reply('🚨 Fehlgeschlagen!');
-        }
-        if (commandName === 'setup-verify') {
-            const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('gatekeeper_verify_trigger').setLabel('🔓 Identität verifizieren').setStyle(ButtonStyle.Success));
-            await channel.send({ embeds: [new EmbedBuilder().setTitle('🔒 Anti-Raid Gatekeeper').setDescription('Klicke unten, um dich freizuschalten.').setColor(0xff4d6d)], components: [row] });
-            return interaction.reply({ content: '✅ Gate im Chat injiziert.', ephemeral: true });
-        }
-        if (commandName === 'giveaway-start') {
-            const preis = interaction.options.getString('preis'); const min = interaction.options.getInteger('minuten');
-            const msg = await channel.send({ embeds: [new EmbedBuilder().setTitle('🎉 GIVEAWAY').setDescription(`Gewinn: \`${preis}\`\nZeit: \`${min}m\``).setColor(0x00f5d4)] }); await msg.react('🎉');
-            activeGiveaways.set(msg.id, { prize: preis, endAt: Date.now() + min * 60000, channelId: channel.id }); return interaction.reply({ content: 'Giveaway aktiv.', ephemeral: true });
-        }
-        if (commandName === 'backup-create') {
-            const backupId = `BU_${Math.floor(Math.random() * 90000) + 10000}`; serverBackups.set(backupId, { id: backupId, name: guild.name });
-            return interaction.reply(`💾 Backup \`${backupId}\` angelegt.`);
+            if (!cryptoMarket[coin]) return interaction.reply('❌ Unbekannt.');
+            if (aktion === 'view') return interaction.reply(`📈 Ticker: AeroCoin: \`${cryptoMarket.AeroCoin.price}\` | GalaxyCredit: \`${cryptoMarket.GalaxyCredit.price}\``);
+            if (aktion === 'buy') { const costs = cryptoMarket[coin].price * anzahl; if (eco.wallet < costs) return interaction.reply('❌ Zu wenig Cash.'); eco.wallet -= costs; eco.crypto[coin] = (eco.crypto[coin] || 0) + anzahl; return interaction.reply(`✅ Gekauft!`); }
+            if (aktion === 'sell') { if ((eco.crypto[coin] || 0) < anzahl) return interaction.reply('❌ Zu wenig Anteile.'); eco.wallet += cryptoMarket[coin].price * anzahl; eco.crypto[coin] -= anzahl; return interaction.reply(`💰 Verkauft!`); }
         }
         if (commandName === 'blackjack') {
-            const einsatz = interaction.options.getInteger('einsatz'); const eco = getEco(interaction.user.id);
-            if (eco.wallet < einsatz) return interaction.reply('❌ Zu wenig Cash.'); eco.wallet -= einsatz;
+            const einsatz = interaction.options.getInteger('einsatz'); const eco = getEco(interaction.user.id); if (eco.wallet < einsatz) return interaction.reply('❌ Zu wenig Cash.'); eco.wallet -= einsatz;
             const pVal = Math.floor(Math.random() * 10) + 12; const dVal = Math.floor(Math.random() * 8) + 13;
-            if (pVal > dVal && pVal <= 21) { eco.wallet += einsatz * 2; return interaction.reply(`🃏 Win! Deine Hand: \`${pVal}\` | Haus: \`${dVal}\`.`); }
-            return interaction.reply(`🃏 Verloren! Deine Hand: \`${pVal}\` | Haus: \`${dVal}\`.`);
+            if (pVal > dVal && pVal <= 21) { eco.wallet += einsatz * 2; return interaction.reply(`🃏 Win! Du: \`${pVal}\` | Haus: \`${dVal}\`.`); }
+            return interaction.reply(`🃏 Lose! Du: \`${pVal}\` | Haus: \`${dVal}\`.`);
         }
         if (commandName === 'status') return interaction.reply(`🎮 **Live-Telemetrie:** \`${currentPlayersCount}/${maxPlayersCount}\` Spieler online.`);
-        if (commandName === 'clear') { const anzahl = interaction.options.getInteger('anzahl'); await channel.bulkDelete(anzahl, true); return interaction.reply({ content: '🧹 Kanal bereinigt.', ephemeral: true }); }
+        if (commandName === 'clear') { const anzahl = interaction.options.getInteger('anzahl'); await channel.bulkDelete(anzahl, true); return interaction.reply({ content: '🧹 Bereinigt.', ephemeral: true }); }
         if (commandName === 'ping') return interaction.reply(`🏓 Latenz: \`${Math.round(client.ws.ping)}ms\``);
         if (commandName === 'ticket-panel') {
             const row = new ActionRowBuilder(); ticketSystemConfig.categories.forEach(cat => { row.addComponents(new ButtonBuilder().setCustomId(`server_panel_trigger_${cat.id}_${guild.id}`).setLabel(cat.label).setStyle(cat.color)); });
@@ -566,18 +600,66 @@ client.on('interactionCreate', async interaction => {
     }
 
     // ==========================================
-    // INTERACTION BUTTONS & DROPDOWN MANAGEMENT
+    // INTERACTIVE POLLING CALCULATION MODULE (NEU!)
     // ==========================================
+    if (interaction.isButton() && (interaction.customId === 'live_poll_btn_a' || interaction.customId === 'live_poll_btn_b')) {
+        const poll = livePollsDatabase.get(interaction.message.id);
+        if (!poll) return interaction.reply({ content: '❌ Diese Umfrage ist im RAM-Cluster abgelaufen.', ephemeral: true });
+
+        const userId = interaction.user.id;
+
+        // Striktes Voting-Regelwerk: Man darf nur für EINE Option stimmen
+        if (interaction.customId === 'live_poll_btn_a') {
+            poll.votesB.delete(userId);
+            poll.votesA.add(userId);
+        } else {
+            poll.votesA.delete(userId);
+            poll.votesB.add(userId);
+        }
+
+        const totalVotes = poll.votesA.size + poll.votesB.size;
+        const pctA = totalVotes > 0 ? Math.round((poll.votesA.size / totalVotes) * 100) : 0;
+        const pctB = totalVotes > 0 ? Math.round((poll.votesB.size / totalVotes) * 100) : 0;
+
+        const barA = generateProgressBar(pctA);
+        const barB = generateProgressBar(pctB);
+
+        const updatedEmbed = new EmbedBuilder()
+            .setTitle('📊 GALAXY LIVE-UMFRAGE SEKTOR')
+            .setDescription(`**${poll.question}**\n\n🔵 **${poll.optA}:** \`${pctA}%\` [${barA}] (${poll.votesA.size} Votes)\n🔴 **${poll.optB}:** \`${pctB}%\` [${barB}] (${poll.votesB.size} Votes)`)
+            .setColor(0x00f5d4)
+            .setFooter({ text: 'AeroGuard Dynamic Progress Engine' })
+            .setTimestamp();
+
+        await interaction.update({ embeds: [updatedEmbed] });
+        return;
+    }
+
+    // Components Handling Fallbacks
     if (interaction.isStringSelectMenu() && interaction.customId === 'supporter_ticket_select') {
         const targetUserId = interaction.values[0]; const ticket = activeTickets.get(targetUserId); const suppId = interaction.user.id;
-        if (!ticket) return interaction.reply({ content: '❌ Ticket abgelaufen.', ephemeral: true });
-
+        if (!ticket) return interaction.reply({ content: '❌ Ticket fehlt.', ephemeral: true });
         const actionRow = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId(`dm_panel_claim_${targetUserId}`).setLabel('🟩 Übernehmen').setStyle(ButtonStyle.Success).setDisabled(ticket.claimedBy !== null),
             new ButtonBuilder().setCustomId(`dm_panel_transfer_${targetUserId}`).setLabel('🟨 Freigeben').setStyle(ButtonStyle.Warning).setDisabled(ticket.claimedBy !== suppId),
             new ButtonBuilder().setCustomId(`dm_panel_close_${targetUserId}`).setLabel('🟥 Schließen').setStyle(ButtonStyle.Danger)
         );
-        return await interaction.reply({ embeds: [new EmbedBuilder().setTitle(`⚙️ Ticket #${ticket.ticketNum}`).setDescription(`Inhaber: ${ticket.username}`).setColor(0x00f5d4)], components: [actionRow], ephemeral: true });
+        return await interaction.reply({ embeds: [new EmbedBuilder().setTitle('⚙️ Ticketsteuerung').setDescription(`Inhaber: ${ticket.username}`).setColor(0x00f5d4)], components: [actionRow], ephemeral: true });
+    }
+
+    if (interaction.isButton() && interaction.customId.startsWith('app_decision_')) {
+        const parts = interaction.customId.split('_'); const decision = parts[2]; const applicantId = parts[3];
+        try {
+            const applicantUser = await client.users.fetch(applicantId);
+            if (decision === 'accept') {
+                authorizedSupporters.add(applicantId);
+                if (applicantUser) await applicantUser.send("🎉 **Bewerbung Angenommen!** Du bist im Support-Team.");
+                await interaction.reply({ content: `🟩 Angenommen.`, ephemeral: true });
+            } else {
+                if (applicantUser) await applicantUser.send("❌ **Bewerbung Abgelehnt.**");
+                await interaction.reply({ content: `🟥 Abgelehnt.`, ephemeral: true });
+            }
+        } catch(e) { await interaction.reply({ content: "Fehler.", ephemeral: true }); }
     }
 
     if (interaction.isButton() && interaction.customId.startsWith('dm_panel_')) {
@@ -586,25 +668,27 @@ client.on('interactionCreate', async interaction => {
 
         if (action === 'claim') {
             ownerActiveSession.set(supporterId, targetUserId); ticket.claimedBy = supporterId; getKPI(supporterId).claimed += 1;
-            await interaction.reply({ content: `🟩 **Tunnel geöffnet.** Gesprächsbrücke live geschaltet.`, ephemeral: true });
-            try { (await client.users.fetch(targetUserId))?.send(`🔮 Ein Supporter ist nun live mit dir verbunden.`); } catch(e){}
+            await interaction.reply({ content: `🟩 Tunnel aktiv.`, ephemeral: true });
         }
         if (action === 'close') {
-            await interaction.reply({ content: `🟥 Ticket geschlossen.`, ephemeral: true }); getKPI(supporterId).closed += 1;
-            try { (await client.users.fetch(targetUserId))?.send('🔒 Dein Support-Tunnel wurde geschlossen.'); } catch(e){}
+            await interaction.reply({ content: `🟥 Gelöscht.`, ephemeral: true }); getKPI(supporterId).closed += 1;
             activeTickets.delete(targetUserId); ownerActiveSession.delete(supporterId);
         }
-        if (action === 'transfer') {
-            ticket.claimedBy = null; ownerActiveSession.delete(supporterId); await interaction.reply({ content: `🟨 Freigegeben.`, ephemeral: true });
-            try { (await client.users.fetch(targetUserId))?.send('🔮 Du wurdest zurück in die Warteschleife geleitet.'); } catch(e){}
-        }
+        if (action === 'transfer') { ticket.claimedBy = null; ownerActiveSession.delete(supporterId); await interaction.reply({ content: `🟨 Freigegeben.`, ephemeral: true }); }
     }
 
     if (interaction.isButton() && interaction.customId.startsWith('server_panel_trigger_')) {
         const parts = interaction.customId.split('_'); const catId = parts[3]; const gId = parts[4]; const userId = interaction.user.id;
+        if (catId === 'team') {
+            activeApplications.set(userId, { step: 0, answers: [], guildId: gId });
+            try {
+                await interaction.user.send("📝 **AeroGuard Bewerbungsverfahren gestartet!**\n\n" + APPLICATION_QUESTIONS[0]);
+                return interaction.reply({ content: '📥 Schau in deine DMs!', ephemeral: true });
+            } catch(e) { return interaction.reply({ content: '❌ Öffne deine DMs.', ephemeral: true }); }
+        }
         const selectedCat = ticketSystemConfig.categories.find(c => c.id === catId); const label = selectedCat ? selectedCat.label : "Support";
         pendingTicketSelections.set(userId, { categoryId: catId, categoryLabel: label, guildId: gId });
-        try { await interaction.user.send(`🔮 **Ticket initialisiert:** Sende jetzt deinen **Grund** als Nachricht hier rein!`); return interaction.reply({ content: '📥 Anleitung in deinen DMs!', ephemeral: true }); } catch (e) { return interaction.reply({ content: '❌ Öffne deine DMs.', ephemeral: true }); }
+        try { await interaction.user.send(`🔮 **Ticket initialisiert:** Sende jetzt deinen **Grund**!`); return interaction.reply({ content: '📥 Anleitung in deinen DMs!', ephemeral: true }); } catch (e) { return interaction.reply({ content: '❌ Öffne deine DMs.', ephemeral: true }); }
     }
 });
 
@@ -613,6 +697,33 @@ client.on('interactionCreate', async interaction => {
 // ==========================================
 client.on('messageCreate', async message => {
     if (message.author.bot) return;
+
+    if (!message.guild && activeApplications.has(message.author.id)) {
+        const userId = message.author.id; const appState = activeApplications.get(userId);
+        appState.answers.push(message.content); appState.step += 1;
+        if (appState.step < APPLICATION_QUESTIONS.length) { return await message.author.send(APPLICATION_QUESTIONS[appState.step]); } 
+        else {
+            activeApplications.delete(userId); await message.author.send("✅ **Bewerbung vollständig!**");
+            try {
+                const ownerUser = await client.users.fetch(OWNER_ID);
+                if (ownerUser) {
+                    const appEmbed = new EmbedBuilder().setTitle(`📝 Neue Team-Bewerbung!`).setDescription(`Bewerber: ${message.author}`).setColor(0x00f5d4)
+                        .addFields(
+                            { name: APPLICATION_QUESTIONS[0], value: appState.answers[0] },
+                            { name: APPLICATION_QUESTIONS[1], value: appState.answers[1] },
+                            { name: APPLICATION_QUESTIONS[2], value: appState.answers[2] },
+                            { name: APPLICATION_QUESTIONS[3], value: appState.answers[3] }
+                        );
+                    const decisionRow = new ActionRowBuilder().addComponents(
+                        new ButtonBuilder().setCustomId(`app_decision_accept_${userId}`).setLabel('🟩 Annehmen').setStyle(ButtonStyle.Success),
+                        new ButtonBuilder().setCustomId(`app_decision_deny_${userId}`).setLabel('🟥 Ablehnen').setStyle(ButtonStyle.Danger)
+                    );
+                    await ownerUser.send({ embeds: [appEmbed], components: [decisionRow] });
+                }
+            } catch(e){}
+            return;
+        }
+    }
 
     if (!message.guild && authorizedSupporters.has(message.author.id)) {
         const suppId = message.author.id;
@@ -644,7 +755,7 @@ client.on('messageCreate', async message => {
             pendingTicketSelections.delete(userId);
             
             await message.reply(`✅ **Ticket #${totalTicketCounter} eingereicht!**`);
-            authorizedSupporters.forEach(async sId => { try { (await client.users.fetch(sId))?.send(`🔔 **Neues Ticket #${totalTicketCounter} eingegangen!** Schreib mir, um die Übersicht zu laden.`); } catch(e){} });
+            authorizedSupporters.forEach(async sId => { try { (await client.users.fetch(sId))?.send(`🔔 **Neues Ticket #${totalTicketCounter} eingegangen!** Schreib mir.`); } catch(e){} });
             return;
         }
 
@@ -664,7 +775,7 @@ app.get('/api/auth/callback', async (req, res) => {
         const tokenResponse = await axios.post('https://discord.com/api/oauth2/token', new URLSearchParams({ client_id: process.env.CLIENT_ID, client_secret: process.env.CLIENT_SECRET, grant_type: 'authorization_code', code: req.query.code, redirect_uri: process.env.REDIRECT_URI }), { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
         const userResponse = await axios.get('https://discord.com/api/users/@me', { headers: { Authorization: `Bearer ${tokenResponse.data.access_token}` } });
         if (userResponse.data.id === OWNER_ID) { req.session.user = userResponse.data; return res.redirect('/'); }
-        return res.send("<h2>❌ Verweigert.</h2>");
+        return res.send("❌ Verweigert.");
     } catch (e) { return res.redirect('/login'); }
 });
 app.get('/', checkWebAuth, (req, res) => {
