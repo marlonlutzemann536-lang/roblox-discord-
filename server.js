@@ -97,11 +97,19 @@ async function checkWebAuth(req, res, next) {
 // DISCORD OAUTH2 LOGIN ROUTING
 // -----------------------------------------------------------------
 app.get('/login', (req, res) => {
-    // Wenn bereits eingeloggt, direkt zum Dashboard
     if (req.session.user) return res.redirect('/');
 
-    const redirectUri = encodeURIComponent(process.env.REDIRECT_URI);
-    const discordLoginUrl = `https://discord.com/api/oauth2/authorize?client_id=${process.env.CLIENT_ID}&redirect_uri=${redirectUri}&response_type=code&scope=identify%20guilds.members.read`;
+    // Auslesen der Variablen mit Fallback auf alternative Schreibweisen, falls Render zickt
+    const clientId = process.env.CLIENT_ID || process.env.client_id;
+    const redirectUriEnv = process.env.REDIRECT_URI || process.env.redirect_uri;
+
+    if (!clientId || !redirectUriEnv) {
+        addLog('error', 'Kritische Variablen CLIENT_ID oder REDIRECT_URI fehlen in den Render-Einstellungen!');
+        return res.send('<h2 style="color:red; font-family:sans-serif; text-align:center; padding-top:50px;">❌ Systemfehler: CLIENT_ID oder REDIRECT_URI sind auf Render nicht definiert! Bitte überprüfe deine Umgebungsvariablen.</h2>');
+    }
+
+    const redirectUri = encodeURIComponent(redirectUriEnv);
+    const discordLoginUrl = `https://discord.com/api/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=identify%20guilds.members.read`;
 
     res.send(`
     <!DOCTYPE html>
@@ -109,7 +117,7 @@ app.get('/login', (req, res) => {
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>AeroGuard OS - Login</title>
+        <title>AeroGuard - Login</title>
         <style>
             body { font-family: 'Segoe UI', sans-serif; background-color: #0f111a; color: white; text-align: center; padding-top: 150px; }
             .login-card { background: #161925; max-width: 400px; margin: 0 auto; padding: 40px; border-radius: 8px; border: 1px solid #23283d; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
@@ -121,7 +129,7 @@ app.get('/login', (req, res) => {
     </head>
     <body>
         <div class="login-card">
-            <h2>🔒 AeroGuard OS</h2>
+            <h2>🔒 AeroGuard</h2>
             <p>Dieses Kontrollzentrum ist geschützt. Bitte autorisiere dich mit deinem Discord-Account, um fortzufahren.</p>
             <a href="${discordLoginUrl}" class="btn-discord">🔑 Mit Discord anmelden</a>
         </div>
@@ -130,51 +138,48 @@ app.get('/login', (req, res) => {
     `);
 });
 
-// Der Callback-Endpunkt, an den Discord den User nach dem Login zurückschickt
 app.get('/api/auth/callback', async (req, res) => {
     const { code } = req.query;
     if (!code) return res.redirect('/login');
 
+    const clientId = process.env.CLIENT_ID || process.env.client_id;
+    const clientSecret = process.env.CLIENT_SECRET || process.env.client_secret;
+    const redirectUri = process.env.REDIRECT_URI || process.env.redirect_uri;
+
     try {
-        // 1. Tausche den Code gegen einen Discord Access-Token ein
         const tokenResponse = await axios.post('https://discord.com/api/oauth2/token', new URLSearchParams({
-            client_id: process.env.CLIENT_ID,
-            client_secret: process.env.CLIENT_SECRET,
+            client_id: clientId,
+            client_secret: clientSecret,
             grant_type: 'authorization_code',
             code: code,
-            redirect_uri: process.env.REDIRECT_URI,
+            redirect_uri: redirectUri,
         }), { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
 
         const accessToken = tokenResponse.data.access_token;
 
-        // 2. Hole das Benutzerprofil von Discord ab
         const userResponse = await axios.get('https://discord.com/api/users/@me', {
             headers: { Authorization: `Bearer ${accessToken}` }
         });
         const discordUser = userResponse.data;
 
-        // 3. Überprüfe die Rechte auf deinem Discord-Server
         const guildId = process.env.GUILD_ID;
         const memberResponse = await axios.get(`https://discord.com/api/users/@me/guilds/${guildId}/member`, {
             headers: { Authorization: `Bearer ${accessToken}` }
         });
         const memberData = memberResponse.data;
 
-        // Hol den Server über Discord.js um den wahren Owner zu bestimmen
         const guild = await client.guilds.fetch(guildId);
         
-        // ZUGRIFFS-PRÜFUNG: Ist er der absolute Server-Owner, besitzt er Admin-Rechte oder ist er händisch gewhitelistet?
         const isOwner = discordUser.id === guild.ownerId || discordUser.id === '1320473866';
         const hasAdminPermission = (parseInt(memberData.permissions) & 0x00000008) === 0x00000008;
 
         if (isOwner || hasAdminPermission || whitelistedUsers.has(discordUser.id)) {
-            // Erfolg! Session erstellen
             req.session.user = discordUser;
-            addLog('info', `Erfolgreicher Web-Panel Login von: ${discordUser.username}#${discordUser.discriminator}`);
+            addLog('info', `Erfolgreicher Web-Panel Login von: ${discordUser.username}`);
             return res.redirect('/');
         } else {
-            addLog('error', `Abgewiesener Web-Panel Login-Versuch von ID: ${discordUser.id} (Ungenügende Rechte)`);
-            return res.send('<h1 style="color:red; font-family:sans-serif; text-align:center; margin-top:100px;">❌ Zugriff verweigert! Du bist nicht der Besitzer dieses Systems oder besitzt keine Administrator-Rechte auf dem Discord Server.</h1>');
+            addLog('error', `Abgewiesener Web-Panel Login-Versuch von ID: ${discordUser.id}`);
+            return res.send('<h1 style="color:red; font-family:sans-serif; text-align:center; margin-top:100px;">❌ Zugriff verweigert! Ungenügende Rechte auf dem Discord Server.</h1>');
         }
 
     } catch (error) {
@@ -213,7 +218,7 @@ app.get('/', checkWebAuth, (req, res) => {
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>AeroGuard OS - Dashboard</title>
+        <title>AeroGuard - Dashboard</title>
         <style>
             :root {
                 --bg-main: #0f111a;
@@ -255,7 +260,7 @@ app.get('/', checkWebAuth, (req, res) => {
         <div class="container">
             <header>
                 <div>
-                    <h1>⚙️ AeroGuard OS — Administrator Panel</h1>
+                    <h1>⚙️ AeroGuard — Administrator Panel</h1>
                     <p style="margin:5px 0 0 0; color:#8a8f98;">Echtzeitüberwachung & Steuerung</p>
                 </div>
                 <div style="display:flex; align-items:center; gap:20px;">
@@ -298,7 +303,7 @@ app.get('/', checkWebAuth, (req, res) => {
     `);
 });
 
-// Web Actions (geschützt durch checkWebAuth)
+// Web Actions
 app.post('/web-panel/whitelist-add', checkWebAuth, (req, res) => {
     const { userid } = req.body;
     if (userid && userid.trim() !== "") {
@@ -395,7 +400,7 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply({ content: '🔒 Zugriff verweigert! Nicht gewhitelistet.', ephemeral: true });
     }
 
-    if (commandName === 'status') return interaction.reply({ content: `🎮 **AeroGuard OS Stats:** In-Game: ${currentPlayersCount}/${maxPlayersCount} Spieler.` });
+    if (commandName === 'status') return interaction.reply({ content: `🎮 **AeroGuard Stats:** In-Game: ${currentPlayersCount}/${maxPlayersCount} Spieler.` });
     if (commandName === 'restart') {
         restartRequested = true;
         return interaction.reply({ content: '🔄 Restart-Signal abgesetzt.' });
@@ -404,7 +409,7 @@ client.on('interactionCreate', async interaction => {
 });
 
 // -----------------------------------------------------------------
-// ROBLOX COUPLING DATA TRAFFIC (Vom Spiel empfangen)
+// ROBLOX COUPLING DATA TRAFFIC
 // -----------------------------------------------------------------
 app.post('/update-status', (req, res) => {
     const { currentPlayers, maxPlayers, players } = req.body;
@@ -450,7 +455,7 @@ app.post('/promote', async (req, res) => {
     } catch (error) { return res.status(500).json({ error: error.message }); }
 });
 
-addLog('info', 'AeroGuard OS wird hochgefahren und initialisiert...');
+addLog('info', 'AeroGuard wird hochgefahren und initialisiert...');
 client.login(process.env.DISCORD_TOKEN).catch(err => {
     addLog('error', `Kritischer Login-Fehler: ${err.message}`);
 });
