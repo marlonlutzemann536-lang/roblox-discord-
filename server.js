@@ -12,7 +12,8 @@ const {
     ButtonStyle, 
     ChannelType, 
     Partials, 
-    StringSelectMenuBuilder 
+    StringSelectMenuBuilder,
+    ChannelSelectMenuBuilder
 } = require('discord.js');
 const axios = require('axios');
 const session = require('express-session');
@@ -27,7 +28,7 @@ let currentPlayersCount = 0;
 let maxPlayersCount = 0;
 let playerList = [];
 let restartRequested = false;
-let systemStatus = "🟢 AeroGuard Enterprise Premium Network Online | Live-Poll Matrix Configured";
+let systemStatus = "🟢 AeroGuard Enterprise Premium Network Online | Voice-Support Matrix Active";
 
 // Globale RAM-Datenbanken (Strikte Trennung für Public-Modus)
 const activeTickets = new Map(); 
@@ -52,9 +53,10 @@ const voiceAutoPilotConfig = new Map();
 const robloxBanDatabase = new Map(); 
 const robloxRestartSchedules = new Map(); 
 const activeApplications = new Map(); 
+const livePollsDatabase = new Map(); 
 
-// NEU: GLOBALER SPEICHER FÜR INTELLIGENTE LIVE-BALKEN UMFRAGEN
-const livePollsDatabase = new Map(); // Key: MessageID -> Value: { question: string, optA: string, optB: string, votesA: Set, votesB: Set }
+// NEU: SPEICHER FÜR DYNAMISCHES VOICE-SUPPORT ALARM SYSTEM
+const voiceSupportAlertChannels = new Map(); // Key: GuildID -> Value: TextChannelID
 
 const APPLICATION_QUESTIONS = [
     "🔢 Frage 1: Wie alt bist du aktuell?",
@@ -132,7 +134,7 @@ let client = new Client({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(session({
-    secret: 'aeroguard_mega_hyper_galaxy_enterprise_super_long_secret_key_string_998877665544332211_max_unlocked_chars_matrix_edition_recovery_gate_ultimate_v3',
+    secret: 'aeroguard_mega_hyper_galaxy_enterprise_super_long_secret_key_string_998877665544332211_max_unlocked_chars_matrix_edition_recovery_gate_ultimate_v4',
     resave: false,
     saveUninitialized: false,
     cookie: { secure: false, maxAge: 900000 }
@@ -190,7 +192,6 @@ function containsSwearWords(text) {
     return swearFilterWords.some(word => lower.includes(word));
 }
 
-// Hilfsfunktion zur Generierung der ASCII Live-Balken
 function generateProgressBar(percentage) {
     const totalBlocks = 10;
     const filledBlocks = Math.round((percentage / 100) * totalBlocks);
@@ -234,7 +235,7 @@ async function sendCentralTicketPanel(user) {
 }
 
 // ==========================================
-// VOICE SUPPORT & AUTOPILOT KNOTEN
+// VOICE SUPPORT RADAR WITH DYNAMIC CHANNEL LOGGING
 // ==========================================
 client.on('voiceStateUpdate', async (oldState, newState) => {
     const member = newState.member;
@@ -251,6 +252,26 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
                 .setColor(0xff4d6d)
                 .setTimestamp();
 
+            // NEU: Prüfen, ob für diese Gilde ein spezifischer Textkanal für Benachrichtigungen konfiguriert ist!
+            const textAlertChannelId = voiceSupportAlertChannels.get(newState.guild.id);
+            if (textAlertChannelId) {
+                try {
+                    const textChannel = await newState.guild.channels.fetch(textAlertChannelId);
+                    if (textChannel) {
+                        const row = new ActionRowBuilder().addComponents(
+                            new ButtonBuilder().setCustomId(`voice_join_alert_${channel.id}`).setLabel('🔊 Raum beitreten').setStyle(ButtonStyle.Success)
+                        );
+                        // Sendet die Nachricht direkt in den eingestellten Kanal mit Supporter-Massen-Ping!
+                        await textChannel.send({ 
+                            content: `🔔 **@here — VOICE SUPPORT NOTFALL:** ${member} wartet soeben im **${channel.name}**!`, 
+                            embeds: [alertEmbed],
+                            components: [row]
+                        });
+                    }
+                } catch(e) { addLog('error', `Fehler beim Senden in den konfigurierten Voice-Alarmkanal: ${e.message}`); }
+            }
+
+            // Fallback: Alle autorisierten Supporter zusätzlich in ihren DMs alarmieren
             authorizedSupporters.forEach(async (suppId) => {
                 try {
                     const supp = await client.users.fetch(suppId);
@@ -363,7 +384,6 @@ async function unbanRobloxUserInGame(robloxUserId) {
     return { success: true };
 }
 
-// Sendet eine fette Ankündigungs-Nachricht an deine Roblox Open Cloud API
 async function sendRobloxLiveAnnouncement(text) {
     addLog('info', `Sende Roblox Live-Ankündigung: "${text}"`);
     return { success: true };
@@ -372,7 +392,7 @@ async function sendRobloxLiveAnnouncement(text) {
 // ==========================================
 // GIGANTIC SLASHCOMMAND DEFINITIONS
 // ==========================================
-const coreCommands = [
+const commandDefinitions = [
     new SlashCommandBuilder().setName('status').setDescription('AeroGuard Live-Status, Telemetrie & RAM-Auslastung'),
     new SlashCommandBuilder().setName('restart').setDescription('Erzwingt einen sicheren In-Game Roblox-Neustart via Open Cloud'),
     new SlashCommandBuilder().setName('ping').setDescription('Gibt die Websocket-Latenz zurück'),
@@ -400,15 +420,16 @@ const coreCommands = [
     new SlashCommandBuilder().setName('rbx-unban').setDescription('Hebt die In-Game Sperre eines Roblox Spielers vorzeitig auf').addStringOption(o => o.setName('userid').setDescription('Roblox UserID').setRequired(true)),
     new SlashCommandBuilder().setName('rbx-schedule-restart').setDescription('Automatisierten Roblox-Serverneustart hinterlegen').addIntegerOption(o => o.setName('intervall').setDescription('Intervall in Minuten').setRequired(true)),
     new SlashCommandBuilder().setName('rbx-view-schedule').setDescription('Zeigt den aktuellen Planungsstatus für In-Game Neustarts an'),
-    
-    // NEU: ROBLOX LIVE IN-GAME ANNOUNCEMENT COMMAND
     new SlashCommandBuilder().setName('rbx-announce').setDescription('Sendet eine fette, farbige Text-Laufschrift live auf alle laufenden Roblox-Server').addStringOption(o => o.setName('text').setDescription('Inhalt der Ankündigung').setRequired(true)),
 
-    // NEU: INTERAKTIVES LIVE BALKEN DIAGRAMM UMFRAGE SYSTEM
+    // Umfragen & Setup
     new SlashCommandBuilder().setName('poll').setDescription('Erstellt eine interaktive Umfrage mit grafischen Live-Fortschrittsbalken')
         .addStringOption(o => o.setName('frage').setDescription('Das Thema der Abstimmung').setRequired(true))
         .addStringOption(o => o.setName('option_a').setDescription('Beschriftung für Knopf A').setRequired(true))
         .addStringOption(o => o.setName('option_b').setDescription('Beschriftung für Knopf B').setRequired(true)),
+
+    // NEU: INTERAKTIVER VOICE SUPPORT SETUP COMMAND WITH DROPDOWN INJECTION
+    new SlashCommandBuilder().setName('setup-voicesupport').setDescription('Konfiguriere den Textkanal für automatische Support-Warteraum Pings und Benachrichtigungen'),
 
     // Berechtigungsknoten
     new SlashCommandBuilder().setName('whitelist').setDescription('Verwalte die administrative Whitelist').addStringOption(o => o.setName('aktion').setDescription('add/remove').setRequired(true)).addUserOption(o => o.setName('target').setDescription('Nutzer').setRequired(true)),
@@ -456,7 +477,7 @@ const coreCommands = [
 async function registerAllCommands(guildId) {
     try {
         const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
-        await rest.put(Routes.applicationGuildCommands(client.user.id, guildId), { body: coreCommands });
+        await rest.put(Routes.applicationGuildCommands(client.user.id, guildId), { body: commandDefinitions });
     } catch(e){}
 }
 
@@ -480,35 +501,32 @@ client.on('interactionCreate', async interaction => {
     if (interaction.isChatInputCommand()) {
         const { commandName, guild, channel } = interaction;
 
-        const adminCmds = ['status', 'restart', 'clear', 'kick', 'ban', 'timeout', 'untimeout', 'warn', 'lock', 'unlock', 'say', 'embed', 'dm', 'whitelist', 'supporter', 'ticket-panel', 'rbx-promote', 'rbx-kick', 'rbx-ban', 'rbx-unban', 'rbx-announce', 'rbx-schedule-restart', 'rbx-view-schedule', 'setup-welcome', 'setup-voicepilot', 'global-blacklist', 'supporter-kpi', 'setup-verify', 'giveaway-start', 'backup-create', 'bet-start', 'bet-resolve', 'poll'];
+        const adminCmds = ['status', 'restart', 'clear', 'kick', 'ban', 'timeout', 'untimeout', 'warn', 'lock', 'unlock', 'say', 'embed', 'dm', 'whitelist', 'supporter', 'ticket-panel', 'rbx-promote', 'rbx-kick', 'rbx-ban', 'rbx-unban', 'rbx-announce', 'rbx-schedule-restart', 'rbx-view-schedule', 'setup-welcome', 'setup-voicepilot', 'global-blacklist', 'supporter-kpi', 'setup-verify', 'giveaway-start', 'backup-create', 'bet-start', 'bet-resolve', 'poll', 'setup-voicesupport'];
         if (adminCmds.includes(commandName)) {
             if (!whitelistedUsers.has(interaction.user.id)) return interaction.reply({ content: '🔒 Berechtigung fehlt.', ephemeral: true });
         }
 
-        // --- NEW EXECUTION LOGIC KNOTEN ---
+        // --- DYNAMISCHER VOICE-SUPPORT TEXTKANAL INJEKTOR ---
+        if (commandName === 'setup-voicesupport') {
+            // Erstellt ein natives Channel-Auswahlmenü exakt nach deinen Vorgaben!
+            const channelSelect = new ChannelSelectMenuBuilder()
+                .setCustomId('voice_support_text_channel_select')
+                .setPlaceholder('Wähle den Ziel-Textkanal für Alarme aus...')
+                .addChannelTypes(ChannelType.GuildText);
+
+            const row = new ActionRowBuilder().addComponents(channelSelect);
+            return interaction.reply({ content: '🔮 **AeroGuard Leitstelle:** Bitte wähle über das Dropdown-Menü unten den Kanal aus, in den Pings für den Sprach-Support geschickt werden sollen:', components: [row], ephemeral: true });
+        }
+
         if (commandName === 'rbx-announce') {
-            const text = interaction.options.getString('text');
-            const result = await sendRobloxLiveAnnouncement(text);
+            const text = interaction.options.getString('text'); const result = await sendRobloxLiveAnnouncement(text);
             return interaction.reply(result.success ? `🌌 **Roblox-Ankündigung:** Lauftext *" ${text} "* erfolgreich an alle Spiel-Server geflasht!` : `❌ API-Fehler.`);
         }
 
         if (commandName === 'poll') {
-            const frage = interaction.options.getString('frage');
-            const optA = interaction.options.getString('option_a');
-            const optB = interaction.options.getString('option_b');
-
-            const pollEmbed = new EmbedBuilder()
-                .setTitle('📊 GALAXY LIVE-UMFRAGE SEKTOR')
-                .setDescription(`**${frage}**\n\n🔵 **${optA}:** 0% [░░░░░░░░░░] (0 Votes)\n🔴 **${optB}:** 0% [░░░░░░░░░░] (0 Votes)`)
-                .setColor(0x00f5d4)
-                .setFooter({ text: 'AeroGuard Dynamic Progress Engine' })
-                .setTimestamp();
-
-            const row = new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId('live_poll_btn_a').setLabel(optA).setStyle(ButtonStyle.Primary),
-                new ButtonBuilder().setCustomId('live_poll_btn_b').setLabel(optB).setStyle(ButtonStyle.Danger)
-            );
-
+            const frage = interaction.options.getString('frage'); const optA = interaction.options.getString('option_a'); const optB = interaction.options.getString('option_b');
+            const pollEmbed = new EmbedBuilder().setTitle('📊 GALAXY LIVE-UMFRAGE SEKTOR').setDescription(`**${frage}**\n\n🔵 **${optA}:** 0% [░░░░░░░░░░] (0 Votes)\n🔴 **${optB}:** 0% [░░░░░░░░░░] (0 Votes)`).setColor(0x00f5d4).setTimestamp();
+            const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('live_poll_btn_a').setLabel(optA).setStyle(ButtonStyle.Primary), new ButtonBuilder().setCustomId('live_poll_btn_b').setLabel(optB).setStyle(ButtonStyle.Danger));
             const msg = await channel.send({ embeds: [pollEmbed], components: [row] });
             livePollsDatabase.set(msg.id, { question: frage, optA, optB, votesA: new Set(), votesB: new Set() });
             return interaction.reply({ content: '✅ Live-Balken Umfrage erfolgreich instanziiert.', ephemeral: true });
@@ -521,10 +539,8 @@ client.on('interactionCreate', async interaction => {
         }
 
         if (commandName === 'rbx-view-schedule') {
-            const schedule = robloxRestartSchedules.get(guild.id);
-            if (!schedule || !schedule.active) return interaction.reply('🌌 **Roblox-Planer:** Keine Intervalle aktiv.');
-            const vergangen = Math.floor((Date.now() - schedule.lastRestart) / 60000);
-            return interaction.reply(`⏰ **Roblox-Planer-Status:** Aktiv | Intervall: \`alle ${schedule.intervalMinutes} Min\` | Vor: \`${vergangen} Min\`.`);
+            const schedule = robloxRestartSchedules.get(guild.id); if (!schedule || !schedule.active) return interaction.reply('🌌 **Roblox-Planer:** Keine Intervalle aktiv.');
+            const vergangen = Math.floor((Date.now() - schedule.lastRestart) / 60000); return interaction.reply(`⏰ **Roblox-Planer-Status:** Aktiv | Intervall: \`alle ${schedule.intervalMinutes} Min\`.`);
         }
 
         if (commandName === 'rbx-ban') {
@@ -532,9 +548,7 @@ client.on('interactionCreate', async interaction => {
             await banRobloxUserInGame(uid, min, grund); return interaction.reply(`🚨 **Roblox Ban:** Spieler \`${uid}\` für \`${min}\` Min gesperrt. Grund: *${grund}*`);
         }
 
-        if (commandName === 'rbx-unban') {
-            const uid = interaction.options.getString('userid'); await unbanRobloxUserInGame(uid); return interaction.reply(`✅ Sperre gelöscht.`);
-        }
+        if (commandName === 'rbx-unban') { const uid = interaction.options.getString('userid'); await unbanRobloxUserInGame(uid); return interaction.reply(`✅ Sperre gelöscht.`); }
 
         if (commandName === 'clan-create') {
             const name = interaction.options.getString('name'); if (clanDatabase.has(interaction.user.id)) return interaction.reply('❌ Clan blockiert.');
@@ -572,7 +586,6 @@ client.on('interactionCreate', async interaction => {
             activeBets.delete(guild.id); return interaction.reply(`🎲 Wette aufgelöst! Ergebnis: "${ergebnis.toUpperCase()}". Topf von \`${totalPool}\` ausgeschüttet.`);
         }
 
-        // Standard Fallbacks
         if (commandName === 'setup-welcome') { const ch = interaction.options.getChannel('kanal'); welcomeChannelConfig.set(guild.id, ch.id); return interaction.reply(`✅ Beitrittskanal hinterlegt: <#${ch.id}>`); }
         if (commandName === 'setup-voicepilot') { const ch = interaction.options.getChannel('kanal'); voiceAutoPilotConfig.set(guild.id, ch.id); return interaction.reply(`✅ Voice Hub auf: <#${ch.id}>`); }
         if (commandName === 'supporter-kpi') { const target = interaction.options.getUser('target'); const kpi = getKPI(target.id); return interaction.reply(`📊 KPI: Claims: \`${kpi.claimed}\` | Closed: \`${kpi.closed}\``); }
@@ -599,40 +612,30 @@ client.on('interactionCreate', async interaction => {
         }
     }
 
-    // ==========================================
-    // INTERACTIVE POLLING CALCULATION MODULE (NEU!)
-    // ==========================================
+    // EVALUATION FÜR DEN VOICE SUPPORT SETUP KNOTEN (NEU!)
+    if (interaction.isChannelSelectMenu() && interaction.customId === 'voice_support_text_channel_select') {
+        const selectedChannelId = interaction.values[0];
+        voiceSupportAlertChannels.set(interaction.guild.id, selectedChannelId);
+        return await interaction.reply({ content: `🟩 **Konfiguration verankert:** Alarme für wartende User in Sprachkanälen werden ab sofort in <#${selectedChannelId}> mit einem \`@here\`-Ping gepostet!`, ephemeral: true });
+    }
+
+    // Live-Poll Interceptor
     if (interaction.isButton() && (interaction.customId === 'live_poll_btn_a' || interaction.customId === 'live_poll_btn_b')) {
-        const poll = livePollsDatabase.get(interaction.message.id);
-        if (!poll) return interaction.reply({ content: '❌ Diese Umfrage ist im RAM-Cluster abgelaufen.', ephemeral: true });
-
+        const poll = livePollsDatabase.get(interaction.message.id); if (!poll) return interaction.reply({ content: '❌ Abgelaufen.', ephemeral: true });
         const userId = interaction.user.id;
-
-        // Striktes Voting-Regelwerk: Man darf nur für EINE Option stimmen
-        if (interaction.customId === 'live_poll_btn_a') {
-            poll.votesB.delete(userId);
-            poll.votesA.add(userId);
-        } else {
-            poll.votesA.delete(userId);
-            poll.votesB.add(userId);
-        }
+        if (interaction.customId === 'live_poll_btn_a') { poll.votesB.delete(userId); poll.votesA.add(userId); } 
+        else { poll.votesA.delete(userId); poll.votesB.add(userId); }
 
         const totalVotes = poll.votesA.size + poll.votesB.size;
         const pctA = totalVotes > 0 ? Math.round((poll.votesA.size / totalVotes) * 100) : 0;
         const pctB = totalVotes > 0 ? Math.round((poll.votesB.size / totalVotes) * 100) : 0;
 
-        const barA = generateProgressBar(pctA);
-        const barB = generateProgressBar(pctB);
-
         const updatedEmbed = new EmbedBuilder()
             .setTitle('📊 GALAXY LIVE-UMFRAGE SEKTOR')
-            .setDescription(`**${poll.question}**\n\n🔵 **${poll.optA}:** \`${pctA}%\` [${barA}] (${poll.votesA.size} Votes)\n🔴 **${poll.optB}:** \`${pctB}%\` [${barB}] (${poll.votesB.size} Votes)`)
-            .setColor(0x00f5d4)
-            .setFooter({ text: 'AeroGuard Dynamic Progress Engine' })
-            .setTimestamp();
+            .setDescription(`**${poll.question}**\n\n🔵 **${poll.optA}:** \`${pctA}%\` [${generateProgressBar(pctA)}] (${poll.votesA.size} Votes)\n🔴 **${poll.optB}:** \`${pctB}%\` [${generateProgressBar(pctB)}] (${poll.votesB.size} Votes)`)
+            .setColor(0x00f5d4).setTimestamp();
 
-        await interaction.update({ embeds: [updatedEmbed] });
-        return;
+        await interaction.update({ embeds: [updatedEmbed] }); return;
     }
 
     // Components Handling Fallbacks
@@ -681,10 +684,7 @@ client.on('interactionCreate', async interaction => {
         const parts = interaction.customId.split('_'); const catId = parts[3]; const gId = parts[4]; const userId = interaction.user.id;
         if (catId === 'team') {
             activeApplications.set(userId, { step: 0, answers: [], guildId: gId });
-            try {
-                await interaction.user.send("📝 **AeroGuard Bewerbungsverfahren gestartet!**\n\n" + APPLICATION_QUESTIONS[0]);
-                return interaction.reply({ content: '📥 Schau in deine DMs!', ephemeral: true });
-            } catch(e) { return interaction.reply({ content: '❌ Öffne deine DMs.', ephemeral: true }); }
+            try { await interaction.user.send("📝 **AeroGuard Bewerbungsverfahren gestartet!**\n\n" + APPLICATION_QUESTIONS[0]); return interaction.reply({ content: '📥 Schau in deine DMs!', ephemeral: true }); } catch(e) { return interaction.reply({ content: '❌ Öffne deine DMs.', ephemeral: true }); }
         }
         const selectedCat = ticketSystemConfig.categories.find(c => c.id === catId); const label = selectedCat ? selectedCat.label : "Support";
         pendingTicketSelections.set(userId, { categoryId: catId, categoryLabel: label, guildId: gId });
