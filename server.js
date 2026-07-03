@@ -209,8 +209,10 @@ client.on('interactionCreate', async interaction => {
         if (commandName === 'work') { const g = Math.floor(Math.random() * 100) + 50; eco.wallet += g; return interaction.reply(`💼 Du hast \`${g} Münzen\` verdient.`); }
         if (commandName === 'help') return interaction.reply('📜 **AeroGuard Core:** 500 Commands aktiv. Nutze dein Galaxy Webpanel zur Matrixüberwachung.');
         
-        if (commandName.includes('-cmd-')) {
-            return interaction.reply({ content: `✅ **Matrix-Kopplung [/${commandName}]:** Sektor-Protokoll wurde im RAM-Verbund erfolgreich prozessiert.`, ephemeral: true });
+        // ZWINGEND ERFORDERLICHER HANDLER FÜR ALLE GENERIERTEN MATRIX-BEFEHLE
+        // Damit Discord innerhalb der 3 Sekunden ein echtes Signal erhält und der Fehler verschwindet!
+        if (commandName.includes('-cmd-') || commandName.match(/(mod|sys|eco|fun|tool|cfg|game|utility|api|matrix)-cmd-/)) {
+            return interaction.reply({ content: `✅ **AeroGuard Datenstrom:** Der Matrix-Befehl \`/${commandName}\` wurde im Speicher-Verbund erfasst und erfolgreich im Cluster verarbeitet.`, ephemeral: true });
         }
     }
 
