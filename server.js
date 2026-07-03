@@ -13,24 +13,29 @@ let currentPlayersCount = 0;
 let maxPlayersCount = 0;
 let playerList = [];
 let restartRequested = false;
-let systemStatus = "🟢 Hyper-Drive Core Online | Advanced Session Matrix active";
+let systemStatus = "🟢 Hyper-Drive Core Online | Advanced Queue Matrix active";
 
-const activeTickets = new Map(); 
-const ownerActiveSession = new Map(); // Speichert, mit wem du gerade verbunden bist
+const activeTickets = new Map(); // Key: UserID -> Value: { ticketNum: number, username: string, category: string, reason: string }
+const ownerActiveSession = new Map(); // Key: SupporterID -> Value: UserID (Aktiver Tunnel)
 const pendingTicketSelections = new Map();
 const economyDatabase = new Map(); 
 const warnDatabase = new Map();    
 const tttGames = new Map(); 
-
-// Neues stabiles Ranking- und Levelsystem
 const rankingDatabase = new Map();
 
-// Whitelist-System: Du bist standardmäßig immer eingetragen
-const whitelistedUsers = new Set([OWNER_ID]); 
+// Fortlaufender Ticket-Zähler im RAM
+let totalTicketCounter = 0;
+
+// Sicherheits-Listen
+const whitelistedUsers = new Set([OWNER_ID]); // Für administrative Befehle
+const authorizedSupporters = new Set([OWNER_ID]); // Für Ticket-Bearbeitung (Du bist immer drauf)
+
+// Liste blockierter Wörter für den Ticket-Filter
+const swearFilterWords = ['idiot', 'arschkeks', 'bastard', 'hurensohn', 'wiat', 'cheat', 'hack', 'bist dumm'];
 
 let ticketSystemConfig = {
     enabled: true,
-    welcomeMessage: "🌌 Willkommen in der AeroGuard Support-Zentrale! Bitte wähle eine Kategorie über die Buttons aus, um deinen Datentunnel zu Commander Marlon zu initialisieren.",
+    welcomeMessage: "🌌 Willkommen in der AeroGuard Support-Zentrale! Bitte wähle eine kategorie über die Buttons aus, um deinen Datentunnel zur Projektleitung zu initialisieren.",
     categories: [
         { id: "support", label: "🔮 Allgemeiner Support", color: ButtonStyle.Success },
         { id: "bug", label: "🐛 Bug/Fehler melden", color: ButtonStyle.Danger },
@@ -38,7 +43,6 @@ let ticketSystemConfig = {
     ]
 };
 
-// 20 Systempanels auf der Webseite
 const panelsConfig = {};
 for (let i = 1; i <= 20; i++) {
     panelsConfig[`panel${i}_matrix_node`] = { enabled: true };
@@ -88,6 +92,12 @@ function getRank(userId) {
     return rankingDatabase.get(userId);
 }
 
+// Hilfsfunktion: Filtert Texte auf unerlaubte Wörter
+function containsSwearWords(text) {
+    const lower = text.toLowerCase();
+    return swearFilterWords.some(word => lower.includes(wrod => lower.includes(word)));
+}
+
 // ==========================================
 // REGISTRIERUNG DER REALEN PREMIUM-COMMANDS
 // ==========================================
@@ -115,18 +125,22 @@ const commandDefinitions = [
     new SlashCommandBuilder().setName('embed').setDescription('Erstellt eine strukturierte Embed-Ankündigung im Kanal').addStringOption(o => o.setName('titel').setDescription('Titel der Ankündigung').setRequired(true)).addStringOption(o => o.setName('beschreibung').setDescription('Inhalt der Ankündigung').setRequired(true)),
     new SlashCommandBuilder().setName('dm').setDescription('Sendet eine offizielle Direktnachricht über den Bot an ein Mitglied').addUserOption(o => o.setName('target').setDescription('Empfänger').setRequired(true)).addStringOption(o => o.setName('nachricht').setDescription('Inhalt der DM').setRequired(true)),
     
-    // Whitelist-Verwaltung
+    // Whitelist-Verwaltung (Für Befehle)
     new SlashCommandBuilder().setName('whitelist').setDescription('Verwalte berechtigte Whitelist-Nutzer für Befehle')
         .addStringOption(o => o.setName('aktion').setDescription('add oder remove').setRequired(true).addChoices({ name: 'Hinzufügen', value: 'add' }, { name: 'Entfernen', value: 'remove' }))
         .addUserOption(o => o.setName('target').setDescription('Ziel-Nutzer').setRequired(true)),
         
+    // NEU: Supporter-Berechtigung (Für Tickets)
+    new SlashCommandBuilder().setName('supporter').setDescription('Verwalte Teammitglieder, die Support-Tickets bearbeiten dürfen')
+        .addStringOption(o => o.setName('aktion').setDescription('add oder remove').setRequired(true).addChoices({ name: 'Hinzufügen', value: 'add' }, { name: 'Entfernen', value: 'remove' }))
+        .addUserOption(o => o.setName('target').setDescription('Ziel-Supporter').setRequired(true)),
+
     // Ranking-System Befehle
     new SlashCommandBuilder().setName('rank').setDescription('Zeigt dein aktuelles Level und XP-Fortschritt an').addUserOption(o => o.setName('target').setDescription('Nutzer (optional)')),
     new SlashCommandBuilder().setName('leaderboard').setDescription('Zeigt die Top-Mitglieder mit den höchsten Levels auf dem Server an'),
     
     // Ticket-Panel im Server generieren
     new SlashCommandBuilder().setName('ticket-panel').setDescription('Sendet das interaktive Support-Start-Panel in den aktuellen Kanal'),
-    
     new SlashCommandBuilder().setName('help').setDescription('Gibt eine vollständige Übersicht aller Funktionsbereiche aus')
 ].map(cmd => cmd.toJSON());
 
@@ -157,14 +171,14 @@ client.on('messageCreate', message => {
 });
 
 // ==========================================
-// CENTRAL INTERACTION & TICKETS/GAMING LOGIC
+// CENTRAL INTERACTION HANDLING
 // ==========================================
 client.on('interactionCreate', async interaction => {
     if (interaction.isChatInputCommand()) {
         const { commandName, guild, channel } = interaction;
 
-        // Echte Whitelist-Abfrage für alle administrativen & moderativen Befehle
-        const dynamicProtectedCommands = ['status', 'restart', 'clear', 'kick', 'ban', 'timeout', 'untimeout', 'warn', 'lock', 'unlock', 'say', 'embed', 'dm', 'whitelist', 'ticket-panel'];
+        // Echte Whitelist-Abfrage für administrative Befehle
+        const dynamicProtectedCommands = ['status', 'restart', 'clear', 'kick', 'ban', 'timeout', 'untimeout', 'warn', 'lock', 'unlock', 'say', 'embed', 'dm', 'whitelist', 'supporter', 'ticket-panel'];
         if (dynamicProtectedCommands.includes(commandName)) {
             if (!whitelistedUsers.has(interaction.user.id)) {
                 return interaction.reply({ content: '🔒 **Sicherheits-Blockierung:** Du bist nicht auf der AeroGuard Whitelist registriert, um diesen Befehl auszuführen.', ephemeral: true });
@@ -224,7 +238,21 @@ client.on('interactionCreate', async interaction => {
             }
         }
 
-        // Stabiles Ranking-System
+        // Supporter Vergabe-Handler
+        if (commandName === 'supporter') {
+            const aktion = interaction.options.getString('aktion');
+            const target = interaction.options.getUser('target');
+            if (aktion === 'add') {
+                authorizedSupporters.add(target.id);
+                return interaction.reply(`🔮 **Team-Update:** **${target.tag}** hat jetzt Berechtigung, Support-Tickets einzusehen und zu bearbeiten.`);
+            } else if (aktion === 'remove') {
+                if (target.id === OWNER_ID) return interaction.reply({ content: '❌ Du kannst dem Gründer die Ticket-Rechte nicht entziehen.', ephemeral: true });
+                authorizedSupporters.delete(target.id);
+                return interaction.reply(`⚠️ **${target.tag}** wurden die Berechtigungen für Support-Tickets entzogen.`);
+            }
+        }
+
+        // Ranking-System
         if (commandName === 'rank') {
             const target = interaction.options.getUser('target') || interaction.user;
             const data = getRank(target.id);
@@ -359,7 +387,7 @@ client.on('interactionCreate', async interaction => {
 
         if (commandName === 'ping') return interaction.reply(`🏓 **Pong!** Websocket-Latenz: \`${Math.round(client.ws.ping)}ms\``);
         if (commandName === 'serverinfo') return interaction.reply(`📊 **Server-Statistiken:**\n• Name: *${guild?.name}*\n• ID: \`${guild?.id}\`\n• Gesamtmitglieder: \`${guild?.memberCount}\``);
-        if (commandName === 'help') return interaction.reply('📜 **AeroGuard Core-Übersicht:**\n• Moderation: `/clear`, `/kick`, `/ban`, `/warn`, `/timeout`, `/lock`\n• Administration: `/status`, `/restart`, `/say`, `/embed`, `/dm`, `/whitelist`, `/ticket-panel`\n• Ranking: `/rank`, `/leaderboard`\n• Entertainment: `/tictactoe`, `/slots`, `/wallet`, `/daily`, `/work`\n• KI-Module: `/imagine`, `/ask-ai`');
+        if (commandName === 'help') return interaction.reply('📜 **AeroGuard Core-Übersicht:**\n• Moderation: `/clear`, `/kick`, `/ban`, `/warn`, `/timeout`, `/lock`\n• Administration: `/status`, `/restart`, `/say`, `/embed`, `/dm`, `/whitelist`, `/supporter`, `/ticket-panel`\n• Ranking: `/rank`, `/leaderboard`\n• Entertainment: `/tictactoe`, `/slots`, `/wallet`, `/daily`, `/work`\n• KI-Module: `/imagine`, `/ask-ai`');
     }
 
     // BUTTON INTERACTION GAME RADAR (TIC-TAC-TOE ENGINE)
@@ -428,51 +456,71 @@ client.on('interactionCreate', async interaction => {
 });
 
 // ==========================================
-// ADVANCED ZWEI-WEGE DM CHAT-BRÜCKE (MODMAIL)
+// ADVANCED ZWEI-WEGE DM CHAT-BRÜCKE (MODMAIL QUEUE MATRIX)
 // ==========================================
 client.on('messageCreate', async message => {
     if (message.author.bot) return;
 
-    // FALL A: COMMANDER MARLON ANTWORTET IN SEINEN DMs
-    if (!message.guild && message.author.id === OWNER_ID) {
-        if (!ownerActiveSession.has(OWNER_ID)) {
-            if (message.content.startsWith('/tickets')) {
-                if (activeTickets.size === 0) return message.author.send('🌌 Keine aktiven Ticket-Verbindungen vorhanden.');
-                let txt = '📂 **Verfügbare Support-Tunnel (Hier klicken zum Verbinden):**\n\n';
-                activeTickets.forEach((t, id) => { txt += `👤 **${t.username}** (ID: \`${id}\`) [${t.category}]\nGrund: "${t.reason}"\nVerbinden mit: \`/open ${id}\`\n\n`; });
+    // FALL A: EIN AUTORISIERTER SUPPORTER ANTWORTET IN DEN DMs
+    if (!message.guild && authorizedSupporters.has(message.author.id)) {
+        
+        // Wenn der Supporter noch mit KEINEM Ticket verbunden ist
+        if (!ownerActiveSession.has(message.author.id)) {
+            
+            // Befehl: Übersicht aller offenen nummerierten Tickets anzeigen
+            if (message.content.trim() === '/tickets') {
+                if (activeTickets.size === 0) return message.author.send('🌌 **AeroGuard Core:** Aktuell befinden sich keine geöffneten Support-Tickets in der Warteschleife.');
+                
+                let txt = '📂 **DYNAMISCHE LIVE-SUPPORT WARTESCHLANGE:**\n\n';
+                activeTickets.forEach((t, id) => {
+                    txt += `🔢 **Ticket #${t.ticketNum}**\n👤 Absender: **${t.username}** (ID: \`${id}\`)\n📂 Bereich: *${t.category}*\n💬 Grund: "${t.reason}"\n🔗 Verbinden mit: \`/open ${id}\`\n\n`;
+                });
                 return message.author.send(txt);
             }
+            
+            // Befehl: Verbindung zu einer bestimmten User-ID herstellen
             if (message.content.startsWith('/open')) {
                 const targetId = message.content.split(' ')[1];
-                if (!targetId || !activeTickets.has(targetId)) return message.author.send('❌ Ungültige Verbindungskennung.');
-                ownerActiveSession.set(OWNER_ID, targetId);
+                if (!targetId || !activeTickets.has(targetId)) return message.author.send('❌ **Fehler:** Ungültige ID oder Ticket bereits geschlossen.');
                 
-                // Dem verbundenen User Bescheid geben
+                ownerActiveSession.set(message.author.id, targetId);
+                const ticket = activeTickets.get(targetId);
+                
+                // Dem hilfesuchenden User Bescheid geben
                 try {
                     const u = await client.users.fetch(targetId);
-                    if (u) await u.send('🔮 **Verbindung hergestellt!** Commander Marlon hat sich soeben in deinen Support-Tunnel eingeklinkt und liest ab jetzt live mit.');
+                    if (u) await u.send(`🔮 **Verbindung hergestellt:** Ein Mitglied der Projektleitung (<@${message.author.id}>) hat sich in dein **Ticket #${ticket.ticketNum}** eingeklinkt und liest jetzt live mit.`);
                 } catch(e){}
 
-                return message.author.send(`✅ **Brücke geschaltet!** Du sprichst direkt mit **${activeTickets.get(targetId).username}**. Trennen mit \`/close\`.`);
+                return message.author.send(`✅ **Brücke geschaltet!** Du sprichst jetzt live mit **${ticket.username}** im **Ticket #${ticket.ticketNum}**.\nJeder Text den du hier tippst, wird übertragen. Trennen mit \`/close\`.`);
             }
-            return message.author.send('🔮 **AeroGuard Core:** Das ist deine Ticketübersicht. Nutze `/tickets` zum Anzeigen oder `/open ID` zum Verbinden.');
+            
+            return message.author.send('🔮 **AeroGuard Team-Core:** Nutze `/tickets` für die nummerierte Übersicht oder `/open ID` um eine Sitzung zu starten.');
         }
 
-        const currentTargetUserId = ownerActiveSession.get(OWNER_ID);
-        if (message.content.startsWith('/close')) {
+        // Wenn der Supporter aktiv verbunden ist, wird seine Nachricht übertragen
+        const currentTargetUserId = ownerActiveSession.get(message.author.id);
+        
+        if (message.content.trim() === '/close') {
+            const ticket = activeTickets.get(currentTargetUserId);
+            const num = ticket ? ticket.ticketNum : "?";
+            
             try {
                 const u = await client.users.fetch(currentTargetUserId);
-                if (u) await u.send('🔒 **Support-Info:** Diese Unterhaltung wurde von der Projektleitung beendet.');
+                if (u) await u.send(`🔒 **Support-Info:** Dein **Ticket #${num}** wurde von der Teamleitung erfolgreich bearbeitet und permanent geschlossen.`);
             } catch(e){}
+            
+            // RESTLOS AUS DEM SYSTEM LÖSCHEN
             activeTickets.delete(currentTargetUserId);
-            ownerActiveSession.delete(OWNER_ID);
-            return message.author.send('🔒 Support-Tunnel geschlossen.');
+            ownerActiveSession.delete(message.author.id);
+            return message.author.send(`🔒 **Ticket #${num} geschlossen:** Der Datentunnel wurde restlos aus dem RAM gelöscht.`);
         }
 
+        // Nachricht an den hilfesuchenden User übertragen
         try {
             const u = await client.users.fetch(currentTargetUserId);
             if (u) {
-                await u.send({ embeds: [new EmbedBuilder().setTitle('🌌 AeroGuard Admin-Antwort').setDescription(message.content).setColor(0x9d4edd).setFooter({ text: 'Antworte zurück, um weiterzuschreiben.' })] });
+                await u.send({ embeds: [new EmbedBuilder().setTitle('🌌 AeroGuard Team-Antwort').setDescription(message.content).setColor(0x9d4edd).setFooter({ text: 'Antworte zurück, um weiterzuschreiben.' })] });
                 await message.react('⚡');
             }
         } catch(err) { message.author.send(`❌ Verbindung abgebrochen: ${err.message}`); }
@@ -483,21 +531,30 @@ client.on('messageCreate', async message => {
     if (!message.guild) {
         const userId = message.author.id;
 
-        // Wenn der User bereits in einem genehmigten Ticket ist
-        if (activeTickets.has(userId)) {
-            // PRÜFUNG: Ist Marlon aktuell mit GENAU DIESEM User verbunden?
-            const isConnectedWithMe = ownerActiveSession.get(OWNER_ID) === userId;
+        // AUTOMATISIERTER ANTI-SWEAR FILTER IN DEN TICKETS
+        if (containsSwearWords(message.content)) {
+            await message.react('⚠️');
+            return message.reply('❌ **AeroGuard Sicherheitsfilter:** Deine Nachricht enthält unzulässige Formulierungen oder Schimpfwörter. Bitte verfasse dein Anliegen sachlich und höflich.');
+        }
 
-            if (isConnectedWithMe) {
+        // Wenn der User bereits ein aktives Ticket in der Warteschlange hat
+        if (activeTickets.has(userId)) {
+            // Prüfen, ob irgendein Supporter mit ihm verbunden ist
+            let connectedSupporterId = null;
+            authorizedSupporters.forEach((val, suppId) => {
+                if (ownerActiveSession.get(suppId) === userId) connectedSupporterId = suppId;
+            });
+
+            if (connectedSupporterId) {
                 try {
-                    const marlon = await client.users.fetch(OWNER_ID);
-                    if (marlon) {
-                        await marlon.send({ embeds: [new EmbedBuilder().setTitle(`💬 Live-Chat: ${message.author.username}`).setDescription(message.content).setColor(0x00f5d4)] });
+                    const supp = await client.users.fetch(connectedSupporterId);
+                    if (supp) {
+                        await supp.send({ embeds: [new EmbedBuilder().setTitle(`💬 Live-Chat: ${message.author.username}`).setDescription(message.content).setColor(0x00f5d4)] });
                         await message.react('✅');
                     }
                 } catch(e){}
             } else {
-                // Marlon ist in einem anderen Ticket besetzt oder Brücke noch nicht offen!
+                // Warteschlangen-Meldung, da noch kein Supporter die Session geöffnet hat
                 await message.reply('🌌 **Bitte gedulde dich einen Moment.** Die Projektleitung ist aktuell in einer anderen Support-Übertragung oder prüft deine Daten. Es wird auf einen verfügbaren Supporter gewartet...');
             }
             return;
@@ -506,17 +563,29 @@ client.on('messageCreate', async message => {
         // Wenn die Kategorie ausgewählt wurde und jetzt der Grund abgeschickt wird
         if (pendingTicketSelections.has(userId)) {
             const selection = pendingTicketSelections.get(userId);
-            activeTickets.set(userId, { username: message.author.tag, category: selection.categoryLabel, reason: message.content });
+            
+            // Fortlaufende Ticketnummer vergeben
+            totalTicketCounter += 1;
+            
+            activeTickets.set(userId, { 
+                ticketNum: totalTicketCounter,
+                username: message.author.tag, 
+                category: selection.categoryLabel, 
+                reason: message.content 
+            });
             pendingTicketSelections.delete(userId);
             
-            await message.reply(`✅ **Ticket erfolgreich übermittelt!** Dein Grund ("*${message.content}*") wurde im Cluster protokolliert. Wenn Marlon frei ist, schaltet er die Brücke live.`);
+            await message.reply(`✅ **Ticket #${totalTicketCounter} erfolgreich übermittelt!** Dein Anliegen wurde in die Warteschlange eingereiht. Ein Teammitglied wird die Live-Brücke in Kürze aktivieren.`);
             
-            try {
-                const marlon = await client.users.fetch(OWNER_ID);
-                if (marlon) {
-                    await marlon.send(`📩 **NEUES DM-TICKET EINGEGANGEN!**\n• Absender: ${message.author} (\`${message.author.tag}\`)\n• ID: \`${userId}\`\n• Kategorie: *${selection.categoryLabel}*\n• Grund: "${message.content}"\n\nNutze \`/open ${userId}\`, um die Live-Brücke zu aktivieren.`);
-                }
-            } catch(e){}
+            // Alle Supporter und den Besitzer alarmieren
+            authorizedSupporters.forEach(async (suppId) => {
+                try {
+                    const supp = await client.users.fetch(suppId);
+                    if (supp) {
+                        await supp.send(`📩 **NEUES SUPPORT-TICKET IN DER WARTESCHLANGE!**\n• **Ticket Nummer:** \`#${totalTicketCounter}\`\n• Absender: ${message.author} (\`${message.author.tag}\`)\n• ID: \`${userId}\`\n• Kategorie: *${selection.categoryLabel}*\n• Grund: "${message.content}"\n\nNutze \`/open ${userId}\` in deinen DMs, um die Brücke freizuschalten.`);
+                    }
+                } catch(e){}
+            });
             return;
         }
 
