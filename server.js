@@ -63,8 +63,8 @@ const APPLICATION_QUESTIONS = [
     "📝 Frage 4: Warum sollten wir genau DICH in das AeroGuard-Team aufnehmen?"
 ];
 
-// Namen der überwachten Support-Warteräume
-const SUPPORT_VOICE_CHANNELS = ["Support Warteraum", "Büro Warteraum"];
+// FIXED: Namen exakt an deinen Discord angepasst (Zusammengeschrieben!)
+const SUPPORT_VOICE_CHANNELS = ["Supportwarteraum", "Bürowarteraum", "Support Warteraum", "Büro Warteraum"];
 
 // Persistent simulierte Krypto-Kurse im RAM
 const cryptoMarket = {
@@ -500,7 +500,7 @@ client.on('interactionCreate', async interaction => {
             if (!whitelistedUsers.has(interaction.user.id)) return interaction.reply({ content: '🔒 Berechtigung fehlt.', ephemeral: true });
         }
 
-        // --- FIXED: VOICE SUPPORT CONFIGURATION CORRIDOR ---
+        // --- VOICE SUPPORT CONFIGURATION CORRIDOR ---
         if (commandName === 'setup-voicesupport') {
             const channelSelect = new ChannelSelectMenuBuilder()
                 .setCustomId('voice_support_text_channel_select')
@@ -605,7 +605,6 @@ client.on('interactionCreate', async interaction => {
         }
     }
 
-    // --- EVALUATION FÜR DEN TEXTKANAL INJEKTOR ---
     if (interaction.isChannelSelectMenu() && interaction.customId === 'voice_support_text_channel_select') {
         const selectedChannelId = interaction.values[0];
         voiceSupportAlertChannels.set(interaction.guild.id, selectedChannelId);
