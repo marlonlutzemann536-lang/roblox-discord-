@@ -13,15 +13,20 @@ let currentPlayersCount = 0;
 let maxPlayersCount = 0;
 let playerList = [];
 let restartRequested = false;
-let systemStatus = "🟢 Hyper-Drive Core Online | System stabilisiert";
+let systemStatus = "🟢 Hyper-Drive Core Online | Advanced Session Matrix active";
 
 const activeTickets = new Map(); 
-const ownerActiveSession = new Map();
+const ownerActiveSession = new Map(); // Speichert, mit wem du gerade verbunden bist
 const pendingTicketSelections = new Map();
-const whitelistedUsers = new Set([OWNER_ID]); 
 const economyDatabase = new Map(); 
 const warnDatabase = new Map();    
-const tttGames = new Map(); // Speicher für Tic-Tac-Toe
+const tttGames = new Map(); 
+
+// Neues stabiles Ranking- und Levelsystem
+const rankingDatabase = new Map();
+
+// Whitelist-System: Du bist standardmäßig immer eingetragen
+const whitelistedUsers = new Set([OWNER_ID]); 
 
 let ticketSystemConfig = {
     enabled: true,
@@ -76,6 +81,13 @@ function getEco(userId) {
     return economyDatabase.get(userId);
 }
 
+function getRank(userId) {
+    if (!rankingDatabase.has(userId)) {
+        rankingDatabase.set(userId, { xp: 0, level: 1 });
+    }
+    return rankingDatabase.get(userId);
+}
+
 // ==========================================
 // REGISTRIERUNG DER REALEN PREMIUM-COMMANDS
 // ==========================================
@@ -102,6 +114,19 @@ const commandDefinitions = [
     new SlashCommandBuilder().setName('say').setDescription('Lässt den Bot eine unformatierte Textnachricht in den Kanal senden').addStringOption(o => o.setName('text').setDescription('Deine Nachricht').setRequired(true)),
     new SlashCommandBuilder().setName('embed').setDescription('Erstellt eine strukturierte Embed-Ankündigung im Kanal').addStringOption(o => o.setName('titel').setDescription('Titel der Ankündigung').setRequired(true)).addStringOption(o => o.setName('beschreibung').setDescription('Inhalt der Ankündigung').setRequired(true)),
     new SlashCommandBuilder().setName('dm').setDescription('Sendet eine offizielle Direktnachricht über den Bot an ein Mitglied').addUserOption(o => o.setName('target').setDescription('Empfänger').setRequired(true)).addStringOption(o => o.setName('nachricht').setDescription('Inhalt der DM').setRequired(true)),
+    
+    // Whitelist-Verwaltung
+    new SlashCommandBuilder().setName('whitelist').setDescription('Verwalte berechtigte Whitelist-Nutzer für Befehle')
+        .addStringOption(o => o.setName('aktion').setDescription('add oder remove').setRequired(true).addChoices({ name: 'Hinzufügen', value: 'add' }, { name: 'Entfernen', value: 'remove' }))
+        .addUserOption(o => o.setName('target').setDescription('Ziel-Nutzer').setRequired(true)),
+        
+    // Ranking-System Befehle
+    new SlashCommandBuilder().setName('rank').setDescription('Zeigt dein aktuelles Level und XP-Fortschritt an').addUserOption(o => o.setName('target').setDescription('Nutzer (optional)')),
+    new SlashCommandBuilder().setName('leaderboard').setDescription('Zeigt die Top-Mitglieder mit den höchsten Levels auf dem Server an'),
+    
+    // Ticket-Panel im Server generieren
+    new SlashCommandBuilder().setName('ticket-panel').setDescription('Sendet das interaktive Support-Start-Panel in den aktuellen Kanal'),
+    
     new SlashCommandBuilder().setName('help').setDescription('Gibt eine vollständige Übersicht aller Funktionsbereiche aus')
 ].map(cmd => cmd.toJSON());
 
@@ -118,6 +143,19 @@ client.once('ready', async () => {
     await registerAllCommands();
 });
 
+// Passive XP-Generierung beim Schreiben von Nachrichten
+client.on('messageCreate', message => {
+    if (message.author.bot || !message.guild) return;
+    const userData = getRank(message.author.id);
+    userData.xp += Math.floor(Math.random() * 5) + 3;
+    const nextLevelXp = userData.level * 150;
+    if (userData.xp >= nextLevelXp) {
+        userData.xp -= nextLevelXp;
+        userData.level += 1;
+        message.channel.send(`✨ **Level Up!** ${message.author} hat Sektor-Level **${userData.level}** erreicht!`).catch(()=>{});
+    }
+});
+
 // ==========================================
 // CENTRAL INTERACTION & TICKETS/GAMING LOGIC
 // ==========================================
@@ -125,9 +163,12 @@ client.on('interactionCreate', async interaction => {
     if (interaction.isChatInputCommand()) {
         const { commandName, guild, channel } = interaction;
 
-        // Sicherheitsprüfung für kritische Befehle
-        if (['status', 'restart'].includes(commandName)) {
-            if (interaction.user.id !== OWNER_ID) return interaction.reply({ content: '🔒 Zugriff verweigert.', ephemeral: true });
+        // Echte Whitelist-Abfrage für alle administrativen & moderativen Befehle
+        const dynamicProtectedCommands = ['status', 'restart', 'clear', 'kick', 'ban', 'timeout', 'untimeout', 'warn', 'lock', 'unlock', 'say', 'embed', 'dm', 'whitelist', 'ticket-panel'];
+        if (dynamicProtectedCommands.includes(commandName)) {
+            if (!whitelistedUsers.has(interaction.user.id)) {
+                return interaction.reply({ content: '🔒 **Sicherheits-Blockierung:** Du bist nicht auf der AeroGuard Whitelist registriert, um diesen Befehl auszuführen.', ephemeral: true });
+            }
         }
 
         if (commandName === 'status') return interaction.reply(`🎮 **Live-Telemetrie:** \`${currentPlayersCount}/${maxPlayersCount}\` Spieler online auf dem Roblox-Server.`);
@@ -144,7 +185,6 @@ client.on('interactionCreate', async interaction => {
             return interaction.reply(`🤖 **AI Core:** Das System verarbeitet deine Anfrage: "${frage}". Das AeroGuard-Netzwerk läuft stabil.`);
         }
 
-        // --- ECHTER SENDER UND UTILITY KERN ---
         if (commandName === 'say') {
             const text = interaction.options.getString('text');
             await channel.send(text);
@@ -166,8 +206,61 @@ client.on('interactionCreate', async interaction => {
                 await target.send({ embeds: [new EmbedBuilder().setTitle('✉️ Offizielle Server-Mitteilung').setDescription(nachricht).setColor(0x9d4edd)] });
                 return interaction.reply({ content: `✅ Direktnachricht erfolgreich an **${target.tag}** zugestellt.`, ephemeral: true });
             } catch (e) {
-                return interaction.reply({ content: `❌ Nachricht konnte nicht gesendet werden. Eventuell hat der User DMs blockiert.`, ephemeral: true });
+                return interaction.reply({ content: `❌ Nachricht konnte nicht gesendet werden.`, ephemeral: true });
             }
+        }
+
+        // Whitelist Befehls-Handler
+        if (commandName === 'whitelist') {
+            const aktion = interaction.options.getString('aktion');
+            const target = interaction.options.getUser('target');
+            if (aktion === 'add') {
+                whitelistedUsers.add(target.id);
+                return interaction.reply(`✅ **${target.tag}** wurde erfolgreich zur Command-Whitelist hinzugefügt.`);
+            } else if (aktion === 'remove') {
+                if (target.id === OWNER_ID) return interaction.reply({ content: '❌ Du kannst dich nicht selbst von der Whitelist entfernen!', ephemeral: true });
+                whitelistedUsers.delete(target.id);
+                return interaction.reply(`⚠️ **${target.tag}** wurde aus der Whitelist entfernt.`);
+            }
+        }
+
+        // Stabiles Ranking-System
+        if (commandName === 'rank') {
+            const target = interaction.options.getUser('target') || interaction.user;
+            const data = getRank(target.id);
+            const nextLevelXp = data.level * 150;
+            const rankEmbed = new EmbedBuilder()
+                .setTitle(`📊 Rang-Sektor von ${target.username}`)
+                .setDescription(`• **Aktuelles Level:** \`${data.level}\`\n• **XP-Fortschritt:** \`${data.xp} / ${nextLevelXp}\` XP`)
+                .setColor(0x00f5d4)
+                .setThumbnail(target.displayAvatarURL());
+            return interaction.reply({ embeds: [rankEmbed] });
+        }
+
+        if (commandName === 'leaderboard') {
+            const sorted = Array.from(rankingDatabase.entries())
+                .sort((a, b) => b[1].level - a[1].level || b[1].xp - a[1].xp)
+                .slice(0, 10);
+            let lbText = "";
+            for (let i = 0; i < sorted.length; i++) {
+                lbText += `**#${i+1}** <@${sorted[i][0]}> - Level \`${sorted[i][1].level}\` (${sorted[i][1].xp} XP)\n`;
+            }
+            const lbEmbed = new EmbedBuilder().setTitle('🏆 AeroGuard Sektor-Leaderboard').setDescription(lbText || 'Noch keine Daten vorhanden. Schreib eine Nachricht!').setColor(0x9d4edd);
+            return interaction.reply({ embeds: [lbEmbed] });
+        }
+
+        // Ticket-Panel Absender
+        if (commandName === 'ticket-panel') {
+            const row = new ActionRowBuilder();
+            ticketSystemConfig.categories.forEach(cat => {
+                row.addComponents(new ButtonBuilder().setCustomId(`server_panel_trigger_${cat.id}`).setLabel(cat.label).setStyle(cat.color));
+            });
+            const panelEmbed = new EmbedBuilder()
+                .setTitle('🌌 AeroGuard Support-Zentrale')
+                .setDescription('Benötigst du Hilfe oder möchtest ein Anliegen einreichen? Klicke auf den entsprechenden Button unten, um ein privates Ticket mit der Projektleitung zu eröffnen!')
+                .setColor(0x9d4edd);
+            await channel.send({ embeds: [panelEmbed], components: [row] });
+            return interaction.reply({ content: '✅ Support-Panel erfolgreich projiziert.', ephemeral: true });
         }
 
         // --- ECHTES TIC-TAC-TOE SPIELSYSTEM ---
@@ -190,10 +283,10 @@ client.on('interactionCreate', async interaction => {
                 }
                 rows.push(row);
             }
-            return interaction.reply({ content: `` + `🎮 **Tic-Tac-Toe:** ${interaction.user} fordert ${gegner} heraus! ${interaction.user} fängt an (X).`, components: rows });
+            return interaction.reply({ content: `🎮 **Tic-Tac-Toe:** ${interaction.user} fordert ${gegner} heraus! ${interaction.user} fängt an (X).`, components: rows });
         }
 
-        // --- ECHTE MODERATION & ECONOMY ---
+        // --- MODERATION & ECONOMY KERN ---
         if (commandName === 'clear') {
             const anzahl = interaction.options.getInteger('anzahl');
             await channel.bulkDelete(anzahl, true);
@@ -249,7 +342,7 @@ client.on('interactionCreate', async interaction => {
 
         const eco = getEco(interaction.user.id);
         if (commandName === 'wallet') return interaction.reply(`💳 **Kontostand:** Bar: \`${eco.wallet} Münzen\` | Bank: \`${eco.bank} Münzen\``);
-        if (commandName === 'daily') { eco.wallet += 500; return interaction.reply('🎁 \`500 Münzen\` tägliche Belohnung gutgeschrieben.'); }
+        if (commandName === 'daily') { eco.wallet += 500; return interaction.reply('🎁 `500 Münzen` tägliche Belohnung gutgeschrieben.'); }
         if (commandName === 'work') { const g = Math.floor(Math.random() * 100) + 50; eco.wallet += g; return interaction.reply(`💼 Du hast gearbeitet und \`${g} Münzen\` verdient.`); }
         
         if (commandName === 'slots') {
@@ -266,7 +359,7 @@ client.on('interactionCreate', async interaction => {
 
         if (commandName === 'ping') return interaction.reply(`🏓 **Pong!** Websocket-Latenz: \`${Math.round(client.ws.ping)}ms\``);
         if (commandName === 'serverinfo') return interaction.reply(`📊 **Server-Statistiken:**\n• Name: *${guild?.name}*\n• ID: \`${guild?.id}\`\n• Gesamtmitglieder: \`${guild?.memberCount}\``);
-        if (commandName === 'help') return interaction.reply('📜 **AeroGuard Core-Übersicht:**\n• Moderation: `/clear`, `/kick`, `/ban`, `/warn`, `/timeout`, `/lock`\n• Administration: `/status`, `/restart`, `/say`, `/embed`, `/dm`\n• Entertainment: `/tictactoe`, `/slots`, `/wallet`, `/daily`, `/work`\n• KI-Module: `/imagine`, `/ask-ai`');
+        if (commandName === 'help') return interaction.reply('📜 **AeroGuard Core-Übersicht:**\n• Moderation: `/clear`, `/kick`, `/ban`, `/warn`, `/timeout`, `/lock`\n• Administration: `/status`, `/restart`, `/say`, `/embed`, `/dm`, `/whitelist`, `/ticket-panel`\n• Ranking: `/rank`, `/leaderboard`\n• Entertainment: `/tictactoe`, `/slots`, `/wallet`, `/daily`, `/work`\n• KI-Module: `/imagine`, `/ask-ai`');
     }
 
     // BUTTON INTERACTION GAME RADAR (TIC-TAC-TOE ENGINE)
@@ -315,20 +408,37 @@ client.on('interactionCreate', async interaction => {
 
         return await interaction.update({ content: msgContent, components: rows });
     }
+
+    // SERVER PANEL TICKET TRIGGER INTERACTION
+    if (interaction.isButton() && interaction.customId.startsWith('server_panel_trigger_')) {
+        const catId = interaction.customId.split('_')[3];
+        const userId = interaction.user.id;
+        const selectedCat = ticketSystemConfig.categories.find(c => c.id === catId);
+        const label = selectedCat ? selectedCat.label : "Support";
+
+        pendingTicketSelections.set(userId, { categoryId: catId, categoryLabel: label });
+        
+        try {
+            await interaction.user.send(`🔮 **AeroGuard Ticket initialisiert:** Du hast auf dem Server die Kategorie \`${label}\` gewählt.\n\nBitte schreibe mir jetzt hier in deiner **nächsten Direktnachricht** den genauen **Grund** deines Anliegens!`);
+            return interaction.reply({ content: '📥 Schau in deine DMs! Ich habe dir die Anleitung zur Ticketeinreichung zugeschickt.', ephemeral: true });
+        } catch (e) {
+            return interaction.reply({ content: '❌ Deine DMs sind geschlossen. Bitte öffne sie, um ein Ticket einzureichen.', ephemeral: true });
+        }
+    }
 });
 
 // ==========================================
-// ULTIMATIVE ZWEI-WEGE DM CHAT-BRÜCKE (MODMAIL)
+// ADVANCED ZWEI-WEGE DM CHAT-BRÜCKE (MODMAIL)
 // ==========================================
 client.on('messageCreate', async message => {
     if (message.author.bot) return;
 
-    // FALL A: MARLON (BESITZER) ANTWORTET IN DEN DMs
+    // FALL A: COMMANDER MARLON ANTWORTET IN SEINEN DMs
     if (!message.guild && message.author.id === OWNER_ID) {
         if (!ownerActiveSession.has(OWNER_ID)) {
             if (message.content.startsWith('/tickets')) {
                 if (activeTickets.size === 0) return message.author.send('🌌 Keine aktiven Ticket-Verbindungen vorhanden.');
-                let txt = '📂 **Verfügbare Support-Tunnel:**\n\n';
+                let txt = '📂 **Verfügbare Support-Tunnel (Hier klicken zum Verbinden):**\n\n';
                 activeTickets.forEach((t, id) => { txt += `👤 **${t.username}** (ID: \`${id}\`) [${t.category}]\nGrund: "${t.reason}"\nVerbinden mit: \`/open ${id}\`\n\n`; });
                 return message.author.send(txt);
             }
@@ -336,9 +446,16 @@ client.on('messageCreate', async message => {
                 const targetId = message.content.split(' ')[1];
                 if (!targetId || !activeTickets.has(targetId)) return message.author.send('❌ Ungültige Verbindungskennung.');
                 ownerActiveSession.set(OWNER_ID, targetId);
+                
+                // Dem verbundenen User Bescheid geben
+                try {
+                    const u = await client.users.fetch(targetId);
+                    if (u) await u.send('🔮 **Verbindung hergestellt!** Commander Marlon hat sich soeben in deinen Support-Tunnel eingeklinkt und liest ab jetzt live mit.');
+                } catch(e){}
+
                 return message.author.send(`✅ **Brücke geschaltet!** Du sprichst direkt mit **${activeTickets.get(targetId).username}**. Trennen mit \`/close\`.`);
             }
-            return message.author.send('🔮 **Galaxy Core:** Nutze `/tickets` oder `/open ID` zum Verbinden.');
+            return message.author.send('🔮 **AeroGuard Core:** Das ist deine Ticketübersicht. Nutze `/tickets` zum Anzeigen oder `/open ID` zum Verbinden.');
         }
 
         const currentTargetUserId = ownerActiveSession.get(OWNER_ID);
@@ -366,33 +483,44 @@ client.on('messageCreate', async message => {
     if (!message.guild) {
         const userId = message.author.id;
 
+        // Wenn der User bereits in einem genehmigten Ticket ist
         if (activeTickets.has(userId)) {
-            try {
-                const marlon = await client.users.fetch(OWNER_ID);
-                if (marlon) {
-                    const linked = ownerActiveSession.get(OWNER_ID) === userId;
-                    await marlon.send({ content: `📥 **Support-Text von ID \`${userId}\`:**`, embeds: [new EmbedBuilder().setTitle(`💬 Nachricht von ${message.author.username}`).setDescription(message.content).setColor(linked ? 0x00f5d4 : 0xff4d6d)] });
-                    await message.react('✅');
-                }
-            } catch(e){}
+            // PRÜFUNG: Ist Marlon aktuell mit GENAU DIESEM User verbunden?
+            const isConnectedWithMe = ownerActiveSession.get(OWNER_ID) === userId;
+
+            if (isConnectedWithMe) {
+                try {
+                    const marlon = await client.users.fetch(OWNER_ID);
+                    if (marlon) {
+                        await marlon.send({ embeds: [new EmbedBuilder().setTitle(`💬 Live-Chat: ${message.author.username}`).setDescription(message.content).setColor(0x00f5d4)] });
+                        await message.react('✅');
+                    }
+                } catch(e){}
+            } else {
+                // Marlon ist in einem anderen Ticket besetzt oder Brücke noch nicht offen!
+                await message.reply('🌌 **Bitte gedulde dich einen Moment.** Die Projektleitung ist aktuell in einer anderen Support-Übertragung oder prüft deine Daten. Es wird auf einen verfügbaren Supporter gewartet...');
+            }
             return;
         }
 
+        // Wenn die Kategorie ausgewählt wurde und jetzt der Grund abgeschickt wird
         if (pendingTicketSelections.has(userId)) {
             const selection = pendingTicketSelections.get(userId);
             activeTickets.set(userId, { username: message.author.tag, category: selection.categoryLabel, reason: message.content });
             pendingTicketSelections.delete(userId);
-            await message.reply(`✅ **Ticket erfolgreich übermittelt!** Dein Grund ("*${message.content}*") wurde protokolliert. Marlon wurde alarmiert und antwortet dir direkt hier.`);
+            
+            await message.reply(`✅ **Ticket erfolgreich übermittelt!** Dein Grund ("*${message.content}*") wurde im Cluster protokolliert. Wenn Marlon frei ist, schaltet er die Brücke live.`);
             
             try {
                 const marlon = await client.users.fetch(OWNER_ID);
                 if (marlon) {
-                    await marlon.send(`📩 **NEUES INSTANT DM-TICKET!**\n• Absender: ${message.author} (\`${message.author.tag}\`)\n• ID: \`${userId}\`\n• Kategorie: *${selection.categoryLabel}*\n• Grund: "${message.content}"\n\nNutze \`/open ${userId}\`, um die Brücke zu aktivieren.`);
+                    await marlon.send(`📩 **NEUES DM-TICKET EINGEGANGEN!**\n• Absender: ${message.author} (\`${message.author.tag}\`)\n• ID: \`${userId}\`\n• Kategorie: *${selection.categoryLabel}*\n• Grund: "${message.content}"\n\nNutze \`/open ${userId}\`, um die Live-Brücke zu aktivieren.`);
                 }
             } catch(e){}
             return;
         }
 
+        // Standard-Willkommensmenü, falls noch nichts läuft
         const row = new ActionRowBuilder();
         ticketSystemConfig.categories.forEach(cat => {
             row.addComponents(new ButtonBuilder().setCustomId(`tg_cat_${cat.id}_${userId}`).setLabel(cat.label).setStyle(cat.color));
@@ -405,8 +533,11 @@ client.on('messageCreate', async message => {
 
 client.on('interactionCreate', async interaction => {
     if (!interaction.isButton()) return;
-    const [prefix, sub, catId, userId] = interaction.customId.split('_');
-    if (prefix !== 'tg' || sub !== 'cat') return;
+    const parts = interaction.customId.split('_');
+    if (parts[0] !== 'tg' || parts[1] !== 'cat') return;
+    const catId = parts[2];
+    const userId = parts[3];
+    
     if (interaction.user.id !== userId) return interaction.reply({ content: 'Fehler.', ephemeral: true });
 
     const selectedCat = ticketSystemConfig.categories.find(c => c.id === catId);
