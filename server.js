@@ -1,5 +1,5 @@
 const express = require('express');
-const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType } = require('discord.js');
+const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, Partials } = require('discord.js');
 const axios = require('axios');
 const session = require('express-session');
 const app = express();
@@ -13,7 +13,7 @@ let currentPlayersCount = 0;
 let maxPlayersCount = 0;
 let playerList = [];
 let restartRequested = false;
-let systemStatus = "🟢 Hyper-Drive Core Online | 500/500 Commands geladen";
+let systemStatus = "🟢 Hyper-Drive Core Online | System synchronisiert";
 
 const activeTickets = new Map(); 
 const ownerActiveSession = new Map();
@@ -45,8 +45,7 @@ function addLog(type, message) {
     const logEntry = `[${timestamp}] ${type === 'error' ? '❌ [ERROR]' : 'ℹ️ [INFO]'} ${message}`;
     liveLogs.push(logEntry);
     if (liveLogs.length > 100) liveLogs.shift();
-// Füge oben beim require 'Partials' hinzu, falls es noch fehlt
-const { Client, GatewayIntentBits, Partials, REST, Routes, SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+}
 
 const client = new Client({
     intents: [
@@ -54,14 +53,15 @@ const client = new Client({
         GatewayIntentBits.GuildMembers,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
-        GatewayIntentBits.DirectMessages // Wichtig für DM-Empfang allgemein
+        GatewayIntentBits.DirectMessages
     ],
-    // ZWINGEND ERFORDERLICH FÜR PRIVATE NACHRICHTEN:
+    // ZWINGEND ERFORDERLICH FÜR PRIVATE DM-CHATS IN V14:
     partials: [
-        Partials.Channel, // Ermöglicht es dem Bot, DM-Kanäle zu lesen und zu erstellen
-        Partials.Message  // Ermöglicht es dem Bot, ungespeicherte oder alte Nachrichten in DMs zu verarbeiten
+        Partials.Channel,
+        Partials.Message
     ]
 });
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(session({
@@ -83,7 +83,6 @@ function getEco(userId) {
 // ==========================================
 const commandDefinitions = [];
 
-// 1. Die primären funktionsfähigen Core- & Gaming-Befehle definieren
 const coreCommands = [
     { name: 'status', desc: 'AeroGuard Live-Status & Auslastung abfragen' },
     { name: 'restart', desc: 'Erzwingt einen sicheren In-Game Roblox-Neustart' },
@@ -115,7 +114,6 @@ coreCommands.forEach(cmd => {
     commandDefinitions.push(builder.toJSON());
 });
 
-// 2. Den Rest des Arrays mathematisch präzise bis exakt 500 unterschiedliche Commands auffüllen
 const commandCategories = ['mod', 'sys', 'eco', 'fun', 'tool', 'cfg', 'game', 'utility', 'api', 'matrix'];
 let currentCatIdx = 0;
 
@@ -150,7 +148,6 @@ client.on('interactionCreate', async interaction => {
     if (interaction.isChatInputCommand()) {
         const { commandName, guild, channel } = interaction;
 
-        // Sicherheitsprüfung für kritische Befehle
         if (['status', 'restart'].includes(commandName)) {
             if (interaction.user.id !== OWNER_ID) return interaction.reply({ content: '🔒 Zugriff verweigert.', ephemeral: true });
         }
@@ -168,7 +165,6 @@ client.on('interactionCreate', async interaction => {
             return interaction.reply(`🤖 **AI Core:** AeroGuard-Cluster läuft fehlerfrei. Alle 20 Web-Panels konfiguriert.`);
         }
 
-        // --- ECHTES TIC-TAC-TOE SPIELSYSTEM ---
         if (commandName === 'tictactoe') {
             const gegner = interaction.options.getUser('gegner');
             if (gegner.bot || gegner.id === interaction.user.id) return interaction.reply('❌ Ungültiger Gegner.');
@@ -188,11 +184,9 @@ client.on('interactionCreate', async interaction => {
                 }
                 rows.push(row);
             }
-
             return interaction.reply({ content: `🎮 **Tic-Tac-Toe:** ${interaction.user} fordert ${gegner} heraus! ${interaction.user} fängt an (X).`, components: rows });
         }
 
-        // --- ECHTE MODERATION & ECON EXPULSION ---
         if (commandName === 'clear') {
             const anzahl = interaction.options.getInteger('anzahl');
             await channel.bulkDelete(anzahl, true);
@@ -213,16 +207,13 @@ client.on('interactionCreate', async interaction => {
         if (commandName === 'wallet') return interaction.reply(`💳 **Kontostand:** Bar: \`${eco.wallet}\` | Bank: \`${eco.bank}\``);
         if (commandName === 'daily') { eco.wallet += 500; return interaction.reply('🎁 `500 Münzen` tägliche Belohnung verbucht.'); }
         if (commandName === 'work') { const g = Math.floor(Math.random() * 100) + 50; eco.wallet += g; return interaction.reply(`💼 Du hast \`${g} Münzen\` verdient.`); }
-
         if (commandName === 'help') return interaction.reply('📜 **AeroGuard Core:** 500 Commands aktiv. Nutze dein Galaxy Webpanel zur Matrixüberwachung.');
         
-        // Dynamischer Fallback-Handler für die verbleibenden der 500 Commands
         if (commandName.includes('-cmd-')) {
             return interaction.reply({ content: `✅ **Matrix-Kopplung [/${commandName}]:** Sektor-Protokoll wurde im RAM-Verbund erfolgreich prozessiert.`, ephemeral: true });
         }
     }
 
-    // BUTTON INTERACTION GAME RADAR (TIC-TAC-TOE ENGINE)
     if (interaction.isButton() && interaction.customId.startsWith('ttt_btn_')) {
         const parts = interaction.customId.split('_');
         const gameId = `${parts[2]}_${parts[3]}_${parts[4]}`;
@@ -231,14 +222,12 @@ client.on('interactionCreate', async interaction => {
         const game = tttGames.get(gameId);
         if (!game) return interaction.reply({ content: 'Spiel abgelaufen.', ephemeral: true });
         if (interaction.user.id !== game.turn) return interaction.reply({ content: '❌ Du bist nicht an der Reihe!', ephemeral: true });
-
         if (game.board[cellIdx] !== ' ') return interaction.reply({ content: 'Zelle besetzt!', ephemeral: true });
 
         const isP1 = interaction.user.id === game.player1;
         game.board[cellIdx] = isP1 ? 'X' : 'O';
         game.turn = isP1 ? game.player2 : game.player1;
 
-        // Gewinn-Kombinationen prüfen
         const wins = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
         let finished = false;
         let winner = null;
@@ -249,8 +238,7 @@ client.on('interactionCreate', async interaction => {
             }
         }
 
-        if (!game.board.includes(' ') && !finished) finished = true; // Unentschieden
-
+        if (!game.board.includes(' ') && !finished) finished = true;
         if (finished) tttGames.delete(gameId);
 
         const rows = [];
@@ -279,7 +267,7 @@ client.on('interactionCreate', async interaction => {
 client.on('messageCreate', async message => {
     if (message.author.bot) return;
 
-    // FALL A: MARLON (BESITZER) ANTWORTET IN SEINEN PRIVATEN DMs
+    // FALL A: MARLON ANTWORTET IN SEINEN DMs
     if (!message.guild && message.author.id === OWNER_ID) {
         if (!ownerActiveSession.has(OWNER_ID)) {
             if (message.content.startsWith('/tickets')) {
