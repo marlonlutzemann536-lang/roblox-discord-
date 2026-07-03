@@ -45,7 +45,8 @@ function addLog(type, message) {
     const logEntry = `[${timestamp}] ${type === 'error' ? '❌ [ERROR]' : 'ℹ️ [INFO]'} ${message}`;
     liveLogs.push(logEntry);
     if (liveLogs.length > 100) liveLogs.shift();
-}
+// Füge oben beim require 'Partials' hinzu, falls es noch fehlt
+const { Client, GatewayIntentBits, Partials, REST, Routes, SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
 const client = new Client({
     intents: [
@@ -53,10 +54,14 @@ const client = new Client({
         GatewayIntentBits.GuildMembers,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
-        GatewayIntentBits.DirectMessages
+        GatewayIntentBits.DirectMessages // Wichtig für DM-Empfang allgemein
+    ],
+    // ZWINGEND ERFORDERLICH FÜR PRIVATE NACHRICHTEN:
+    partials: [
+        Partials.Channel, // Ermöglicht es dem Bot, DM-Kanäle zu lesen und zu erstellen
+        Partials.Message  // Ermöglicht es dem Bot, ungespeicherte oder alte Nachrichten in DMs zu verarbeiten
     ]
 });
-
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(session({
