@@ -601,7 +601,7 @@ client.on('messageCreate', async message => {
                 await u.send({ embeds: [new EmbedBuilder().setTitle('🌌 AeroGuard Admin-Antwort').setDescription(message.content).setColor(0x9d4edd).setFooter({ text: 'Antworte einfach zurück, um zu schreiben.' })] });
                 await message.react('⚡');
             }
-        } catch(err) { message.author.send suicide(`❌ Verbindung abgebrochen: ${err.message}`); }
+        } catch(err) { message.author.send(`❌ Verbindung abgebrochen: ${err.message}`); }
         return;
     }
 
