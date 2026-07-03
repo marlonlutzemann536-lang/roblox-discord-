@@ -28,7 +28,7 @@ let currentPlayersCount = 0;
 let maxPlayersCount = 0;
 let playerList = [];
 let restartRequested = false;
-let systemStatus = "🟢 AeroGuard Enterprise Premium Network Online | Voice-Support Matrix Active";
+let systemStatus = "🟢 AeroGuard Enterprise Premium Network Online | Voice-Support Matrix Fixed";
 
 // Globale RAM-Datenbanken (Strikte Trennung für Public-Modus)
 const activeTickets = new Map(); 
@@ -54,9 +54,7 @@ const robloxBanDatabase = new Map();
 const robloxRestartSchedules = new Map(); 
 const activeApplications = new Map(); 
 const livePollsDatabase = new Map(); 
-
-// NEU: SPEICHER FÜR DYNAMISCHES VOICE-SUPPORT ALARM SYSTEM
-const voiceSupportAlertChannels = new Map(); // Key: GuildID -> Value: TextChannelID
+const voiceSupportAlertChannels = new Map(); 
 
 const APPLICATION_QUESTIONS = [
     "🔢 Frage 1: Wie alt bist du aktuell?",
@@ -134,7 +132,7 @@ let client = new Client({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(session({
-    secret: 'aeroguard_mega_hyper_galaxy_enterprise_super_long_secret_key_string_998877665544332211_max_unlocked_chars_matrix_edition_recovery_gate_ultimate_v4',
+    secret: 'aeroguard_mega_hyper_galaxy_enterprise_super_long_secret_key_string_998877665544332211_max_unlocked_chars_matrix_edition_recovery_gate_ultimate_v5',
     resave: false,
     saveUninitialized: false,
     cookie: { secure: false, maxAge: 900000 }
@@ -252,7 +250,6 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
                 .setColor(0xff4d6d)
                 .setTimestamp();
 
-            // NEU: Prüfen, ob für diese Gilde ein spezifischer Textkanal für Benachrichtigungen konfiguriert ist!
             const textAlertChannelId = voiceSupportAlertChannels.get(newState.guild.id);
             if (textAlertChannelId) {
                 try {
@@ -261,17 +258,15 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
                         const row = new ActionRowBuilder().addComponents(
                             new ButtonBuilder().setCustomId(`voice_join_alert_${channel.id}`).setLabel('🔊 Raum beitreten').setStyle(ButtonStyle.Success)
                         );
-                        // Sendet die Nachricht direkt in den eingestellten Kanal mit Supporter-Massen-Ping!
                         await textChannel.send({ 
-                            content: `🔔 **@here — VOICE SUPPORT NOTFALL:** ${member} wartet soeben im **${channel.name}**!`, 
+                            content: `🔔 **@here — VOICE SUPPORT ALARM:** ${member} wartet soeben im **${channel.name}**!`, 
                             embeds: [alertEmbed],
                             components: [row]
                         });
                     }
-                } catch(e) { addLog('error', `Fehler beim Senden in den konfigurierten Voice-Alarmkanal: ${e.message}`); }
+                } catch(e) { addLog('error', `Fehler beim Senden in den Voice-Alarmkanal: ${e.message}`); }
             }
 
-            // Fallback: Alle autorisierten Supporter zusätzlich in ihren DMs alarmieren
             authorizedSupporters.forEach(async (suppId) => {
                 try {
                     const supp = await client.users.fetch(suppId);
@@ -428,7 +423,6 @@ const commandDefinitions = [
         .addStringOption(o => o.setName('option_a').setDescription('Beschriftung für Knopf A').setRequired(true))
         .addStringOption(o => o.setName('option_b').setDescription('Beschriftung für Knopf B').setRequired(true)),
 
-    // NEU: INTERAKTIVER VOICE SUPPORT SETUP COMMAND WITH DROPDOWN INJECTION
     new SlashCommandBuilder().setName('setup-voicesupport').setDescription('Konfiguriere den Textkanal für automatische Support-Warteraum Pings und Benachrichtigungen'),
 
     // Berechtigungsknoten
@@ -506,16 +500,15 @@ client.on('interactionCreate', async interaction => {
             if (!whitelistedUsers.has(interaction.user.id)) return interaction.reply({ content: '🔒 Berechtigung fehlt.', ephemeral: true });
         }
 
-        // --- DYNAMISCHER VOICE-SUPPORT TEXTKANAL INJEKTOR ---
+        // --- FIXED: VOICE SUPPORT CONFIGURATION CORRIDOR ---
         if (commandName === 'setup-voicesupport') {
-            // Erstellt ein natives Channel-Auswahlmenü exakt nach deinen Vorgaben!
             const channelSelect = new ChannelSelectMenuBuilder()
                 .setCustomId('voice_support_text_channel_select')
-                .setPlaceholder('Wähle den Ziel-Textkanal für Alarme aus...')
+                .setPlaceholder('Wähle den Alarm-Kanal aus...')
                 .addChannelTypes(ChannelType.GuildText);
 
             const row = new ActionRowBuilder().addComponents(channelSelect);
-            return interaction.reply({ content: '🔮 **AeroGuard Leitstelle:** Bitte wähle über das Dropdown-Menü unten den Kanal aus, in den Pings für den Sprach-Support geschickt werden sollen:', components: [row], ephemeral: true });
+            return interaction.reply({ content: '🔮 **AeroGuard Leitstelle:** Bitte wähle über das Dropdown-Menü den Kanal aus, in den Pings für den Sprach-Support geschickt werden sollen:', components: [row], ephemeral: true });
         }
 
         if (commandName === 'rbx-announce') {
@@ -612,7 +605,7 @@ client.on('interactionCreate', async interaction => {
         }
     }
 
-    // EVALUATION FÜR DEN VOICE SUPPORT SETUP KNOTEN (NEU!)
+    // --- EVALUATION FÜR DEN TEXTKANAL INJEKTOR ---
     if (interaction.isChannelSelectMenu() && interaction.customId === 'voice_support_text_channel_select') {
         const selectedChannelId = interaction.values[0];
         voiceSupportAlertChannels.set(interaction.guild.id, selectedChannelId);
@@ -672,9 +665,11 @@ client.on('interactionCreate', async interaction => {
         if (action === 'claim') {
             ownerActiveSession.set(supporterId, targetUserId); ticket.claimedBy = supporterId; getKPI(supporterId).claimed += 1;
             await interaction.reply({ content: `🟩 Tunnel aktiv.`, ephemeral: true });
+            try { (await client.users.fetch(targetUserId))?.send(`🔮 Ein Supporter ist nun live mit dir verbunden.`); } catch(e){}
         }
         if (action === 'close') {
             await interaction.reply({ content: `🟥 Gelöscht.`, ephemeral: true }); getKPI(supporterId).closed += 1;
+            try { (await client.users.fetch(targetUserId))?.send('🔒 Dein Support-Tunnel wurde geschlossen.'); } catch(e){}
             activeTickets.delete(targetUserId); ownerActiveSession.delete(supporterId);
         }
         if (action === 'transfer') { ticket.claimedBy = null; ownerActiveSession.delete(supporterId); await interaction.reply({ content: `🟨 Freigegeben.`, ephemeral: true }); }
