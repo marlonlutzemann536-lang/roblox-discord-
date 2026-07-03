@@ -1,7 +1,7 @@
 {
-  "name": "roblox-discord-bridge",
+  "name": "aeroguard-core",
   "version": "1.0.0",
-  "description": "Roblox to Discord easy ranking bridge",
+  "description": "AeroGuard Premium Roblox and Discord Bridge",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
@@ -9,7 +9,8 @@
   "dependencies": {
     "axios": "^1.7.2",
     "discord.js": "^14.14.1",
-    "express": "^4.19.2"
+    "express": "^4.19.2",
+    "express-session": "^1.18.0"
   },
   "engines": {
     "node": ">=16.0.0"
