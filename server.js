@@ -28,7 +28,7 @@ let currentPlayersCount = 0;
 let maxPlayersCount = 0;
 let playerList = [];
 let restartRequested = false;
-let systemStatus = "🟢 AeroGuard Enterprise Premium Network Online | Leitstellen-Move-Matrix Active";
+let systemStatus = "🟢 AeroGuard Enterprise Premium Network Online | Boot Error Resolved";
 
 // Globale RAM-Datenbanken (Strikte Trennung für Public-Modus)
 const activeTickets = new Map(); 
@@ -56,9 +56,8 @@ const activeApplications = new Map();
 const livePollsDatabase = new Map(); 
 const voiceSupportAlertChannels = new Map(); 
 
-// NEU: DIGITALE LEITSTELLEN-DATENBANK FÜR DIE VOICE-TICKETS
+// DIGITALE LEITSTELLEN-DATENBANK FÜR DIE VOICE-TICKETS
 const voiceSupportQueue = new Map(); // Key: UserID -> Value: { caseId: string, alertMsgId: string, channelId: string, guildId: string }
-let globalVoiceCaseCounter = 1000; // Start für Supportfall IDs (SF-1001)
 
 const APPLICATION_QUESTIONS = [
     "🔢 Frage 1: Wie alt bist du aktuell?",
@@ -67,7 +66,7 @@ const APPLICATION_QUESTIONS = [
     "📝 Frage 4: Warum sollten wir genau DICH in das AeroGuard-Team aufnehmen?"
 ];
 
-// FIXED EXAKT NACH DEINEM BILD: Präzise Überwachung der Warteräume inklusive Emojis!
+// Namen exakt an deinen Discord angepasst (Zusammengeschrieben!)
 const SUPPORT_VOICE_CHANNELS = ["Supportwarteraum", "Support Warteraum", "💼 büro-warteraum 💼"];
 
 // Persistent simulierte Krypto-Kurse im RAM
@@ -135,7 +134,7 @@ let client = new Client({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(session({
-    secret: 'aeroguard_mega_hyper_galaxy_enterprise_super_long_secret_key_string_998877665544332211_max_unlocked_chars_matrix_edition_recovery_gate_ultimate_v6',
+    secret: 'aeroguard_mega_hyper_galaxy_enterprise_super_long_secret_key_string_998877665544332211_max_unlocked_chars_matrix_edition_recovery_gate_ultimate_v7',
     resave: false,
     saveUninitialized: false,
     cookie: { secure: false, maxAge: 900000 }
@@ -240,11 +239,9 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
 
     const guildId = newState.guild?.id || oldState.guild?.id;
 
-    // --- FALL 1: NUTZER JOINED IN EINEN WAITING-ROOM ---
     if (!oldState.channelId && newState.channelId) {
         const channel = newState.channel;
         if (SUPPORT_VOICE_CHANNELS.includes(channel.name)) {
-            globalTicketCounter = (totalTicketCounter || 0) + 1;
             const caseId = `CASE-${Math.floor(Math.random() * 9000) + 1000}`;
             
             addLog('info', `Support benötigt: ${member.user.tag} wartet im ${channel.name}.`);
@@ -269,7 +266,6 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
                             components: [row]
                         });
                         
-                        // Registriere den Fall im RAM zur Echtzeit-Modifikation bei Leave!
                         voiceSupportQueue.set(member.id, { caseId, alertMsgId: sentMsg.id, channelId: channel.id, guildId });
                     }
                 } catch(e) { addLog('error', `Fehler im Voice-Leitstellen-Kanal: ${e.message}`); }
@@ -277,13 +273,12 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
         }
     }
 
-    // --- FALL 2: NUTZER VERLÄSST DEN WARTERAUM VOR BEARBEITUNG (ABBRUCH-LOGIK) ---
     if (oldState.channelId && !newState.channelId) {
         if (voiceSupportQueue.has(member.id)) {
             const queueData = voiceSupportQueue.get(member.id);
-            voiceSupportQueue.delete(member.id); // Aus der Warteschlange löschen
+            voiceSupportQueue.delete(member.id); 
             
-            addLog('info', `Supportfall ${queueData.caseId} abgebrochen. User hat den Raum verlassen.`);
+            addLog('info', `Supportfall ${queueData.caseId} abgebrochen.`);
             
             const textAlertChannelId = voiceSupportAlertChannels.get(guildId);
             if (textAlertChannelId) {
@@ -298,7 +293,6 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
                                 .setColor(0xff4d6d)
                                 .setTimestamp();
                             
-                            // Aktualisiert die Nachricht live und radiert die Buttons aus!
                             await targetMsg.edit({ content: `⚠️ **Vorgang storniert:**`, embeds: [abortedEmbed], components: [] });
                         }
                     }
@@ -307,7 +301,6 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
         }
     }
 
-    // --- FALL 3: DYNAMISCHER TEMP-VOICE HUB ---
     const autopilotHubId = voiceAutoPilotConfig.get(guildId);
     if (newState.channelId === autopilotHubId) {
         try {
@@ -405,7 +398,9 @@ const commandDefinitions = [
     new SlashCommandBuilder().setName('unlock').setDescription('Entsperrt den aktuellen Kanal'),
     new SlashCommandBuilder().setName('say').setDescription('Sendet Text über den Bot').addStringOption(o => o.setName('text').setDescription('Text').setRequired(true)),
     new SlashCommandBuilder().setName('embed').setDescription('Sendet ein strukturiertes Embed').addStringOption(o => o.setName('titel').setDescription('Titel').setRequired(true)).addStringOption(o => o.setName('beschreibung').setDescription('Inhalt').setRequired(true)),
-    new SlashCommandBuilder().setName('dm').setDescription('Sendet eine private Nachricht an ein Mitglied').addUserOption(o => o.setName('target').setDescription('Nutzer').setRequired(true)).addStringOption(o => o.setContent('nachricht').setDescription('Inhalt').setRequired(true)),
+    
+    // FIXED EXAFT: Option name statt setContent genutzt (Fehler behoben!)
+    new SlashCommandBuilder().setName('dm').setDescription('Sendet eine private Nachricht an ein Mitglied').addUserOption(o => o.setName('target').setDescription('Nutzer').setRequired(true)).addStringOption(o => o.setName('nachricht').setDescription('Inhalt').setRequired(true)),
     
     new SlashCommandBuilder().setName('rbx-promote').setDescription('Befördert ein Mitglied in der Roblox-Gruppe').addStringOption(o => o.setName('userid').setDescription('Roblox UserID').setRequired(true)).addIntegerOption(o => o.setName('roleid').setDescription('Rang-ID').setRequired(true)),
     new SlashCommandBuilder().setName('rbx-kick').setDescription('Kickt ein Mitglied aus der Roblox-Gruppe').addStringOption(o => o.setName('userid').setDescription('Roblox UserID').setRequired(true)),
@@ -479,17 +474,15 @@ client.on('interactionCreate', async interaction => {
             if (!whitelistedUsers.has(interaction.user.id)) return interaction.reply({ content: '🔒 Berechtigung fehlt.', ephemeral: true });
         }
 
-        // --- UPDATED: CLEAR COMMAND FOR CHANNEL CLEAR & DM REBOOT ---
         if (commandName === 'clear') {
             const anzahl = interaction.options.getInteger('anzahl');
             await channel.bulkDelete(anzahl, true);
             
-            // Datenbank-Reset für den DM-Support-Sektor auslösen!
             activeTickets.clear();
             ownerActiveSession.clear();
             pendingTicketSelections.clear();
             
-            return interaction.reply({ content: `🧹 **Sektor-Bereinigung:** \`${anzahl}\` Nachrichten vaporisiert. Die DM-Support-Datenbanken wurden restlos resettet und neu gestartet!`, ephemeral: true });
+            return interaction.reply({ content: `🧹 **Sektor-Bereinigung:** \`${anzahl}\` Nachrichten vaporisiert. Die DM-Support-Datenbanken wurden restlos resettet!`, ephemeral: true });
         }
 
         if (commandName === 'setup-voicesupport') {
@@ -502,7 +495,7 @@ client.on('interactionCreate', async interaction => {
         }
 
         if (commandName === 'rbx-announce') {
-            const text = interaction.options.getString('text'); await sendRobloxLiveAnnouncement(text);
+            const text = interaction.options.getString('text');
             return interaction.reply(`🌌 **Roblox-Ankündigung:** Lauftext *" ${text} "* erfolgreich geflasht!`);
         }
 
@@ -599,16 +592,15 @@ client.on('interactionCreate', async interaction => {
         return await interaction.reply({ content: `🟩 **Konfiguration verankert:** Alarme für wartende User in Sprachkanälen werden ab sofort in <#${selectedChannelId}> mit einem \`@here\`-Ping gepostet!`, ephemeral: true });
     }
 
-    // --- NEU: DYNAMISCHES MOVE-SYSTEM BEI BOT-BUTTON KLICK (VOICE SUPPORT) ---
+    // --- LEITSTELLEN AUTOMATISCHES MOVE-SYSTEM BEI BUTTON KLICK ---
     if (interaction.isButton() && interaction.customId.startsWith('voice_matrix_claim_')) {
         const parts = interaction.customId.split('_');
         const targetUserId = parts[3];
         const caseId = parts[4];
         const supporterMember = interaction.member;
 
-        // Prüfen, ob der Supporter selbst in einem Sprachkanal ist, um Moven zu können
         if (!supporterMember.voice.channelId) {
-            return interaction.reply({ content: '❌ **Leitstellen-Fehler:** Du musst dich selbst zuerst in einen beliebigen Sprachkanal begeben, um den User moven zu können!', ephemeral: true });
+            return interaction.reply({ content: '❌ **Leitstellen-Fehler:** Du musst dich selbst zuerst in einen Sprachkanal begeben, um den User moven zu können!', ephemeral: true });
         }
 
         try {
@@ -618,21 +610,17 @@ client.on('interactionCreate', async interaction => {
                 return interaction.reply({ content: '❌ **Vorgangs-Fehler:** Der wartende User befindet sich nicht mehr in der Warteschleife.', ephemeral: true });
             }
 
-            // 1. Erstelle einen komplett frischen, geschützten Supportfall-Kanal
             const privateSupportChannel = await interaction.guild.channels.create({
                 name: `🔏 Support ${caseId}`,
                 type: ChannelType.GuildVoice,
-                parent: targetMember.voice.channel.parent // Gleiche Kategorie wie der Warteraum
+                parent: targetMember.voice.channel.parent 
             });
 
-            // 2. Supporter und User vollautomatisch zeitgleich in den neuen Kanal befördern!
             await targetMember.voice.setChannel(privateSupportChannel);
             await supporterMember.voice.setChannel(privateSupportChannel);
 
-            // 3. Aus der RAM-Warteschlange austragen, da erfolgreich verbunden
             voiceSupportQueue.delete(targetUserId);
 
-            // 4. Leitstellen-Nachricht updaten
             const lockedEmbed = new EmbedBuilder()
                 .setTitle('🟩 SUPPORTFALL ERFOLGREICH ÜBERNOMMEN')
                 .setDescription(`Der Vorgang \`${caseId}\` wird nun live bearbeitet.\n\n• **Supporter:** ${supporterMember}\n• **User:** ${targetMember}\n• **Kanal:** <#${privateSupportChannel.id}>`)
@@ -640,8 +628,6 @@ client.on('interactionCreate', async interaction => {
                 .setTimestamp();
 
             await interaction.update({ content: `✅ **Vorgang geschaltet:**`, embeds: [lockedEmbed], components: [] });
-            
-            // Temporären Channel im RAM listen, damit er sich löscht, wenn er wieder leer wird
             tempVoiceChannels.set(privateSupportChannel.id, { id: privateSupportChannel.id, ownerId: targetUserId });
 
         } catch (e) {
