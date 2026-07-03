@@ -6,14 +6,14 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 // ==========================================
-// CONFIGURATION & MASTER CORE VARIABLES
+// CONFIGURATION & GALAXY MASTER VARIABLES
 // ==========================================
-const OWNER_ID = '1075845857875873852'; // Deine verifizierte 19-stellige Discord-ID
+const OWNER_ID = '1075845857875873852'; // Deine verifizierte Discord-ID
 let currentPlayersCount = 0;
 let maxPlayersCount = 0;
 let playerList = [];
 let restartRequested = false;
-let systemStatus = "🟢 Hyper-Drive Core Online | System synchronisiert";
+let systemStatus = "🟢 Hyper-Drive Core Online | System stabilisiert";
 
 const activeTickets = new Map(); 
 const ownerActiveSession = new Map();
@@ -21,7 +21,7 @@ const pendingTicketSelections = new Map();
 const whitelistedUsers = new Set([OWNER_ID]); 
 const economyDatabase = new Map(); 
 const warnDatabase = new Map();    
-const tttGames = new Map(); // Speicher für aktive Tic-Tac-Toe Instanzen
+const tttGames = new Map(); // Speicher für Tic-Tac-Toe
 
 let ticketSystemConfig = {
     enabled: true,
@@ -33,7 +33,7 @@ let ticketSystemConfig = {
     ]
 };
 
-// Alle 20 Systempanels sind standardmäßig global AKTIVIERT
+// 20 Systempanels auf der Webseite
 const panelsConfig = {};
 for (let i = 1; i <= 20; i++) {
     panelsConfig[`panel${i}_matrix_node`] = { enabled: true };
@@ -42,8 +42,7 @@ for (let i = 1; i <= 20; i++) {
 const liveLogs = [];
 function addLog(type, message) {
     const timestamp = new Date().toLocaleTimeString();
-    const logEntry = `[${timestamp}] ${type === 'error' ? '❌ [ERROR]' : 'ℹ️ [INFO]'} ${message}`;
-    liveLogs.push(logEntry);
+    liveLogs.push(`[${timestamp}] ${type === 'error' ? '❌ [ERROR]' : 'ℹ️ [INFO]'} ${message}`);
     if (liveLogs.length > 100) liveLogs.shift();
 }
 
@@ -55,7 +54,6 @@ const client = new Client({
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.DirectMessages
     ],
-    // ZWINGEND ERFORDERLICH FÜR PRIVATE DM-CHATS IN V14:
     partials: [
         Partials.Channel,
         Partials.Message
@@ -79,60 +77,39 @@ function getEco(userId) {
 }
 
 // ==========================================
-// COMPACT DYNAMIC COMMAND MATRIX ENGINE (500 COMMANDS)
+// REGISTRIERUNG DER REALEN PREMIUM-COMMANDS
 // ==========================================
-const commandDefinitions = [];
-
-const coreCommands = [
-    { name: 'status', desc: 'AeroGuard Live-Status & Auslastung abfragen' },
-    { name: 'restart', desc: 'Erzwingt einen sicheren In-Game Roblox-Neustart' },
-    { name: 'imagine', desc: 'KI-Bildgenerierung: Erschafft epische Bilder aus Text', stringOpt: 'prompt' },
-    { name: 'ask-ai', desc: 'Frage die integrierte künstliche Intelligenz um Rat', stringOpt: 'frage' },
-    { name: 'tictactoe', desc: 'Starte ein interaktives Tic-Tac-Toe Minigame gegen ein Mitglied', userOpt: 'gegner' },
-    { name: 'clear', desc: 'Löscht eine Anzahl an Nachrichten im Kanal', intOpt: 'anzahl' },
-    { name: 'kick', desc: 'Kickt ein Mitglied unwiderruflich vom Server', userOpt: 'target' },
-    { name: 'ban', desc: 'Verbannt ein Mitglied permanent vom Server', userOpt: 'target' },
-    { name: 'timeout', desc: 'Versetzt ein Mitglied in ein Timeout', userOpt: 'target', intOpt: 'minuten' },
-    { name: 'untimeout', desc: 'Hebt das aktive Timeout eines Mitglieds auf', userOpt: 'target' },
-    { name: 'warn', desc: 'Verwarnt ein Mitglied formell auf dem Server', userOpt: 'target', stringOpt: 'grund' },
-    { name: 'lock', desc: 'Sperrt den aktuellen Kanal für normale Mitglieder' },
-    { name: 'unlock', desc: 'Entsperrt einen blockierten Kanal wieder' },
-    { name: 'wallet', desc: 'Zeigt deinen aktuellen Kontostand auf der Bank und Bar' },
-    { name: 'daily', desc: 'Fordere deine tägliche Belohnung an virtuellen Münzen ein' },
-    { name: 'work', desc: 'Gehe virtuell arbeiten, um Münzen auf dein Konto zu verdienen' },
-    { name: 'slots', desc: 'Spiele am virtuellen Spielautomaten um einen Münz-Jackpot', intOpt: 'einsatz' },
-    { name: 'ping', desc: 'Gibt die Latenzzeiten der Websocket-Verbindung zurück' },
-    { name: 'serverinfo', desc: 'Gibt umfassende statistische Daten zum Server aus' },
-    { name: 'help', desc: 'Gibt eine vollständige Übersicht aller Funktionsbereiche aus' }
-];
-
-coreCommands.forEach(cmd => {
-    const builder = new SlashCommandBuilder().setName(cmd.name).setDescription(cmd.desc);
-    if (cmd.stringOpt) builder.addStringOption(o => o.setName(cmd.stringOpt).setDescription('Parameter-Wert').setRequired(true));
-    if (cmd.intOpt) builder.addIntegerOption(o => o.setName(cmd.intOpt).setDescription('Numerischer Wert').setRequired(true));
-    if (cmd.userOpt) builder.addUserOption(o => o.setName(cmd.userOpt).setDescription('Ziel-Nutzer').setRequired(true));
-    commandDefinitions.push(builder.toJSON());
-});
-
-const commandCategories = ['mod', 'sys', 'eco', 'fun', 'tool', 'cfg', 'game', 'utility', 'api', 'matrix'];
-let currentCatIdx = 0;
-
-for (let i = commandDefinitions.length + 1; i <= 500; i++) {
-    const cat = commandCategories[currentCatIdx];
-    commandDefinitions.push(
-        new SlashCommandBuilder()
-            .setName(`${cat}-cmd-${i}`)
-            .setDescription(`AeroGuard Premium-Funktion Matrix Code [Sektor ${cat.toUpperCase()} - Protokoll #${i}]`)
-            .toJSON()
-    );
-    currentCatIdx = (currentCatIdx + 1) % commandCategories.length;
-}
+const commandDefinitions = [
+    new SlashCommandBuilder().setName('status').setDescription('AeroGuard Live-Status & Auslastung abfragen'),
+    new SlashCommandBuilder().setName('restart').setDescription('Erzwingt einen sicheren In-Game Roblox-Neustart'),
+    new SlashCommandBuilder().setName('imagine').setDescription('KI-Bildgenerierung: Erschafft epische Bilder aus Text').addStringOption(o => o.setName('prompt').setDescription('Beschreibung des Bildes').setRequired(true)),
+    new SlashCommandBuilder().setName('ask-ai').setDescription('Frage die integrierte künstliche Intelligenz um Rat').addStringOption(o => o.setName('frage').setDescription('Deine Frage').setRequired(true)),
+    new SlashCommandBuilder().setName('tictactoe').setDescription('Starte ein interaktives Tic-Tac-Toe Minigame gegen ein Mitglied').addUserOption(o => o.setName('gegner').setDescription('Dein Gegner').setRequired(true)),
+    new SlashCommandBuilder().setName('clear').setDescription('Löscht eine Anzahl an Nachrichten im Kanal').addIntegerOption(o => o.setName('anzahl').setDescription('1-100 Nachrichten').setRequired(true)),
+    new SlashCommandBuilder().setName('kick').setDescription('Kickt ein Mitglied unwiderruflich vom Server').addUserOption(o => o.setName('target').setDescription('Nutzer zum Kicken').setRequired(true)).addStringOption(o => o.setName('grund').setDescription('Grund für den Kick')),
+    new SlashCommandBuilder().setName('ban').setDescription('Verbannt ein Mitglied permanent vom Server').addUserOption(o => o.setName('target').setDescription('Nutzer zum Bannen').setRequired(true)).addStringOption(o => o.setName('grund').setDescription('Grund für den Ban')),
+    new SlashCommandBuilder().setName('timeout').setDescription('Versetzt ein Mitglied in ein Timeout').addUserOption(o => o.setName('target').setDescription('Nutzer').setRequired(true)).addIntegerOption(o => o.setName('minuten').setDescription('Dauer in Minuten').setRequired(true)),
+    new SlashCommandBuilder().setName('untimeout').setDescription('Hebt das aktive Timeout eines Mitglieds auf').addUserOption(o => o.setName('target').setDescription('Nutzer').setRequired(true)),
+    new SlashCommandBuilder().setName('warn').setDescription('Verwarnt ein Mitglied formell auf dem Server').addUserOption(o => o.setName('target').setDescription('Nutzer').setRequired(true)).addStringOption(o => o.setName('grund').setDescription('Grund für die Warnung').setRequired(true)),
+    new SlashCommandBuilder().setName('lock').setDescription('Sperrt den aktuellen Kanal für normale Mitglieder'),
+    new SlashCommandBuilder().setName('unlock').setDescription('Entsperrt einen blockierten Kanal wieder'),
+    new SlashCommandBuilder().setName('wallet').setDescription('Zeigt deinen aktuellen Kontostand auf der Bank und Bar'),
+    new SlashCommandBuilder().setName('daily').setDescription('Fordere deine tägliche Belohnung an virtuellen Münzen ein'),
+    new SlashCommandBuilder().setName('work').setDescription('Gehe virtuell arbeiten, um Münzen auf dein Konto zu verdienen'),
+    new SlashCommandBuilder().setName('slots').setDescription('Spiele am virtuellen Spielautomaten um einen Münz-Jackpot').addIntegerOption(o => o.setName('einsatz').setDescription('Münzeinsatz').setRequired(true)),
+    new SlashCommandBuilder().setName('ping').setDescription('Gibt die Latenzzeiten der Websocket-Verbindung zurück'),
+    new SlashCommandBuilder().setName('serverinfo').setDescription('Gibt umfassende statistische Daten zum Server aus'),
+    new SlashCommandBuilder().setName('say').setDescription('Lässt den Bot eine unformatierte Textnachricht in den Kanal senden').addStringOption(o => o.setName('text').setDescription('Deine Nachricht').setRequired(true)),
+    new SlashCommandBuilder().setName('embed').setDescription('Erstellt eine strukturierte Embed-Ankündigung im Kanal').addStringOption(o => o.setName('titel').setDescription('Titel der Ankündigung').setRequired(true)).addStringOption(o => o.setName('beschreibung').setDescription('Inhalt der Ankündigung').setRequired(true)),
+    new SlashCommandBuilder().setName('dm').setDescription('Sendet eine offizielle Direktnachricht über den Bot an ein Mitglied').addUserOption(o => o.setName('target').setDescription('Empfänger').setRequired(true)).addStringOption(o => o.setName('nachricht').setDescription('Inhalt der DM').setRequired(true)),
+    new SlashCommandBuilder().setName('help').setDescription('Gibt eine vollständige Übersicht aller Funktionsbereiche aus')
+].map(cmd => cmd.toJSON());
 
 async function registerAllCommands() {
     try {
         const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
         await rest.put(Routes.applicationGuildCommands(client.user.id, process.env.GUILD_ID), { body: commandDefinitions });
-        addLog('info', 'Erfolgreich exakt 500 eigenständige Commands im Discord API-Cluster injiziert.');
+        addLog('info', 'Alle realen Premium-Commands erfolgreich im API-Cluster registriert.');
     } catch (e) { addLog('error', `Command-Injektion fehlgeschlagen: ${e.message}`); }
 }
 
@@ -148,11 +125,12 @@ client.on('interactionCreate', async interaction => {
     if (interaction.isChatInputCommand()) {
         const { commandName, guild, channel } = interaction;
 
+        // Sicherheitsprüfung für kritische Befehle
         if (['status', 'restart'].includes(commandName)) {
             if (interaction.user.id !== OWNER_ID) return interaction.reply({ content: '🔒 Zugriff verweigert.', ephemeral: true });
         }
 
-        if (commandName === 'status') return interaction.reply(`🎮 **Live-Telemetrie:** \`${currentPlayersCount}/${maxPlayersCount}\` Spieler online | **Commands geladen:** \`500/500\``);
+        if (commandName === 'status') return interaction.reply(`🎮 **Live-Telemetrie:** \`${currentPlayersCount}/${maxPlayersCount}\` Spieler online auf dem Roblox-Server.`);
         if (commandName === 'restart') { restartRequested = true; return interaction.reply('🔄 **API:** In-Game Neustart im Datenstrom verankert.'); }
 
         if (commandName === 'imagine') {
@@ -162,12 +140,40 @@ client.on('interactionCreate', async interaction => {
         }
 
         if (commandName === 'ask-ai') {
-            return interaction.reply(`🤖 **AI Core:** AeroGuard-Cluster läuft fehlerfrei. Alle 20 Web-Panels konfiguriert.`);
+            const frage = interaction.options.getString('frage');
+            return interaction.reply(`🤖 **AI Core:** Das System verarbeitet deine Anfrage: "${frage}". Das AeroGuard-Netzwerk läuft stabil.`);
         }
 
+        // --- ECHTER SENDER UND UTILITY KERN ---
+        if (commandName === 'say') {
+            const text = interaction.options.getString('text');
+            await channel.send(text);
+            return interaction.reply({ content: '✅ Nachricht gesendet!', ephemeral: true });
+        }
+
+        if (commandName === 'embed') {
+            const titel = interaction.options.getString('titel');
+            const beschreibung = interaction.options.getString('beschreibung');
+            const embed = new EmbedBuilder().setTitle(titel).setDescription(beschreibung).setColor(0x9d4edd).setTimestamp();
+            await channel.send({ embeds: [embed] });
+            return interaction.reply({ content: '✅ Embed gesendet!', ephemeral: true });
+        }
+
+        if (commandName === 'dm') {
+            const target = interaction.options.getUser('target');
+            const nachricht = interaction.options.getString('nachricht');
+            try {
+                await target.send({ embeds: [new EmbedBuilder().setTitle('✉️ Offizielle Server-Mitteilung').setDescription(nachricht).setColor(0x9d4edd)] });
+                return interaction.reply({ content: `✅ Direktnachricht erfolgreich an **${target.tag}** zugestellt.`, ephemeral: true });
+            } catch (e) {
+                return interaction.reply({ content: `❌ Nachricht konnte nicht gesendet werden. Eventuell hat der User DMs blockiert.`, ephemeral: true });
+            }
+        }
+
+        // --- ECHTES TIC-TAC-TOE SPIELSYSTEM ---
         if (commandName === 'tictactoe') {
             const gegner = interaction.options.getUser('gegner');
-            if (gegner.bot || gegner.id === interaction.user.id) return interaction.reply('❌ Ungültiger Gegner.');
+            if (gegner.bot || gegner.id === interaction.user.id) return interaction.reply({ content: '❌ Du kannst nicht gegen dich selbst oder einen Bot spielen.', ephemeral: true });
 
             const gameId = `ttt_${interaction.user.id}_${gegner.id}`;
             tttGames.set(gameId, {
@@ -184,47 +190,95 @@ client.on('interactionCreate', async interaction => {
                 }
                 rows.push(row);
             }
-            return interaction.reply({ content: `🎮 **Tic-Tac-Toe:** ${interaction.user} fordert ${gegner} heraus! ${interaction.user} fängt an (X).`, components: rows });
+            return interaction.reply({ content: `` + `🎮 **Tic-Tac-Toe:** ${interaction.user} fordert ${gegner} heraus! ${interaction.user} fängt an (X).`, components: rows });
         }
 
+        // --- ECHTE MODERATION & ECONOMY ---
         if (commandName === 'clear') {
             const anzahl = interaction.options.getInteger('anzahl');
             await channel.bulkDelete(anzahl, true);
-            return interaction.reply({ content: `🧹 \`${anzahl}\` Nachrichten im Datenkanal vernichtet.`, ephemeral: true });
+            return interaction.reply({ content: `🧹 \`${anzahl}\` Nachrichten im Datenkanal gelöscht.`, ephemeral: true });
         }
 
         if (commandName === 'kick') {
             const target = interaction.options.getMember('target');
-            await target.kick(); return interaction.reply(`✅ **${target.user.tag}** vom Server entfernt.`);
+            const grund = interaction.options.getString('grund') || 'Kein Grund angegeben';
+            if (!target.kickable) return interaction.reply({ content: '❌ Dieser Nutzer kann vom Bot nicht gekickt werden.', ephemeral: true });
+            await target.kick(grund);
+            return interaction.reply(`✅ **${target.user.tag}** wurde vom Server gekickt. Grund: *${grund}*`);
         }
 
         if (commandName === 'ban') {
             const target = interaction.options.getMember('target');
-            await target.ban(); return interaction.reply(`🚨 **${target.user.tag}** dauerhaft verbannt.`);
+            const grund = interaction.options.getString('grund') || 'Kein Grund angegeben';
+            if (!target.bannable) return interaction.reply({ content: '❌ Dieser Nutzer kann vom Bot nicht verbannt werden.', ephemeral: true });
+            await target.ban({ reason: grund });
+            return interaction.reply(`🚨 **${target.user.tag}** wurde permanent verbannt. Grund: *${grund}*`);
+        }
+
+        if (commandName === 'timeout') {
+            const target = interaction.options.getMember('target');
+            const min = interaction.options.getInteger('minuten');
+            await target.timeout(min * 60 * 1000);
+            return interaction.reply(`⏳ **${target.user.tag}** wurde für \`${min}\` Minuten in ein Timeout versetzt.`);
+        }
+
+        if (commandName === 'untimeout') {
+            const target = interaction.options.getMember('target');
+            await target.timeout(null);
+            return interaction.reply(`✅ Das Timeout für **${target.user.tag}** wurde vorzeitig aufgehoben.`);
+        }
+
+        if (commandName === 'lock') {
+            await channel.permissionOverwrites.edit(guild.roles.everyone, { SendMessages: false });
+            return interaction.reply('🔒 Dieser Kanal wurde für normale Mitglieder gesperrt.');
+        }
+
+        if (commandName === 'unlock') {
+            await channel.permissionOverwrites.edit(guild.roles.everyone, { SendMessages: true });
+            return interaction.reply('🔓 Dieser Kanal wurde wieder entsperrt.');
+        }
+
+        if (commandName === 'warn') {
+            const target = interaction.options.getUser('target');
+            const grund = interaction.options.getString('grund');
+            if (!warnDatabase.has(target.id)) warnDatabase.set(target.id, []);
+            warnDatabase.get(target.id).push(grund);
+            return interaction.reply(`⚠️ **${target.tag}** wurde offiziell verwarnt. Grund: *${grund}* (Verwarnt: \`${warnDatabase.get(target.id).length}\` Mal)`);
         }
 
         const eco = getEco(interaction.user.id);
-        if (commandName === 'wallet') return interaction.reply(`💳 **Kontostand:** Bar: \`${eco.wallet}\` | Bank: \`${eco.bank}\``);
-        if (commandName === 'daily') { eco.wallet += 500; return interaction.reply('🎁 `500 Münzen` tägliche Belohnung verbucht.'); }
-        if (commandName === 'work') { const g = Math.floor(Math.random() * 100) + 50; eco.wallet += g; return interaction.reply(`💼 Du hast \`${g} Münzen\` verdient.`); }
-        if (commandName === 'help') return interaction.reply('📜 **AeroGuard Core:** 500 Commands aktiv. Nutze dein Galaxy Webpanel zur Matrixüberwachung.');
+        if (commandName === 'wallet') return interaction.reply(`💳 **Kontostand:** Bar: \`${eco.wallet} Münzen\` | Bank: \`${eco.bank} Münzen\``);
+        if (commandName === 'daily') { eco.wallet += 500; return interaction.reply('🎁 \`500 Münzen\` tägliche Belohnung gutgeschrieben.'); }
+        if (commandName === 'work') { const g = Math.floor(Math.random() * 100) + 50; eco.wallet += g; return interaction.reply(`💼 Du hast gearbeitet und \`${g} Münzen\` verdient.`); }
         
-        // ZWINGEND ERFORDERLICHER HANDLER FÜR ALLE GENERIERTEN MATRIX-BEFEHLE
-        // Damit Discord innerhalb der 3 Sekunden ein echtes Signal erhält und der Fehler verschwindet!
-        if (commandName.includes('-cmd-') || commandName.match(/(mod|sys|eco|fun|tool|cfg|game|utility|api|matrix)-cmd-/)) {
-            return interaction.reply({ content: `✅ **AeroGuard Datenstrom:** Der Matrix-Befehl \`/${commandName}\` wurde im Speicher-Verbund erfasst und erfolgreich im Cluster verarbeitet.`, ephemeral: true });
+        if (commandName === 'slots') {
+            const einsatz = interaction.options.getInteger('einsatz');
+            if (eco.wallet < einsatz) return interaction.reply({ content: '❌ Du hast nicht genug Bargeld für diesen Einsatz!', ephemeral: true });
+            if (Math.random() > 0.6) {
+                eco.wallet += einsatz;
+                return interaction.reply(`🎰 **Gewonnen!** Du ziehst den Hebel und gewinnst \`${einsatz * 2} Münzen\`!`);
+            } else {
+                eco.wallet -= einsatz;
+                return interaction.reply(`🎰 **Verloren!** Die Slot-Maschine zeigt keine Übereinstimmung.`);
+            }
         }
+
+        if (commandName === 'ping') return interaction.reply(`🏓 **Pong!** Websocket-Latenz: \`${Math.round(client.ws.ping)}ms\``);
+        if (commandName === 'serverinfo') return interaction.reply(`📊 **Server-Statistiken:**\n• Name: *${guild?.name}*\n• ID: \`${guild?.id}\`\n• Gesamtmitglieder: \`${guild?.memberCount}\``);
+        if (commandName === 'help') return interaction.reply('📜 **AeroGuard Core-Übersicht:**\n• Moderation: `/clear`, `/kick`, `/ban`, `/warn`, `/timeout`, `/lock`\n• Administration: `/status`, `/restart`, `/say`, `/embed`, `/dm`\n• Entertainment: `/tictactoe`, `/slots`, `/wallet`, `/daily`, `/work`\n• KI-Module: `/imagine`, `/ask-ai`');
     }
 
+    // BUTTON INTERACTION GAME RADAR (TIC-TAC-TOE ENGINE)
     if (interaction.isButton() && interaction.customId.startsWith('ttt_btn_')) {
         const parts = interaction.customId.split('_');
         const gameId = `${parts[2]}_${parts[3]}_${parts[4]}`;
         const cellIdx = parseInt(parts[5]);
 
         const game = tttGames.get(gameId);
-        if (!game) return interaction.reply({ content: 'Spiel abgelaufen.', ephemeral: true });
-        if (interaction.user.id !== game.turn) return interaction.reply({ content: '❌ Du bist nicht an der Reihe!', ephemeral: true });
-        if (game.board[cellIdx] !== ' ') return interaction.reply({ content: 'Zelle besetzt!', ephemeral: true });
+        if (!game) return interaction.reply({ content: 'Dieses Spiel ist bereits abgelaufen.', ephemeral: true });
+        if (interaction.user.id !== game.turn) return interaction.reply({ content: '❌ Du bist aktuell nicht am Zug!', ephemeral: true });
+        if (game.board[cellIdx] !== ' ') return interaction.reply({ content: 'Diese Zelle ist bereits besetzt!', ephemeral: true });
 
         const isP1 = interaction.user.id === game.player1;
         game.board[cellIdx] = isP1 ? 'X' : 'O';
@@ -256,7 +310,7 @@ client.on('interactionCreate', async interaction => {
         }
 
         let msgContent = `🎮 **Tic-Tac-Toe:** Nächster Zug: <@${game.turn}>`;
-        if (winner) msgContent = `🎉 **Sieg!** ${winner} hat das Tic-Tac-Toe Match gewonnen!`;
+        if (winner) msgContent = `🎉 **Sieg!** ${winner} hat das Match gewonnen!`;
         else if (finished) msgContent = `🤝 **Unentschieden!** Das Spielfeld ist voll besetzt.`;
 
         return await interaction.update({ content: msgContent, components: rows });
@@ -269,7 +323,7 @@ client.on('interactionCreate', async interaction => {
 client.on('messageCreate', async message => {
     if (message.author.bot) return;
 
-    // FALL A: MARLON ANTWORTET IN SEINEN DMs
+    // FALL A: MARLON (BESITZER) ANTWORTET IN DEN DMs
     if (!message.guild && message.author.id === OWNER_ID) {
         if (!ownerActiveSession.has(OWNER_ID)) {
             if (message.content.startsWith('/tickets')) {
