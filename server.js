@@ -62,7 +62,7 @@ const commands = [
         .setName('rbx-promote')
         .setDescription('Befördert einen Spieler direkt in der Roblox-Gruppe')
         .addStringOption(o => o.setName('userid').setDescription('Die Roblox UserID des Spielers').setRequired(true))
-        .addIntegerOption(o => o.setName('roleid').setDescription('Optionale exakte Ziel-Rang-ID (Wenn leer, wird Standard-AR genutzt)').setRequired(false))
+        .addIntegerOption(o => o.setName('roleid').setDescription('Optionale exakte Ziel-Rang-ID (Wenn leer, wird Standard 254 genutzt)').setRequired(false))
         .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles),
     new SlashCommandBuilder()
         .setName('rbx-demote')
@@ -251,13 +251,12 @@ client.on('guildMemberUpdate', async (oldMember, newMember) => {
 });
 
 // -----------------------------------------------------------------
-// SLASH-COMMAND INTERACTION EXECUTION (Umfangreiche Logiken)
+// SLASH-COMMAND INTERACTION EXECUTION
 // -----------------------------------------------------------------
 client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
     const { commandName } = interaction;
 
-    // --- ROBLOX UTILITIES ---
     if (commandName === 'status') {
         const embed = new EmbedBuilder()
             .setTitle('🎮 Roblox Server Live-Status')
@@ -274,24 +273,23 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply({ content: '🔄 Signal an Roblox-Instanz übermittelt. Server schließt in Kürze.' });
     }
 
-    // --- ROBLOX INTERACTIVE RANKING COMMANDS ---
     if (commandName === 'rbx-promote') {
         await interaction.deferReply();
         const userId = interaction.options.getString('userid');
-        const roleId = interaction.options.getInteger('roleid') || 2; // Standardmäßig z.B. ID 2 (AR)
+        const roleId = interaction.options.getInteger('roleid') || 254; // Fallback auf deine feste Wunsch-ID 254!
 
         const result = await setRobloxGroupRole(userId, roleId);
         if (result.success) {
             return interaction.editReply(`✅ Spieler mit ID \`${userId}\` wurde erfolgreich in der Roblox-Gruppe auf Rang-ID **${roleId}** befördert!`);
         } else {
-            return interaction.editReply(`❌ Fehler beim Gruppenzugriff. Bitte überprüfe den Open Cloud API Key. Details: \`${JSON.stringify(result.error)}\``);
+            return interaction.editReply(`❌ Fehler beim Gruppenzugriff. Details: \`${JSON.stringify(result.error)}\``);
         }
     }
 
     if (commandName === 'rbx-demote') {
         await interaction.deferReply();
         const userId = interaction.options.getString('userid');
-        const roleId = interaction.options.getInteger('roleid') || 1; // Standardmäßig z.B. ID 1 (Ablanken)
+        const roleId = interaction.options.getInteger('roleid') || 1; 
 
         const result = await setRobloxGroupRole(userId, roleId);
         if (result.success) {
@@ -304,7 +302,6 @@ client.on('interactionCreate', async interaction => {
     if (commandName === 'rbx-kick') {
         await interaction.deferReply();
         const userId = interaction.options.getString('userid');
-
         const result = await kickRobloxUserFromGroup(userId);
         if (result.success) {
             return interaction.editReply(`🚫 Spieler mit ID \`${userId}\` wurde erfolgreich aus der Roblox-Gruppe verbannt / entfernt!`);
@@ -313,7 +310,6 @@ client.on('interactionCreate', async interaction => {
         }
     }
 
-    // --- DISCORD MODERATION EXECUTION ---
     if (commandName === 'warn') {
         const target = interaction.options.getUser('target');
         const grund = interaction.options.getString('grund');
@@ -373,7 +369,6 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply({ content: `⏱️ Slowmode für diesen Kanal wurde auf **${sekunden}s** gesetzt.` });
     }
 
-    // --- DISCORD INFORMATION & STATS ---
     if (commandName === 'ping') {
         return interaction.reply(`🏓 Pong! Netzwerk-Latenz: \`${Math.round(client.ws.ping)}ms\``);
     }
@@ -423,10 +418,9 @@ client.on('interactionCreate', async interaction => {
     }
 
     if (commandName === 'help') {
-        return interaction.reply({ content: '📚 **easyPOS System-Hilfe**\nNutze die `/`-Eingabe im Chat, um das integrierte Menü aufzurufen. Dir stehen alle Systembefehle für Moderation (`/warn`, `/kick`, `/ban`), Roblox-Gruppe (`/rbx-promote`, `/rbx-demote`) und Server-Utility frei zur Verfügung.' });
+        return interaction.reply({ content: '📚 **easyPOS System-Hilfe**\nNutze die `/`-Eingabe im Chat, um das integrierte Menü aufzurufen.' });
     }
 
-    // --- COMMUNICATION INTERACTION ---
     if (commandName === 'dm') {
         const targetUser = interaction.options.getUser('target');
         const messageText = interaction.options.getString('nachricht');
@@ -450,7 +444,6 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply({ content: 'Ankündigung erstellt!', ephemeral: true });
     }
 
-    // --- MINI GAMES / ENTERTAINMENT ---
     if (commandName === 'wuerfel') {
         const ergebnis = Math.floor(Math.random() * 6) + 1;
         return interaction.reply(`🎲 Du hast eine **${ergebnis}** gewürfelt!`);
@@ -509,13 +502,27 @@ app.post('/report-exploit', async (req, res) => {
 });
 
 app.post('/promote', async (req, res) => {
-    const { targetPlayer, action } = req.body;
+    const { targetPlayer, action, robloxUserId } = req.body;
+    
+    if (!targetPlayer || !action || !robloxUserId) {
+        return res.status(400).json({ error: 'Fehlende Parameter.' });
+    }
+
+    // Wenn "promote" gedrückt wird, wird direkt deine Wunsch-ID 254 verwendet!
+    const targetRoleId = action === "promote" ? 254 : 1; 
+
+    let rbxResult = await setRobloxGroupRole(robloxUserId, targetRoleId);
+
     try {
         const channel = await client.channels.fetch(process.env.DISCORD_CHANNEL_ID);
         if (channel) {
             const embed = new EmbedBuilder()
-                .setTitle(action === "promote" ? "⬆️ In-Game Panel: Befördert" : "⬇️ In-Game Panel: Degradiert")
-                .setDescription(`Spieler **${targetPlayer}** wurde im Spiel modifiziert.`)
+                .setTitle(action === "promote" ? "⬆️ Gruppe: Mitglied befördert" : "⬇️ Gruppe: Mitglied herabgestuft")
+                .setDescription(`Der Spieler **${targetPlayer}** wurde erfolgreich vollautomatisch angepasst!`)
+                .addFields(
+                    { name: 'Ziel-Rang-ID:', value: `\`${targetRoleId}\``, inline: true },
+                    { name: 'API Status:', value: rbxResult.success ? '🟢 Erfolgreich live' : '❌ Fehler', inline: true }
+                )
                 .setColor(action === "promote" ? 0x2ecc71 : 0xe67e22)
                 .setTimestamp();
             await channel.send({ embeds: [embed] });
