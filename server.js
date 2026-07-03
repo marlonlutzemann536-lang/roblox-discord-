@@ -13,7 +13,7 @@ let currentPlayersCount = 0;
 let maxPlayersCount = 0;
 let playerList = [];
 let restartRequested = false;
-let systemStatus = "🟢 AeroGuard Multi-Guild Core Online | All Systems Maxed";
+let systemStatus = "🟢 AeroGuard Multi-Guild Core Online | Firewall Secure";
 
 // Globale RAM-Datenbanken (Strikte Trennung für Public-Modus)
 const activeTickets = new Map(); // Key: UserID -> Value: { ticketNum: number, guildId: string, username: string, category: string, reason: string, claimedBy: string|null }
@@ -288,9 +288,13 @@ client.on('interactionCreate', async interaction => {
                 authorizedSupporters.add(target.id);
                 return interaction.reply(`🔮 **Team-Update:** **${target.tag}** ist nun als Supporter verifiziert.`);
             } else if (aktion === 'remove') {
-                if (target.id === OWNER_ID) return interaction.reply({ content: '❌ Aktion nicht zulässig.', ephemeral: true });
+                if (target.id === OWNER_ID) return interaction.reply({ content: '❌ Dem Gründer können keine Berechtigungen entzogen werden.', ephemeral: true });
                 authorizedSupporters.delete(target.id);
-                return interaction.reply(`⚠️ **${target.tag}** wurden die Support-Rechte entzogen.`);
+                
+                // Falls der Supporter noch in einer Session war, diese auflösen
+                ownerActiveSession.delete(target.id);
+                
+                return interaction.reply(`⚠️ **${target.tag}** wurde erfolgreich aus dem Support-Team entfernt.`);
             }
         }
 
@@ -546,6 +550,14 @@ client.on('interactionCreate', async interaction => {
 
     await interaction.update({ content: `🔮 **Kategorie festgelegt:** \`${label}\`.\n\nBitte schreibe mir jetzt den genauen **Grund** deines Anliegens!`, embeds: [], components: [] });
 });
+
+// ==========================================
+// WEB PANEL SECURITY MIDDLEWARE
+// ==========================================
+async function checkWebAuth(req, res, next) {
+    if (!req.session.user) return res.redirect('/login');
+    next();
+}
 
 // ==========================================
 // WEB PANEL ROUTING
