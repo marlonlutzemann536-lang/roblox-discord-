@@ -28,7 +28,7 @@ let currentPlayersCount = 0;
 let maxPlayersCount = 0;
 let playerList = [];
 let restartRequested = false;
-let systemStatus = "🟢 AeroGuard Enterprise Premium Network Online | Voice-Support Matrix Fixed";
+let systemStatus = "🟢 AeroGuard Enterprise Premium Network Online | Leitstellen-Move-Matrix Active";
 
 // Globale RAM-Datenbanken (Strikte Trennung für Public-Modus)
 const activeTickets = new Map(); 
@@ -56,6 +56,10 @@ const activeApplications = new Map();
 const livePollsDatabase = new Map(); 
 const voiceSupportAlertChannels = new Map(); 
 
+// NEU: DIGITALE LEITSTELLEN-DATENBANK FÜR DIE VOICE-TICKETS
+const voiceSupportQueue = new Map(); // Key: UserID -> Value: { caseId: string, alertMsgId: string, channelId: string, guildId: string }
+let globalVoiceCaseCounter = 1000; // Start für Supportfall IDs (SF-1001)
+
 const APPLICATION_QUESTIONS = [
     "🔢 Frage 1: Wie alt bist du aktuell?",
     "🔮 Frage 2: Welche Erfahrungen konntest du bereits im Bereich Support oder Moderation sammeln?",
@@ -63,8 +67,8 @@ const APPLICATION_QUESTIONS = [
     "📝 Frage 4: Warum sollten wir genau DICH in das AeroGuard-Team aufnehmen?"
 ];
 
-// FIXED: Namen exakt an deinen Discord angepasst (Zusammengeschrieben!)
-const SUPPORT_VOICE_CHANNELS = ["Supportwarteraum", "Bürowarteraum", "Support Warteraum", "Büro Warteraum"];
+// FIXED EXAKT NACH DEINEM BILD: Präzise Überwachung der Warteräume inklusive Emojis!
+const SUPPORT_VOICE_CHANNELS = ["Supportwarteraum", "Support Warteraum", "💼 büro-warteraum 💼"];
 
 // Persistent simulierte Krypto-Kurse im RAM
 const cryptoMarket = {
@@ -102,10 +106,9 @@ let ticketSystemConfig = {
     ]
 };
 
-// 50 System-Nodes vollständig initialisiert im Web-Dashboard Verbund
 const panelsConfig = {};
 for (let i = 1; i <= 50; i++) {
-    panelsConfig[`panel${i}_matrix_node`] = { enabled: true, status: "Aktiviert & Verschlüsselt im Hyper-Verbund" };
+    panelsConfig[`panel${i}_matrix_node`] = { enabled: true, status: "Aktiviert" };
 }
 
 const liveLogs = [];
@@ -132,7 +135,7 @@ let client = new Client({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(session({
-    secret: 'aeroguard_mega_hyper_galaxy_enterprise_super_long_secret_key_string_998877665544332211_max_unlocked_chars_matrix_edition_recovery_gate_ultimate_v5',
+    secret: 'aeroguard_mega_hyper_galaxy_enterprise_super_long_secret_key_string_998877665544332211_max_unlocked_chars_matrix_edition_recovery_gate_ultimate_v6',
     resave: false,
     saveUninitialized: false,
     cookie: { secure: false, maxAge: 900000 }
@@ -147,22 +150,18 @@ function initiateBotRecovery() {
     
     setTimeout(() => {
         try {
-            addLog('info', "Self-Healing gestartet. Zerstöre alten Client-Prozess...");
             client.destroy();
-            addLog('info', "Re-Initialisiere Client-Verbindung...");
             client.login(process.env.DISCORD_TOKEN);
-        } catch (e) {
-            addLog('error', `Kritischer Fehler im Self-Healing-Zyklus: ${e.message}`);
-        }
+        } catch (e) { addLog('error', `Kritischer Fehler im Recovery: ${e.message}`); }
     }, delay);
 }
 
 client.on('shardDisconnect', () => initiateBotRecovery());
-process.on('unhandledRejection', (reason, promise) => { addLog('error', `Unhandled Promise Rejection: ${reason}`); });
-process.on('uncaughtException', (err) => { addLog('error', `Uncaught Exception abgefangen: ${err.message}`); });
+process.on('unhandledRejection', (reason, promise) => { addLog('error', `Unhandled Rejection: ${reason}`); });
+process.on('uncaughtException', (err) => { addLog('error', `Uncaught Exception: ${err.message}`); });
 
 // ==========================================
-// EXTENSIVE DATA ACQUISITION ENGINE
+// DATA ACQUISITION HELPERS
 // ==========================================
 function getEco(userId) {
     if (!economyDatabase.has(userId)) {
@@ -233,55 +232,83 @@ async function sendCentralTicketPanel(user) {
 }
 
 // ==========================================
-// VOICE SUPPORT RADAR WITH DYNAMIC CHANNEL LOGGING
+// VOICE SUPPORT & AUTOPILOT KNOTEN WITH LIVE TRANSITIONS
 // ==========================================
 client.on('voiceStateUpdate', async (oldState, newState) => {
     const member = newState.member;
     if (!member || member.user.bot) return;
 
+    const guildId = newState.guild?.id || oldState.guild?.id;
+
+    // --- FALL 1: NUTZER JOINED IN EINEN WAITING-ROOM ---
     if (!oldState.channelId && newState.channelId) {
         const channel = newState.channel;
         if (SUPPORT_VOICE_CHANNELS.includes(channel.name)) {
+            globalTicketCounter = (totalTicketCounter || 0) + 1;
+            const caseId = `CASE-${Math.floor(Math.random() * 9000) + 1000}`;
+            
             addLog('info', `Support benötigt: ${member.user.tag} wartet im ${channel.name}.`);
             
             const alertEmbed = new EmbedBuilder()
-                .setTitle('🛡️ AeroGuard Voice-Support-Radar')
-                .setDescription(`Ein User wartet ungeduldig im Sprachbereich!\n\n• **Nutzer:** ${member}\n• **Raum:** \`${channel.name}\``)
-                .setColor(0xff4d6d)
+                .setTitle('🛡️ AeroGuard Sektor-Leitstelle')
+                .setDescription(`Ein User hat soeben einen überwachten Support-Warteraum betreten!\n\n• **Nutzer:** ${member} (\`${member.user.tag}\`)\n• **Raum:** \`${channel.name}\` \n• **Vorgangsnummer:** \`${caseId}\``)
+                .setColor(0x00f5d4)
                 .setTimestamp();
 
-            const textAlertChannelId = voiceSupportAlertChannels.get(newState.guild.id);
+            const textAlertChannelId = voiceSupportAlertChannels.get(guildId);
             if (textAlertChannelId) {
                 try {
                     const textChannel = await newState.guild.channels.fetch(textAlertChannelId);
                     if (textChannel) {
                         const row = new ActionRowBuilder().addComponents(
-                            new ButtonBuilder().setCustomId(`voice_join_alert_${channel.id}`).setLabel('🔊 Raum beitreten').setStyle(ButtonStyle.Success)
+                            new ButtonBuilder().setCustomId(`voice_matrix_claim_${member.id}_${caseId}`).setLabel('🟩 Supportfall übernehmen').setStyle(ButtonStyle.Success)
                         );
-                        await textChannel.send({ 
-                            content: `🔔 **@here — VOICE SUPPORT ALARM:** ${member} wartet soeben im **${channel.name}**!`, 
+                        const sentMsg = await textChannel.send({ 
+                            content: `🔔 **@here — VOICE-SUPPORT BENACHRICHTIGUNG:**`, 
                             embeds: [alertEmbed],
                             components: [row]
                         });
+                        
+                        // Registriere den Fall im RAM zur Echtzeit-Modifikation bei Leave!
+                        voiceSupportQueue.set(member.id, { caseId, alertMsgId: sentMsg.id, channelId: channel.id, guildId });
                     }
-                } catch(e) { addLog('error', `Fehler beim Senden in den Voice-Alarmkanal: ${e.message}`); }
+                } catch(e) { addLog('error', `Fehler im Voice-Leitstellen-Kanal: ${e.message}`); }
             }
-
-            authorizedSupporters.forEach(async (suppId) => {
-                try {
-                    const supp = await client.users.fetch(suppId);
-                    if (supp) {
-                        const row = new ActionRowBuilder().addComponents(
-                            new ButtonBuilder().setCustomId(`voice_join_alert_${channel.id}`).setLabel('🔊 Raum beitreten').setStyle(ButtonStyle.Primary)
-                        );
-                        await supp.send({ content: `🚨 **VOICE ALARM!** **${member.user.tag}** benötigt Hilfe!`, embeds: [alertEmbed], components: [row] });
-                    }
-                } catch(e){}
-            });
         }
     }
 
-    const autopilotHubId = voiceAutoPilotConfig.get(newState.guild?.id);
+    // --- FALL 2: NUTZER VERLÄSST DEN WARTERAUM VOR BEARBEITUNG (ABBRUCH-LOGIK) ---
+    if (oldState.channelId && !newState.channelId) {
+        if (voiceSupportQueue.has(member.id)) {
+            const queueData = voiceSupportQueue.get(member.id);
+            voiceSupportQueue.delete(member.id); // Aus der Warteschlange löschen
+            
+            addLog('info', `Supportfall ${queueData.caseId} abgebrochen. User hat den Raum verlassen.`);
+            
+            const textAlertChannelId = voiceSupportAlertChannels.get(guildId);
+            if (textAlertChannelId) {
+                try {
+                    const textChannel = await oldState.guild.channels.fetch(textAlertChannelId);
+                    if (textChannel) {
+                        const targetMsg = await textChannel.messages.fetch(queueData.alertMsgId);
+                        if (targetMsg) {
+                            const abortedEmbed = new EmbedBuilder()
+                                .setTitle('❌ SUPPORTFALL ABGEBROCHEN')
+                                .setDescription(`Der Vorgang \`${queueData.caseId}\` wurde beendet.\n\n• **Nutzer:** ${member} (\`${member.user.tag}\`)\n• **Status:** Der Spieler hat den Warteraum eigenständig verlassen.`)
+                                .setColor(0xff4d6d)
+                                .setTimestamp();
+                            
+                            // Aktualisiert die Nachricht live und radiert die Buttons aus!
+                            await targetMsg.edit({ content: `⚠️ **Vorgang storniert:**`, embeds: [abortedEmbed], components: [] });
+                        }
+                    }
+                } catch(e){}
+            }
+        }
+    }
+
+    // --- FALL 3: DYNAMISCHER TEMP-VOICE HUB ---
+    const autopilotHubId = voiceAutoPilotConfig.get(guildId);
     if (newState.channelId === autopilotHubId) {
         try {
             const tempChannel = await newState.guild.channels.create({
@@ -291,7 +318,6 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
             });
             tempVoiceChannels.set(tempChannel.id, { id: tempChannel.id, ownerId: member.id });
             await member.voice.setChannel(tempChannel);
-            addLog('info', `Temporärer Sprachkanal ${tempChannel.name} instanziiert.`);
         } catch (e) {}
     }
 
@@ -302,7 +328,6 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
                 if (oldChannel && oldChannel.members.size === 0) {
                     await oldChannel.delete();
                     tempVoiceChannels.delete(oldState.channelId);
-                    addLog('info', `Temporärer Sprachkanal gelöscht.`);
                 }
             } catch (e) {}
         }
@@ -323,29 +348,10 @@ setInterval(() => {
     const now = Date.now();
     robloxRestartSchedules.forEach((schedule, guildId) => {
         if (schedule.active && (now - schedule.lastRestart >= schedule.intervalMinutes * 60000)) {
-            schedule.lastRestart = now;
-            restartRequested = true; 
-            addLog('info', `Automatisierter Roblox-Serverneustart für Gilde ${guildId} wurde planmäßig getriggert.`);
+            schedule.lastRestart = now; restartRequested = true; 
         }
     });
 }, 10000);
-
-setInterval(() => {
-    const now = Date.now();
-    activeGiveaways.forEach(async (g, msgId) => {
-        if (now >= g.endAt) {
-            activeGiveaways.delete(msgId);
-            try {
-                const ch = await client.channels.fetch(g.channelId);
-                const msg = await ch.messages.fetch(msgId);
-                const users = await msg.reactions.cache.get('🎉').users.fetch();
-                const list = users.filter(u => !u.bot).map(u => u.id);
-                if (list.length === 0) { await ch.send(`📦 **Giveaway Beendet:** Für **${g.prize}** gab es keine Teilnehmer.`); } 
-                else { await ch.send(`🎉 **GIVEAWAY GEWONNEN!** <@${list[Math.floor(Math.random() * list.length)]}> hat **${g.prize}** erhalten!`); }
-            } catch(e){}
-        }
-    });
-}, 5000);
 
 // ==========================================
 // ROBLOX OPEN CLOUD ADVANCED MODERATION API
@@ -369,19 +375,12 @@ async function kickRobloxUserFromGroup(robloxUserId) {
 async function banRobloxUserInGame(robloxUserId, durationMinutes, reason) {
     if (!process.env.ROBLOX_API_KEY) return { success: false, error: "Roblox API-Key fehlt." };
     const expiresAt = Date.now() + durationMinutes * 60000;
-    robloxBanDatabase.set(robloxUserId, { expiresAt, reason });
-    return { success: true, expiresAt };
+    robloxBanDatabase.set(robloxUserId, { expiresAt, reason }); return { success: true, expiresAt };
 }
 
 async function unbanRobloxUserInGame(robloxUserId) {
-    if (!robloxBanDatabase.has(robloxUserId)) return { success: false, error: "Nutzer ist nicht gebannt." };
-    robloxBanDatabase.delete(robloxUserId);
-    return { success: true };
-}
-
-async function sendRobloxLiveAnnouncement(text) {
-    addLog('info', `Sende Roblox Live-Ankündigung: "${text}"`);
-    return { success: true };
+    if (!robloxBanDatabase.has(robloxUserId)) return { success: false, error: "Nicht gebannt." };
+    robloxBanDatabase.delete(robloxUserId); return { success: true };
 }
 
 // ==========================================
@@ -396,7 +395,7 @@ const commandDefinitions = [
     new SlashCommandBuilder().setName('imagine').setDescription('KI-Bildgenerierung: Text-zu-Bild-Konvertierung').addStringOption(o => o.setName('prompt').setDescription('Suchstrom-Eingabe').setRequired(true)),
     new SlashCommandBuilder().setName('ask-ai').setDescription('Direkte Abfrage an die künstliche Intelligenz').addStringOption(o => o.setName('frage').setDescription('Deine Frage').setRequired(true)),
     new SlashCommandBuilder().setName('tictactoe').setDescription('Startet ein interaktives Tic-Tac-Toe Minigame').addUserOption(o => o.setName('gegner').setDescription('Gegner wählen').setRequired(true)),
-    new SlashCommandBuilder().setName('clear').setDescription('Löscht Chatnachrichten im aktuellen Kanal').addIntegerOption(o => o.setName('anzahl').setDescription('1-100').setRequired(true)),
+    new SlashCommandBuilder().setName('clear').setDescription('Löscht Chatnachrichten im aktuellen Kanal & resettet die DM Support-Datenbank').addIntegerOption(o => o.setName('anzahl').setDescription('1-100').setRequired(true)),
     new SlashCommandBuilder().setName('kick').setDescription('Entfernt ein Mitglied vom Server').addUserOption(o => o.setName('target').setDescription('Nutzer').setRequired(true)).addStringOption(o => o.setName('grund').setDescription('Grund')),
     new SlashCommandBuilder().setName('ban').setDescription('Verbannt ein Mitglied permanent').addUserOption(o => o.setName('target').setDescription('Nutzer').setRequired(true)).addStringOption(o => o.setName('grund').setDescription('Grund')),
     new SlashCommandBuilder().setName('timeout').setDescription('Versetzt ein Mitglied in ein Timeout').addUserOption(o => o.setName('target').setDescription('Nutzer').setRequired(true)).addIntegerOption(o => o.setName('minuten').setDescription('Minuten').setRequired(true)),
@@ -406,33 +405,28 @@ const commandDefinitions = [
     new SlashCommandBuilder().setName('unlock').setDescription('Entsperrt den aktuellen Kanal'),
     new SlashCommandBuilder().setName('say').setDescription('Sendet Text über den Bot').addStringOption(o => o.setName('text').setDescription('Text').setRequired(true)),
     new SlashCommandBuilder().setName('embed').setDescription('Sendet ein strukturiertes Embed').addStringOption(o => o.setName('titel').setDescription('Titel').setRequired(true)).addStringOption(o => o.setName('beschreibung').setDescription('Inhalt').setRequired(true)),
-    new SlashCommandBuilder().setName('dm').setDescription('Sendet eine private Nachricht an ein Mitglied').addUserOption(o => o.setName('target').setDescription('Nutzer').setRequired(true)).addStringOption(o => o.setName('nachricht').setDescription('Inhalt').setRequired(true)),
+    new SlashCommandBuilder().setName('dm').setDescription('Sendet eine private Nachricht an ein Mitglied').addUserOption(o => o.setName('target').setDescription('Nutzer').setRequired(true)).addStringOption(o => o.setContent('nachricht').setDescription('Inhalt').setRequired(true)),
     
-    // Roblox Sektor
     new SlashCommandBuilder().setName('rbx-promote').setDescription('Befördert ein Mitglied in der Roblox-Gruppe').addStringOption(o => o.setName('userid').setDescription('Roblox UserID').setRequired(true)).addIntegerOption(o => o.setName('roleid').setDescription('Rang-ID').setRequired(true)),
     new SlashCommandBuilder().setName('rbx-kick').setDescription('Kickt ein Mitglied aus der Roblox-Gruppe').addStringOption(o => o.setName('userid').setDescription('Roblox UserID').setRequired(true)),
     new SlashCommandBuilder().setName('rbx-ban').setDescription('Bannt einen Spieler zeitlich direkt aus dem Roblox Spiel').addStringOption(o => o.setName('userid').setDescription('Roblox UserID').setRequired(true)).addIntegerOption(o => o.setName('minuten').setDescription('Dauer in Minuten').setRequired(true)).addStringOption(o => o.setName('grund').setDescription('Grund des Bans').setRequired(true)),
     new SlashCommandBuilder().setName('rbx-unban').setDescription('Hebt die In-Game Sperre eines Roblox Spielers vorzeitig auf').addStringOption(o => o.setName('userid').setDescription('Roblox UserID').setRequired(true)),
     new SlashCommandBuilder().setName('rbx-schedule-restart').setDescription('Automatisierten Roblox-Serverneustart hinterlegen').addIntegerOption(o => o.setName('intervall').setDescription('Intervall in Minuten').setRequired(true)),
     new SlashCommandBuilder().setName('rbx-view-schedule').setDescription('Zeigt den aktuellen Planungsstatus für In-Game Neustarts an'),
-    new SlashCommandBuilder().setName('rbx-announce').setDescription('Sendet eine fette, farbige Text-Laufschrift live auf alle laufenden Roblox-Server').addStringOption(o => o.setName('text').setDescription('Inhalt der Ankündigung').setRequired(true)),
+    new SlashCommandBuilder().setName('rbx-announce').setDescription('Sendet eine fette Text-Laufschrift live auf alle laufenden Roblox-Server').addStringOption(o => o.setName('text').setDescription('Inhalt der Ankündigung').setRequired(true)),
 
-    // Umfragen & Setup
     new SlashCommandBuilder().setName('poll').setDescription('Erstellt eine interaktive Umfrage mit grafischen Live-Fortschrittsbalken')
         .addStringOption(o => o.setName('frage').setDescription('Das Thema der Abstimmung').setRequired(true))
         .addStringOption(o => o.setName('option_a').setDescription('Beschriftung für Knopf A').setRequired(true))
         .addStringOption(o => o.setName('option_b').setDescription('Beschriftung für Knopf B').setRequired(true)),
 
     new SlashCommandBuilder().setName('setup-voicesupport').setDescription('Konfiguriere den Textkanal für automatische Support-Warteraum Pings und Benachrichtigungen'),
-
-    // Berechtigungsknoten
     new SlashCommandBuilder().setName('whitelist').setDescription('Verwalte die administrative Whitelist').addStringOption(o => o.setName('aktion').setDescription('add/remove').setRequired(true)).addUserOption(o => o.setName('target').setDescription('Nutzer').setRequired(true)),
     new SlashCommandBuilder().setName('supporter').setDescription('Verwalte die Support-Berechtigungen').addStringOption(o => o.setName('aktion').setDescription('add/remove').setRequired(true)).addUserOption(o => o.setName('target').setDescription('Nutzer').setRequired(true)),
     new SlashCommandBuilder().setName('rank').setDescription('Zeigt dein Chat-Level und deine XP an').addUserOption(o => o.setName('target').setDescription('Nutzer')),
     new SlashCommandBuilder().setName('leaderboard').setDescription('Zeigt die globale Server-Rangliste an'),
     new SlashCommandBuilder().setName('ticket-panel').setDescription('Projiziert das Support-Start-Panel'),
     
-    // Wirtschaftssystem (Economy)
     new SlashCommandBuilder().setName('wallet').setDescription('Zeigt deine Münzen an'),
     new SlashCommandBuilder().setName('daily').setDescription('Fordere deine tägliche Belohnung an'),
     new SlashCommandBuilder().setName('work').setDescription('Gehe virtuell arbeiten'),
@@ -444,7 +438,6 @@ const commandDefinitions = [
     new SlashCommandBuilder().setName('inventory').setDescription('Zeigt deine gesammelten Gegenstände'),
     new SlashCommandBuilder().setName('slots').setDescription('Spiele am virtuellen Spielautomaten').addIntegerOption(o => o.setName('einsatz').setDescription('Einsatz').setRequired(true)),
     
-    // Setups & Management
     new SlashCommandBuilder().setName('setup-welcome').setDescription('Kanal für grafische Beitrittsmeldungen festlegen').addChannelOption(o => o.setName('kanal').setDescription('Kanal wählen').setRequired(true)),
     new SlashCommandBuilder().setName('setup-voicepilot').setDescription('Definiere den Erstellungs-Sprachkanal für Temp-Voice').addChannelOption(o => o.setName('kanal').setDescription('Kanal wählen').setRequired(true)),
     new SlashCommandBuilder().setName('ticket-ai').setDescription('KI-Zusammenfassung der Ticket-Nachrichten').addUserOption(o => o.setName('target').setDescription('User-Ticket').setRequired(true)),
@@ -456,13 +449,9 @@ const commandDefinitions = [
     new SlashCommandBuilder().setName('giveaway-start').setDescription('Startet ein Gewinnspiel').addStringOption(o => o.setName('preis').setDescription('Gewinn').setRequired(true)).addIntegerOption(o => o.setName('minuten').setDescription('Minuten').setRequired(true)),
     new SlashCommandBuilder().setName('backup-create').setDescription('Erstellt ein Server-Backup im RAM'),
     new SlashCommandBuilder().setName('blackjack').setDescription('Spiele eine Runde Blackjack gegen das Casino').addIntegerOption(o => o.setName('einsatz').setDescription('Einsatz').setRequired(true)),
-
-    // CLAN SYSTEM
     new SlashCommandBuilder().setName('clan-create').setDescription('Gründe einen eigenen offiziellen Server-Clan').addStringOption(o => o.setName('name').setDescription('Name des Clans').setRequired(true)),
     new SlashCommandBuilder().setName('clan-deposit').setDescription('Zahle Bargeld auf das gemeinsame Clan-Bankkonto ein').addIntegerOption(o => o.setName('betrag').setDescription('Anzahl Münzen').setRequired(true)),
     new SlashCommandBuilder().setName('clan-leaderboard').setDescription('Zeigt die Rangliste aller registrierten Clans im Verbund'),
-
-    // WETTBÜRO SYSTEM
     new SlashCommandBuilder().setName('bet-start').setDescription('Starte ein neues Wett-Event für den Chat').addStringOption(o => o.setName('thema').setDescription('Thema').setRequired(true)),
     new SlashCommandBuilder().setName('bet-place').setDescription('Platziere deinen Tipp mit Wetteinsatz').addStringOption(o => o.setName('tipp').setDescription('ja oder nein').setRequired(true)).addIntegerOption(o => o.setName('einsatz').setDescription('Münzeinsatz').setRequired(true)),
     new SlashCommandBuilder().setName('bet-resolve').setDescription('Löse die Wette auf und schütte den Gewinntopf aus').addStringOption(o => o.setName('ergebnis').setDescription('ja oder nein').setRequired(true))
@@ -478,16 +467,6 @@ async function registerAllCommands(guildId) {
 client.on('guildCreate', async guild => { await registerAllCommands(guild.id); });
 client.once('ready', async () => { if (process.env.GUILD_ID) await registerAllCommands(process.env.GUILD_ID); });
 
-client.on('messageCreate', message => {
-    if (message.author.bot || !message.guild) return;
-    const userData = getRank(message.author.id); userData.totalMessages += 1; userData.xp += Math.floor(Math.random() * 5) + 3;
-    const nextLevelXp = userData.level * 150;
-    if (userData.xp >= nextLevelXp) {
-        userData.xp -= nextLevelXp; userData.level += 1;
-        message.channel.send(`✨ **LEVEL UP!** ${message.author} hat Sektor-Level **${userData.level}** erreicht!`).catch(()=>{});
-    }
-});
-
 // ==========================================
 // INTERACTION EXECUTION MATRIX
 // ==========================================
@@ -500,20 +479,31 @@ client.on('interactionCreate', async interaction => {
             if (!whitelistedUsers.has(interaction.user.id)) return interaction.reply({ content: '🔒 Berechtigung fehlt.', ephemeral: true });
         }
 
-        // --- VOICE SUPPORT CONFIGURATION CORRIDOR ---
+        // --- UPDATED: CLEAR COMMAND FOR CHANNEL CLEAR & DM REBOOT ---
+        if (commandName === 'clear') {
+            const anzahl = interaction.options.getInteger('anzahl');
+            await channel.bulkDelete(anzahl, true);
+            
+            // Datenbank-Reset für den DM-Support-Sektor auslösen!
+            activeTickets.clear();
+            ownerActiveSession.clear();
+            pendingTicketSelections.clear();
+            
+            return interaction.reply({ content: `🧹 **Sektor-Bereinigung:** \`${anzahl}\` Nachrichten vaporisiert. Die DM-Support-Datenbanken wurden restlos resettet und neu gestartet!`, ephemeral: true });
+        }
+
         if (commandName === 'setup-voicesupport') {
             const channelSelect = new ChannelSelectMenuBuilder()
                 .setCustomId('voice_support_text_channel_select')
                 .setPlaceholder('Wähle den Alarm-Kanal aus...')
                 .addChannelTypes(ChannelType.GuildText);
-
             const row = new ActionRowBuilder().addComponents(channelSelect);
-            return interaction.reply({ content: '🔮 **AeroGuard Leitstelle:** Bitte wähle über das Dropdown-Menü den Kanal aus, in den Pings für den Sprach-Support geschickt werden sollen:', components: [row], ephemeral: true });
+            return interaction.reply({ content: '🔮 **AeroGuard Leitstelle:** Bitte wähle über das Dropdown-Menü den Kanal aus:', components: [row], ephemeral: true });
         }
 
         if (commandName === 'rbx-announce') {
-            const text = interaction.options.getString('text'); const result = await sendRobloxLiveAnnouncement(text);
-            return interaction.reply(result.success ? `🌌 **Roblox-Ankündigung:** Lauftext *" ${text} "* erfolgreich an alle Spiel-Server geflasht!` : `❌ API-Fehler.`);
+            const text = interaction.options.getString('text'); await sendRobloxLiveAnnouncement(text);
+            return interaction.reply(`🌌 **Roblox-Ankündigung:** Lauftext *" ${text} "* erfolgreich geflasht!`);
         }
 
         if (commandName === 'poll') {
@@ -528,12 +518,12 @@ client.on('interactionCreate', async interaction => {
         if (commandName === 'rbx-schedule-restart') {
             const intervall = interaction.options.getInteger('intervall');
             robloxRestartSchedules.set(guild.id, { intervalMinutes: intervall, active: true, lastRestart: Date.now() });
-            return interaction.reply(`⏰ **Roblox-Planer:** Automatisierter In-Game-Neustart für alle \`${intervall}\` Minuten hinterlegt.`);
+            return interaction.reply(`⏰ **Roblox-Planer:** Automatisierter In-Game-Neustart hinterlegt.`);
         }
 
         if (commandName === 'rbx-view-schedule') {
             const schedule = robloxRestartSchedules.get(guild.id); if (!schedule || !schedule.active) return interaction.reply('🌌 **Roblox-Planer:** Keine Intervalle aktiv.');
-            const vergangen = Math.floor((Date.now() - schedule.lastRestart) / 60000); return interaction.reply(`⏰ **Roblox-Planer-Status:** Aktiv | Intervall: \`alle ${schedule.intervalMinutes} Min\`.`);
+            return interaction.reply(`⏰ **Roblox-Planer-Status:** Aktiv.`);
         }
 
         if (commandName === 'rbx-ban') {
@@ -596,7 +586,6 @@ client.on('interactionCreate', async interaction => {
             return interaction.reply(`🃏 Lose! Du: \`${pVal}\` | Haus: \`${dVal}\`.`);
         }
         if (commandName === 'status') return interaction.reply(`🎮 **Live-Telemetrie:** \`${currentPlayersCount}/${maxPlayersCount}\` Spieler online.`);
-        if (commandName === 'clear') { const anzahl = interaction.options.getInteger('anzahl'); await channel.bulkDelete(anzahl, true); return interaction.reply({ content: '🧹 Bereinigt.', ephemeral: true }); }
         if (commandName === 'ping') return interaction.reply(`🏓 Latenz: \`${Math.round(client.ws.ping)}ms\``);
         if (commandName === 'ticket-panel') {
             const row = new ActionRowBuilder(); ticketSystemConfig.categories.forEach(cat => { row.addComponents(new ButtonBuilder().setCustomId(`server_panel_trigger_${cat.id}_${guild.id}`).setLabel(cat.label).setStyle(cat.color)); });
@@ -606,9 +595,58 @@ client.on('interactionCreate', async interaction => {
     }
 
     if (interaction.isChannelSelectMenu() && interaction.customId === 'voice_support_text_channel_select') {
-        const selectedChannelId = interaction.values[0];
-        voiceSupportAlertChannels.set(interaction.guild.id, selectedChannelId);
+        const selectedChannelId = interaction.values[0]; voiceSupportAlertChannels.set(interaction.guild.id, selectedChannelId);
         return await interaction.reply({ content: `🟩 **Konfiguration verankert:** Alarme für wartende User in Sprachkanälen werden ab sofort in <#${selectedChannelId}> mit einem \`@here\`-Ping gepostet!`, ephemeral: true });
+    }
+
+    // --- NEU: DYNAMISCHES MOVE-SYSTEM BEI BOT-BUTTON KLICK (VOICE SUPPORT) ---
+    if (interaction.isButton() && interaction.customId.startsWith('voice_matrix_claim_')) {
+        const parts = interaction.customId.split('_');
+        const targetUserId = parts[3];
+        const caseId = parts[4];
+        const supporterMember = interaction.member;
+
+        // Prüfen, ob der Supporter selbst in einem Sprachkanal ist, um Moven zu können
+        if (!supporterMember.voice.channelId) {
+            return interaction.reply({ content: '❌ **Leitstellen-Fehler:** Du musst dich selbst zuerst in einen beliebigen Sprachkanal begeben, um den User moven zu können!', ephemeral: true });
+        }
+
+        try {
+            const targetMember = await interaction.guild.members.fetch(targetUserId);
+            
+            if (!targetMember || !targetMember.voice.channelId) {
+                return interaction.reply({ content: '❌ **Vorgangs-Fehler:** Der wartende User befindet sich nicht mehr in der Warteschleife.', ephemeral: true });
+            }
+
+            // 1. Erstelle einen komplett frischen, geschützten Supportfall-Kanal
+            const privateSupportChannel = await interaction.guild.channels.create({
+                name: `🔏 Support ${caseId}`,
+                type: ChannelType.GuildVoice,
+                parent: targetMember.voice.channel.parent // Gleiche Kategorie wie der Warteraum
+            });
+
+            // 2. Supporter und User vollautomatisch zeitgleich in den neuen Kanal befördern!
+            await targetMember.voice.setChannel(privateSupportChannel);
+            await supporterMember.voice.setChannel(privateSupportChannel);
+
+            // 3. Aus der RAM-Warteschlange austragen, da erfolgreich verbunden
+            voiceSupportQueue.delete(targetUserId);
+
+            // 4. Leitstellen-Nachricht updaten
+            const lockedEmbed = new EmbedBuilder()
+                .setTitle('🟩 SUPPORTFALL ERFOLGREICH ÜBERNOMMEN')
+                .setDescription(`Der Vorgang \`${caseId}\` wird nun live bearbeitet.\n\n• **Supporter:** ${supporterMember}\n• **User:** ${targetMember}\n• **Kanal:** <#${privateSupportChannel.id}>`)
+                .setColor(0x00f5d4)
+                .setTimestamp();
+
+            await interaction.update({ content: `✅ **Vorgang geschaltet:**`, embeds: [lockedEmbed], components: [] });
+            
+            // Temporären Channel im RAM listen, damit er sich löscht, wenn er wieder leer wird
+            tempVoiceChannels.set(privateSupportChannel.id, { id: privateSupportChannel.id, ownerId: targetUserId });
+
+        } catch (e) {
+            return interaction.reply({ content: `❌ **Kritischer Fehler beim Move-Prozess:** ${e.message}`, ephemeral: true });
+        }
     }
 
     // Live-Poll Interceptor
@@ -652,7 +690,7 @@ client.on('interactionCreate', async interaction => {
                 await interaction.reply({ content: `🟩 Angenommen.`, ephemeral: true });
             } else {
                 if (applicantUser) await applicantUser.send("❌ **Bewerbung Abgelehnt.**");
-                await interaction.reply({ content: `🟥 Abgelehnt.`, ephemeral: true });
+                await interaction.reply({ content: `🟥 Ablehnen.`, ephemeral: true });
             }
         } catch(e) { await interaction.reply({ content: "Fehler.", ephemeral: true }); }
     }
@@ -738,8 +776,18 @@ client.on('messageCreate', async message => {
 
         if (activeTickets.has(userId)) {
             let activeSuppId = null; authorizedSupporters.forEach((val, sId) => { if (ownerActiveSession.get(sId) === userId) activeSuppId = sId; });
-            if (activeSuppId) { try { (await client.users.fetch(activeSuppId))?.send({ embeds: [new EmbedBuilder().setTitle(`💬 Live-Chat von ${message.author.username}`).setDescription(message.content).setColor(0x00f5d4)] }); await message.react('✅'); } catch(e){} } 
-            else { await message.reply('🌌 **Warteschleife:** Es wird auf einen freien Supporter gewartet...'); }
+
+            if (activeSuppId) {
+                try {
+                    const supp = await client.users.fetch(activeSuppId);
+                    if (supp) {
+                        await supp.send({ embeds: [new EmbedBuilder().setTitle(`💬 Live-Chat von ${message.author.username}`).setDescription(message.content).setColor(0x00f5d4)] });
+                        await message.react('✅');
+                    }
+                } catch(e){}
+            } else {
+                await message.reply('🌌 **Warteschleife:** Es wird auf einen Supporter gewartet, der dein Ticket übernimmt...');
+            }
             return;
         }
 
