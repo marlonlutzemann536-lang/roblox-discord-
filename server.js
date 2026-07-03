@@ -1,84 +1,72 @@
 const express = require('express');
+const { Client, GatewayIntentBits } = require('discord.js');
 const app = express();
+const port = process.env.PORT || 3000;
+
+// Discord Client mit exakt den Berechtigungen erstellen, die für Nachrichten gebraucht werden
+const client = new Client({
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages
+    ]
+});
+
 app.use(express.json());
 
-// Setze hier deine echten IDs ein!
-const DISCORD_TOKEN = process.env.DISCORD_TOKEN || 'MTUyMjUzNjcwMjk1MzEzMjEwMw.GZG-6W.XIWoFnHQvwq646w8C-aab0paSLeuJ6G4GrwtKI';
-const GUILD_ID = '1355911518381805568'; 
-const CHANNEL_ID = '1356249899099750571'; 
+// Test-Route um im Browser zu sehen, ob der Webserver überhaupt online ist
+app.get('/', (req, res) => {
+    res.send('easy ranking Server läuft und wartet auf Roblox-Befehle!');
+});
 
-// Die offizielle Application-ID des easyPOS-Bots
-const RANKING_BOT_APP_ID = '936034176211140668'; 
-
-app.post('/roblox-admin', async (req, res) => {
-    const { targetPlayer } = req.body;
-
-    if (!targetPlayer) {
-        return res.status(400).json({ error: 'Kein Spielername übergeben.' });
+// Die Haupt-Route für dein Roblox-Skript (Promote & Demote)
+app.post('/promote', async (req, res) => {
+    const { targetPlayer, action } = req.body;
+    
+    if (!targetPlayer || !action) {
+        return res.status(400).json({ error: 'Fehlende Parameter: targetPlayer oder action' });
     }
 
-    // Die Payload simuliert das Absenden des Slash-Commands von easyPOS
-    const interactionPayload = {
-        type: 2, 
-        application_id: RANKING_BOT_APP_ID,
-        guild_id: GUILD_ID,
-        channel_id: CHANNEL_ID,
-        data: {
-            name: "ranking",
-            type: 1,
-            options: [
-                {
-                    name: "promote",
-                    type: 1, 
-                    options: [
-                        {
-                            name: "target",
-                            type: 6, 
-                            value: "000000000000000000" // Dummy-ID, da wir den Namen nutzen
-                        },
-                        {
-                            name: "username",
-                            type: 3, 
-                            value: targetPlayer
-                        },
-                        {
-                            name: "short_code",
-                            type: 3, 
-                            value: "AR" // Exakt angepasst laut Bild image_e93ec4.png!
-                        }
-                    ]
-                }
-            ]
-        },
-        nonce: Math.random().toString().substring(2, 17),
-        session_id: "a1b2c3d4e5f6g7h8i9j0"
-    };
-
     try {
-        const response = await fetch(`https://discord.com/api/v10/interactions`, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bot ${DISCORD_TOKEN}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(interactionPayload)
-        });
-
-        if (response.ok) {
-            console.log(`[easyPOS] Befehl für ${targetPlayer} wurde erfolgreich an Discord übermittelt.`);
-            return res.json({ success: true, message: `Befehl an easyPOS gesendet.` });
+        // Suche den Textkanal auf deinem Server
+        const channel = await client.channels.fetch(process.env.DISCORD_CHANNEL_ID);
+        
+        if (channel) {
+            if (action === "promote") {
+                await channel.send(`!promote ${targetPlayer}`); 
+                console.log(`[Roblox-Befehl] !promote ${targetPlayer} wurde in den Chat geschrieben.`);
+            } else if (action === "demote") {
+                await channel.send(`!demote ${targetPlayer}`);
+                console.log(`[Roblox-Befehl] !demote ${targetPlayer} wurde in den Chat geschrieben.`);
+            }
+            return res.status(200).json({ success: true, message: `Befehl für ${targetPlayer} an Discord gesendet.` });
         } else {
-            const errorText = await response.text();
-            console.error(`[Discord API Fehler]`, errorText);
-            return res.status(response.status).json({ error: errorText });
+            console.error('[Fehler] Kanal mit der angegebenen DISCORD_CHANNEL_ID wurde nicht gefunden.');
+            return res.status(404).json({ error: 'Discord-Kanal nicht gefunden.' });
         }
+
     } catch (error) {
-        console.error('[Server Fehler]', error);
-        return res.status(500).json({ error: 'Interner Serverfehler in der Cloud.' });
+        console.error('Fehler beim Senden des Befehls an Discord:', error);
+        return res.status(500).json({ error: 'Interner Server-Fehler beim Senden der Nachricht.' });
     }
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`Die Cloud-Brücke läuft permanent auf Port ${PORT}`);
+// Event-Handler: Wird ausgeführt, sobald der Bot erfolgreich die Verbindung aufbaut
+client.once('ready', () => {
+    console.log(`🟢 ERFOLG! Eingeloggt als Discord-Bot: ${client.user.tag}`);
+    console.log(`Der Bot ist jetzt online und einsatzbereit.`);
+});
+
+// Fehler abfangen, falls das Einloggen schiefgeht (z.B. wegen falschem Token)
+process.on('unhandledRejection', error => {
+    console.error('Unbehandelter Fehler beim Starten des Bots:', error);
+});
+
+// Bot starten
+console.log('Versuche den Bot bei Discord anzumelden...');
+client.login(process.env.DISCORD_TOKEN).catch(err => {
+    console.error('❌ LOGIN-FEHLER: Der Discord-Token ist ungültig oder abgelaufen!', err);
+});
+
+app.listen(port, () => {
+    console.log(`Webserver läuft im Hintergrund auf Port ${port}`);
 });
