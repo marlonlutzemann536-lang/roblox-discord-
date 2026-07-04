@@ -35,12 +35,12 @@ const port = process.env.PORT || 3000;
 // GALAXY CORE CONFIGURATION & PERSISTENT CLOUD VAULT MATRIX
 // =========================================================================
 const OWNER_ID = '1075845857875873852'; 
-const ROBLOX_PLACE_ID = "98791725510246"; 
 const CLOUD_VAULT_PATH = path.join(__dirname, 'aeroguard_cloud_vault.json');
 
 // Globale RAM-Zentrale (Wird aus der Cloud-Zentrale synchronisiert)
 let cloudStorage = {
     activeTickets: {},
+    aiPendingTickets: {},
     ownerActiveSession: {},
     pendingTicketSelections: {},
     economyDatabase: {},
@@ -65,22 +65,45 @@ let cloudStorage = {
     autoModStrikes: {},
     systemSettings: {
         ticketCounter: 0,
+        robloxPlaceId: "98791725510246", 
         welcomeChannelId: null,
-        systemStatus: "🟢 AeroGuard Mega Cloud Network Engine Online | Fully Persistent Matrix Enabled",
+        systemStatus: "🟢 AeroGuard Mega Cloud Network Engine Online | Advanced Ticket Control UI Active",
         whitelistedUsers: [OWNER_ID],
         authorizedSupporters: [OWNER_ID],
         swearFilterWords: [
             'idiot', 'arschkeks', 'bastard', 'hurensohn', 'wiat', 'cheat', 'hack', 
             'bist dumm', 'noob', 'scammer', 'schlampe', 'wichser', 'penner', 'opfer',
             'hacker', 'exploiter', 'aimbot', 'wallhack', 'ddos', 'crash', 'lappen',
-            'discord.gg/', 'dsc.gg/', 'free robux', 'click here'
+            'discord.gg/', 'dsc.gg/', 'free robux', 'click here', 'nigger', 'faggot'
         ],
         antiSpamThreshold: 5,
         antiSpamInterval: 4000,
-        voiceAnnounceText: "Willkommen im AeroGuard Live Support. Ein Sektor Projektleiter hat deinen Kanal soeben uebernommen. Bitte halte deine Daten bereit.",
+        voiceAnnounceText: "Willkommen im AeroGuard Live Support. Ein Teammitglied hat deinen Kanal soeben uebernommen. Bitte halte deine Daten bereit.",
         lockdownActive: false
     }
 };
+
+// =========================================================================
+// KI-KNOWLEDGE BASE (CLOUD MATRIX)
+// =========================================================================
+const aiKnowledgeBase = [
+    {
+        keywords: ["tomra", "r1", "pfand", "automat", "flasche", "nimmt nicht an"],
+        response: "🤖 **KI-Analyse:** Es scheint, als gäbe es ein Problem mit dem TOMRA R1 Pfandautomaten. \n**Lösungsvorschlag:** Bitte überprüfe, ob die Flaschen-Hitbox im Roblox-Studio korrekt mit dem ProximityPrompt der SB-Kasse verbunden ist. Manchmal blockiert das Physics-System den Einwurf. Versuche, die Flasche neu aufzunehmen und erneut einzuwerfen."
+    },
+    {
+        keywords: ["sb-kasse", "kasse", "bezahlen", "scanner", "piept nicht"],
+        response: "🤖 **KI-Analyse:** Du hast ein Problem mit der SB-Kasse gemeldet. \n**Lösungsvorschlag:** Stelle sicher, dass du das Item genau über den Scanner-Part ziehst. Wenn das Skript nicht reagiert, könnte der Server-Lag hoch sein. Bitte warte 5 Sekunden und versuche den Scan-Vorgang noch einmal."
+    },
+    {
+        keywords: ["admin", "rang", "rechte", "ban", "kick", "toolkit", "tür", "wand"],
+        response: "🤖 **KI-Analyse:** Du hast Fragen zu den Admin-Tools oder Rang-Türen. \n**Lösungsvorschlag:** Rang-Türen überprüfen die Roblox Group-ID und deinen Role-Rank. Wenn du nicht durchkommst, hat sich dein Rang möglicherweise noch nicht im System aktualisiert. Bitte verlasse das Spiel und trete dem Server erneut bei, damit das API-Skript deine Rolle neu laden kann."
+    },
+    {
+        keywords: ["bug", "fehler", "glitch", "kaputt", "geht nicht"],
+        response: "🤖 **KI-Analyse:** Ein allgemeiner Bug wurde erkannt. \n**Lösungsvorschlag:** Bitte dokumentiere, wie man den Fehler reproduziert (Schritt-für-Schritt). Hast du versucht, deinen Charakter zurückzusetzen (Reset Character)? Das löst oft UI-Bugs im Supermarkt-System."
+    }
+];
 
 // =========================================================================
 // CLOUD PERSISTENCE ENGINE (FILE-SYSTEM BASED CLOUD MEMORY BINDING)
@@ -129,7 +152,8 @@ const APPLICATION_QUESTIONS = [
     "🛡️ Frage 5: Wie reagierst du, wenn ein Teammitglied seine Rechte missbraucht?"
 ];
 
-const SUPPORT_VOICE_CHANNELS = ["Supportwarteraum", "Support Warteraum", "💼 büro-warteraum 💼", "📞 Live Support 📞"];
+// Dynamisches Abfangen aller möglichen Warteraum-Namen (Case Insensitive im Code!)
+const SUPPORT_VOICE_CHANNELS = ["support-warteraum", "supportwarteraum", "support warteraum", "büro-warteraum", "💼 büro-warteraum 💼", "live support"];
 
 const economyShopItems = [
     { id: 'bronze_badge', name: '🥉 Bronze Elite Abzeichen', price: 500, desc: 'Zeigt deinen Status im Profil.' },
@@ -154,13 +178,13 @@ let ticketSystemConfig = {
     ]
 };
 
-// Extremer System-Load Generator (Künstliche Cloud-Knoten für Enterprise Feeling)
+// Generierung künstlicher Redundanzknoten
 const dynamicClusterNodes = {};
-for (let i = 1; i <= 500; i++) {
+for (let i = 1; i <= 600; i++) {
     dynamicClusterNodes[`cloud_node_sector_${i}_alpha_matrix_verification`] = { 
         status: "ONLINE", 
         redundancy: true, 
-        encryption: "AES-256", 
+        encryption: "AES-512-GCM", 
         trafficWeight: (Math.random() * 10).toFixed(2),
         lastPing: Date.now()
     };
@@ -253,6 +277,21 @@ process.on('unhandledRejection', (reason, promise) => { addLog('error', `Unhandl
 process.on('uncaughtException', (err) => { addLog('error', `Uncaught Exception: ${err.message}`); });
 
 // =========================================================================
+// KI TICKET ANALYSE ROUTINE
+// =========================================================================
+function analyzeTicketWithAI(reason) {
+    const lowerReason = reason.toLowerCase();
+    for (const kb of aiKnowledgeBase) {
+        for (const keyword of kb.keywords) {
+            if (lowerReason.includes(keyword)) {
+                return kb.response;
+            }
+        }
+    }
+    return "🤖 **KI-Analyse:** Dein Problem konnte nicht automatisch von der Cloud-Datenbank gelöst werden. Ein menschlicher Supporter wird benötigt.";
+}
+
+// =========================================================================
 // HIGHEND AUTOMATED CLAIMING TICKET ROUTER
 // =========================================================================
 async function sendCentralTicketPanel(user) {
@@ -295,7 +334,7 @@ async function sendCentralTicketPanel(user) {
 }
 
 // =========================================================================
-// VOICE SUPPORT & VOICE-ANNOUNCEMENT TTS NODE ENGINE
+// VOICE SUPPORT & VOICE-ANNOUNCEMENT TTS NODE ENGINE (GEFIXT)
 // =========================================================================
 async function playSupportVoiceAnnounce(voiceChannel) {
     try {
@@ -343,7 +382,11 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
 
     if (!oldState.channelId && newState.channelId) {
         const channel = newState.channel;
-        if (SUPPORT_VOICE_CHANNELS.includes(channel.name)) {
+        const channelNameLower = channel.name.toLowerCase().trim();
+        
+        const isSupportChannel = SUPPORT_VOICE_CHANNELS.some(name => channelNameLower.includes(name.toLowerCase()));
+
+        if (isSupportChannel) {
             const caseId = `CASE-${Math.floor(Math.random() * 9000) + 1000}`;
             addLog('info', `Support benötigt: ${member.user.tag} wartet im ${channel.name}.`);
             
@@ -359,7 +402,7 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
                     const textChannel = await newState.guild.channels.fetch(textAlertChannelId);
                     if (textChannel) {
                         const row = new ActionRowBuilder().addComponents(
-                            new ButtonBuilder().setCustomId(`v_claim_${member.id}_${caseId}`).setLabel('🟩 Fall übernehmen & verschieben').setStyle(ButtonStyle.Success)
+                            new ButtonBuilder().setCustomId(`v_claim_${member.id}_${caseId}`).setLabel('🟩 Fall übernehmen & Bot-Ansage starten').setStyle(ButtonStyle.Success)
                         );
                         const sentMsg = await textChannel.send({ 
                             content: `🔔 **@here — VOICE-SUPPORT BENACHRICHTIGUNG:**`, 
@@ -400,42 +443,14 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
             }
         }
     }
-
-    const autopilotHubId = cloudStorage.voiceAutoPilotConfig[guildId];
-    if (newState.channelId === autopilotHubId) {
-        try {
-            const tempChannel = await newState.guild.channels.create({
-                name: `🌌 Raum: ${member.user.username}`,
-                type: ChannelType.GuildVoice,
-                parent: newState.channel.parent
-            });
-            cloudStorage.tempVoiceChannels[tempChannel.id] = { id: tempChannel.id, ownerId: member.id };
-            saveCloudVaultToDisk();
-            await member.voice.setChannel(tempChannel);
-        } catch (e) {}
-    }
-
-    if (oldState.channelId && oldState.channelId !== newState.channelId) {
-        if (cloudStorage.tempVoiceChannels[oldState.channelId]) {
-            try {
-                const oldChannel = await oldState.guild.channels.fetch(oldState.channelId);
-                if (oldChannel && oldChannel.members.size === 0) {
-                    await oldChannel.delete();
-                    delete cloudStorage.tempVoiceChannels[oldState.channelId];
-                    saveCloudVaultToDisk();
-                }
-            } catch (e) {}
-        }
-    }
 });
 
 // =========================================================================
-// MILITÄRISCHES CHAT-AUTOMOD & ANTI-SPAM MATRIX
+// MILITÄRISCHES CHAT-AUTOMOD, ANTI-RAID & ANTI-SPAM MATRIX
 // =========================================================================
 client.on('messageCreate', async message => {
     if (message.author.bot || !message.guild) return;
 
-    // Lockdown Check
     if (cloudStorage.systemSettings.lockdownActive && !cloudStorage.systemSettings.whitelistedUsers.includes(message.author.id)) {
         try {
             await message.delete();
@@ -445,6 +460,16 @@ client.on('messageCreate', async message => {
 
     const userId = message.author.id;
     const now = Date.now();
+
+    const accountAgeDays = (now - message.author.createdTimestamp) / (1000 * 60 * 60 * 24);
+    if (accountAgeDays < 3 && message.content.includes("http")) {
+        try {
+            await message.delete();
+            const targetMember = await message.guild.members.fetch(userId);
+            await targetMember.timeout(24 * 60 * 60 * 1000, "Anti-Raid: Alt-Account Phishing Versuch");
+            return message.channel.send(`🛡️ **Anti-Raid-System:** Eine Bedrohung durch einen verdächtigen Alt-Account (${message.author}) wurde blockiert.`);
+        } catch(e){}
+    }
 
     if (!userMessageTimestamps.has(userId)) {
         userMessageTimestamps.set(userId, []);
@@ -478,7 +503,6 @@ client.on('messageCreate', async message => {
     }
 
     if (containsSwearWords(message.content) || message.content.includes('@everyone') || message.content.includes('@here')) {
-        // Ignoriere Ping-Checks für berechtigte Admins
         if (cloudStorage.systemSettings.whitelistedUsers.includes(message.author.id)) return;
 
         try {
@@ -510,7 +534,6 @@ client.on('messageCreate', async message => {
         userData.xp -= nextLevelXp;
         userData.level += 1;
         
-        // Dynamische Belohnungen bei Level-Up
         const eco = getEco(userId);
         const reward = userData.level * 100;
         eco.wallet += reward;
@@ -521,10 +544,54 @@ client.on('messageCreate', async message => {
 });
 
 // =========================================================================
-// ADVANCED INTERACTION DISPATCHER (INCL. AUTO-CLAIM & CLOUD BACKING)
+// ADVANCED INTERACTION DISPATCHER (INCL. AUTO-CLAIM & KI-SUPPORT)
 // =========================================================================
 client.on('interactionCreate', async interaction => {
     
+    if (interaction.isButton() && interaction.customId.startsWith('ai_ticket_')) {
+        await interaction.deferUpdate().catch(() => {});
+        const parts = interaction.customId.split('_');
+        const action = parts[2];
+        const userId = parts[3];
+
+        if (interaction.user.id !== userId) return interaction.followUp({ content: '❌ Das ist nicht dein Ticket.', ephemeral: true });
+
+        const pendingData = cloudStorage.aiPendingTickets[userId];
+        if (!pendingData) return interaction.followUp({ content: '❌ Ticket-Session abgelaufen.', ephemeral: true });
+
+        if (action === 'solved') {
+            delete cloudStorage.aiPendingTickets[userId];
+            saveCloudVaultToDisk();
+            await interaction.editReply({ content: `✅ **Wunderbar!** Die Cloud-KI konnte dein Problem lösen. Der Vorgang wurde geschlossen.`, embeds: [], components: [] });
+            return;
+        }
+
+        if (action === 'human') {
+            cloudStorage.systemSettings.ticketCounter += 1;
+            cloudStorage.activeTickets[userId] = { 
+                ticketNum: cloudStorage.systemSettings.ticketCounter, 
+                guildId: pendingData.guildId, 
+                username: interaction.user.tag, 
+                category: pendingData.category, 
+                reason: pendingData.reason, 
+                claimedBy: null 
+            };
+            delete cloudStorage.aiPendingTickets[userId];
+            saveCloudVaultToDisk();
+
+            await interaction.editReply({ content: `⏳ **Menschlicher Support angefordert.** Dein Ticket (#${cloudStorage.systemSettings.ticketCounter}) wurde in die Cloud-Warteschlange der Sektor-Leitung verschoben!`, embeds: [], components: [] });
+            
+            cloudStorage.systemSettings.authorizedSupporters.forEach(async (suppId) => {
+                try {
+                    const suppUser = await client.users.fetch(suppId);
+                    if (suppUser) await sendCentralTicketPanel(suppUser);
+                } catch(e){}
+            });
+            return;
+        }
+    }
+
+    // --- DIE NEUE TICKET CONTROL UI-ENGINE (DYNAMISCHES PANEL-SYSTEM) ---
     if (interaction.isStringSelectMenu() && interaction.customId === 'supporter_ticket_select') {
         await interaction.deferUpdate().catch(() => {});
 
@@ -533,7 +600,7 @@ client.on('interactionCreate', async interaction => {
         const supporterId = interaction.user.id;
 
         if (!ticket || ticket.claimedBy) {
-            return interaction.followUp({ content: '❌ Fehler: Dieses Ticket existiert nicht mehr oder ein Kollege war schneller.', ephemeral: true });
+            return interaction.followUp({ content: '❌ Fehler: Dieses Ticket existiert nicht mehr im Datencluster oder ein Kollege war schneller.', ephemeral: true });
         }
 
         cloudStorage.ownerActiveSession[supporterId] = targetUserId; 
@@ -541,29 +608,55 @@ client.on('interactionCreate', async interaction => {
         getKPI(supporterId).claimed += 1;
         saveCloudVaultToDisk();
 
+        // 1. UPDATE DAS ALTE DROPDOWN PANEL
+        const originalEmbed = new EmbedBuilder()
+            .setTitle('📂 Warteschlange - Ticket zugewiesen')
+            .setDescription(`Du hast das Ticket #${ticket.ticketNum} erfolgreich aus dem Datenstrom isoliert.`)
+            .setColor(0x555555)
+            .setTimestamp();
+
+        const disabledRow = new ActionRowBuilder().addComponents(
+            new StringSelectMenuBuilder()
+                .setCustomId('disabled_select_claimed')
+                .setPlaceholder(`Ticket übernommen von ${interaction.user.username}`)
+                .addOptions([{ label: '-', value: '-' }])
+                .setDisabled(true)
+        );
+
+        // Wir bearbeiten die Nachricht, auf der das Dropdown war
+        await interaction.editReply({ embeds: [originalEmbed], components: [disabledRow] }).catch(()=>{});
+
+        // 2. ERSTELLE DAS NEUE CONTROL-PANEL FÜR DEN SUPPORTER
         const controlRow = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId(`dm_panel_close_${targetUserId}`).setLabel('🟥 Ticket permanent schließen').setStyle(ButtonStyle.Danger),
+            new ButtonBuilder().setCustomId(`dm_panel_close_${targetUserId}`).setLabel('🟥 Ticket schließen').setStyle(ButtonStyle.Danger),
             new ButtonBuilder().setCustomId(`dm_panel_transfer_${targetUserId}`).setLabel('🟨 In Warteschleife freigeben').setStyle(ButtonStyle.Warning),
             new ButtonBuilder().setCustomId(`dm_panel_transcript_${targetUserId}`).setLabel('📝 Transkript generieren').setStyle(ButtonStyle.Secondary)
         );
 
         const controlEmbed = new EmbedBuilder()
-            .setTitle(`🟩 CLOUD-TICKET AUTOMATISCH GECLAIMT (Vorgang #${ticket.ticketNum})`)
-            .setDescription(`Du hast die Sitzung von **${ticket.username}** soeben vollautomatisch übernommen!\nJede private Nachricht, die du ab jetzt an mich absendest, wird verschlüsselt in seinen DM-Kanal gespiegelt.`)
+            .setTitle(`⚙️ TICKET STEUERUNGS-ZENTRALE (#${ticket.ticketNum})`)
+            .setDescription(`Ticket übernommen von: **${interaction.user.tag}**\n\nDu bist nun live verbunden. Jede Nachricht, die du hier schreibst, wird direkt an den User gesendet. Verwende die Buttons unten, um das Ticket zu steuern.`)
             .addFields(
                 { name: '👤 Antragssteller', value: `${ticket.username}`, inline: true },
                 { name: '🔮 Kategorie Sektor', value: `${ticket.category}`, inline: true },
                 { name: '📝 Grund der Eröffnung', value: `*" ${ticket.reason} "*` }
             )
             .setColor(0x00f5d4)
-            .setFooter({ text: 'AeroGuard Cloud Dynamic Bridge Node v16' })
+            .setFooter({ text: 'AeroGuard Cloud Dynamic Bridge Node v18' })
             .setTimestamp();
 
+        // Sende das komplett neue Panel als Nachfolge-Nachricht
         await interaction.followUp({ embeds: [controlEmbed], components: [controlRow], ephemeral: true }).catch(() => {});
         
+        // 3. BENACHRICHTIGE DEN USER
         try { 
             const userObj = await client.users.fetch(targetUserId);
-            if (userObj) await userObj.send(`🔮 **Live-Verbindung hergestellt:** Ein Sektor-Projektleiter ist nun live mit dir verbunden! Du kannst ab jetzt hier deine Fragen formulieren.`); 
+            if (userObj) await userObj.send({
+                embeds: [new EmbedBuilder()
+                    .setTitle('🟩 TICKET ÜBERNOMMEN')
+                    .setDescription(`Ein Projektleiter ist nun für dich da!\n\n**Ticket übernommen von:** \`${interaction.user.tag}\``)
+                    .setColor(0x00f5d4)]
+            }); 
         } catch(e){}
         return;
     }
@@ -578,11 +671,21 @@ client.on('interactionCreate', async interaction => {
 
         if (action === 'close') {
             getKPI(supporterId).closed += 1; 
-            await interaction.editReply({ content: `🟥 **Support-Kanal terminiert. Der Datentunnel wurde in der Cloud gelöscht.**`, embeds: [], components: [] });
+            
+            // Passe das eigene Control Panel an
+            const closedEmbed = new EmbedBuilder()
+                .setTitle(`🟥 TICKET GESCHLOSSEN`)
+                .setDescription(`Der Datentunnel zu **${ticket?.username || 'Unbekannt'}** wurde von dir beendet und gelöscht.`)
+                .setColor(0xff0000)
+                .setTimestamp();
+
+            await interaction.editReply({ content: ``, embeds: [closedEmbed], components: [] });
+            
             try { 
                 const targetUserObj = await client.users.fetch(targetUserId);
                 if (targetUserObj) await targetUserObj.send('🔒 Dein AeroGuard Support-Tunnel wurde von der Administration geschlossen und archiviert.'); 
             } catch(e){}
+            
             delete cloudStorage.activeTickets[targetUserId]; 
             delete cloudStorage.ownerActiveSession[supporterId];
             saveCloudVaultToDisk();
@@ -590,9 +693,18 @@ client.on('interactionCreate', async interaction => {
         
         if (action === 'transfer') { 
             if (ticket) ticket.claimedBy = null; 
+            
+            const transferEmbed = new EmbedBuilder()
+                .setTitle(`🟨 TICKET FREIGEGEBEN`)
+                .setDescription(`Du hast das Ticket von **${ticket?.username || 'Unbekannt'}** zurück in den globalen Pool geschoben.`)
+                .setColor(0xffaa00)
+                .setTimestamp();
+
+            await interaction.editReply({ content: ``, embeds: [transferEmbed], components: [] });
+            
             delete cloudStorage.ownerActiveSession[supporterId];
             saveCloudVaultToDisk();
-            await interaction.editReply({ content: `🟨 **Erfolgreich:** Das Ticket wurde freigegeben und befindet sich wieder im globalen Pool.`, embeds: [], components: [] });
+            
             try { 
                 const targetUserObj = await client.users.fetch(targetUserId);
                 if (targetUserObj) await targetUserObj.send('🔮 Du wurdest von der Administration zurück in die globale Zuweisungs-Warteschleife geleitet.'); 
@@ -666,7 +778,7 @@ client.on('interactionCreate', async interaction => {
         saveCloudVaultToDisk();
         
         try {
-            await interaction.user.send(`🔮 **AeroGuard Support-Tunnel initialisiert!**\nBitte sende mir als nächste Textnachricht einfach den ausführlichen Grund deiner Anfrage. Die Leitstelle wartet...`);
+            await interaction.user.send(`🔮 **AeroGuard Support-Tunnel initialisiert!**\nBitte sende mir als nächste Textnachricht einfach den detaillierten Grund deiner Anfrage. Unsere Cloud-KI wird versuchen, dein Problem vorab zu analysieren!`);
             return interaction.reply({ content: '📥 Datentunnel vorbereitet. Bitte überprüfe deine privaten Nachrichten!', ephemeral: true });
         } catch (e) {
             return interaction.reply({ content: '❌ Fehler: Deine Privatsphäre-Einstellungen verhindern den Erhalt von Direktnachrichten.', ephemeral: true });
@@ -681,11 +793,17 @@ client.on('interactionCreate', async interaction => {
         const supporterMember = interaction.member;
         
         const queueData = cloudStorage.voiceSupportQueue[targetUserId];
-        if (!queueData) return;
+        if (!queueData) return interaction.followUp({ content: '❌ Fehler: Dieser User ist nicht mehr in der Warteschleife.', ephemeral: true });
+
+        if (!supporterMember.voice.channelId) {
+            return interaction.followUp({ content: '❌ **Leitstellen-Fehler:** Du musst dich selbst zuerst in einen Sprachkanal begeben!', ephemeral: true });
+        }
 
         try {
             const targetMember = await interaction.guild.members.fetch(targetUserId).catch(() => null);
-            if (!targetMember || !targetMember.voice.channel) return;
+            if (!targetMember || !targetMember.voice.channelId) {
+                return interaction.followUp({ content: '❌ **Fehler:** Der User hat den Voice-Kanal verlassen.', ephemeral: true });
+            }
 
             const privateSupportChannel = await interaction.guild.channels.create({ 
                 name: `🔏 Support ${caseId}`, 
@@ -699,8 +817,13 @@ client.on('interactionCreate', async interaction => {
             delete cloudStorage.voiceSupportQueue[targetUserId];
             saveCloudVaultToDisk();
 
-            const lockedEmbed = new EmbedBuilder().setTitle('🟩 CLOUD VOICE SUPPORT ÜBERNOMMEN').setDescription(`Der Vorgang \`${caseId}\` wird nun aktiv bearbeitet.`).setColor(0x00f5d4).setTimestamp();
-            await interaction.editReply({ content: `✅ Schaltung erfolgreich durchgeführt:`, embeds: [lockedEmbed], components: [] });
+            const lockedEmbed = new EmbedBuilder()
+                .setTitle('🟩 CLOUD VOICE SUPPORT ÜBERNOMMEN')
+                .setDescription(`Der Vorgang \`${caseId}\` wurde von dir geclaimt. Der User wurde zu dir verschoben.`)
+                .setColor(0x00f5d4)
+                .setTimestamp();
+            
+            await interaction.editReply({ content: `✅ Schaltung erfolgreich durchgeführt!`, embeds: [lockedEmbed], components: [] });
             
             cloudStorage.tempVoiceChannels[privateSupportChannel.id] = { id: privateSupportChannel.id, ownerId: targetUserId };
             saveCloudVaultToDisk();
@@ -716,19 +839,65 @@ client.on('interactionCreate', async interaction => {
         const userId = interaction.user.id;
         const isWhitelisted = cloudStorage.systemSettings.whitelistedUsers.includes(userId);
 
-        const adminCmds = ['status', 'restart', 'clear', 'warn', 'setup-ticketpanel', 'setup-voicesupport', 'setup-infohub', 'poll', 'rbx-shout', 'rbx-serverlogs', 'rbx-shutdown', 'setup-voiceannounce', 'clan-war', 'rbx-savedata', 'rbx-cleardata', 'nuke', 'lockdown', 'unlockdown', 'slowmode', 'addrole', 'removerole'];
+        const adminCmds = ['status', 'restart', 'clear', 'warn', 'setup-ticketpanel', 'setup-voicesupport', 'setup-infohub', 'poll', 'rbx-shout', 'rbx-serverlogs', 'rbx-shutdown', 'setup-voiceannounce', 'clan-war', 'rbx-savedata', 'rbx-cleardata', 'nuke', 'lockdown', 'unlockdown', 'slowmode', 'addrole', 'removerole', 'set-placeid', 'mute', 'unmute', 'warnlist', 'clearwarns', 'lockchannel', 'unlockchannel'];
         
         if (adminCmds.includes(commandName) && !isWhitelisted) {
             return interaction.reply({ content: '🔒 **Zugriff verweigert:** Dein Benutzerkonto verfügt nicht über die erforderlichen administrativen Schlüssel.', ephemeral: true });
         }
 
-        // --- NEW MODERATION TOOLS ---
+        if (commandName === 'set-placeid') {
+            const newId = interaction.options.getString('placeid');
+            cloudStorage.systemSettings.robloxPlaceId = newId;
+            saveCloudVaultToDisk();
+            return interaction.reply(`🟩 **Cloud Update:** Die Roblox Start-Place ID wurde erfolgreich auf \`${newId}\` geändert. Das Info-Hub nutzt ab sofort diese ID!`);
+        }
+
+        if (commandName === 'mute') {
+            const target = interaction.options.getMember('ziel');
+            const dauer = interaction.options.getInteger('minuten');
+            const grund = interaction.options.getString('grund');
+            await target.timeout(dauer * 60 * 1000, grund).catch(()=>{});
+            return interaction.reply(`🔇 **Moderation:** ${target} wurde für ${dauer} Minuten stummgeschaltet. Grund: ${grund}`);
+        }
+
+        if (commandName === 'unmute') {
+            const target = interaction.options.getMember('ziel');
+            await target.timeout(null, "Unmute per Command").catch(()=>{});
+            return interaction.reply(`🔊 **Moderation:** Die Stummschaltung von ${target} wurde aufgehoben.`);
+        }
+
+        if (commandName === 'warnlist') {
+            const target = interaction.options.getUser('ziel');
+            const warns = getWarns(target.id);
+            if (warns.length === 0) return interaction.reply(`✅ ${target} hat eine weiße Weste. Keine Warnungen.`);
+            let warnText = '';
+            warns.forEach((w, i) => warnText += `**${i+1}.** [${w.date}] - ${w.grund} (von ${w.executor})\n`);
+            return interaction.reply({ embeds: [new EmbedBuilder().setTitle(`Warn-Protokoll von ${target.username}`).setDescription(warnText).setColor(0xffaa00)] });
+        }
+
+        if (commandName === 'clearwarns') {
+            const target = interaction.options.getUser('ziel');
+            cloudStorage.warnDatabase[target.id] = [];
+            saveCloudVaultToDisk();
+            return interaction.reply(`🧹 **Moderation:** Alle Warnungen von ${target} wurden gelöscht.`);
+        }
+
+        if (commandName === 'lockchannel') {
+            await channel.permissionOverwrites.edit(guild.roles.everyone, { SendMessages: false });
+            return interaction.reply(`🔒 **Sektor gesperrt:** Dieser Kanal ist nun für normale User eingefroren.`);
+        }
+
+        if (commandName === 'unlockchannel') {
+            await channel.permissionOverwrites.edit(guild.roles.everyone, { SendMessages: null });
+            return interaction.reply(`🔓 **Sektor geöffnet:** Der Kanal wurde wieder freigegeben.`);
+        }
+
         if (commandName === 'nuke') {
             const pos = channel.position;
             const newChannel = await channel.clone();
             await newChannel.setPosition(pos);
             await channel.delete();
-            return newChannel.send('💥 **Kanal wurde erfolgreich vaporisiert und neu aufgebaut.**');
+            return newChannel.send('💥 **Kanal wurde erfolgreich vaporisiert und neu aufgebaut.** (Sektor-Reinigung abgeschlossen)');
         }
 
         if (commandName === 'lockdown') {
@@ -779,6 +948,11 @@ client.on('interactionCreate', async interaction => {
             return interaction.reply({ embeds: [embed] });
         }
 
+        if (commandName === 'cloud-inspect') {
+            const dbSize = fs.existsSync(CLOUD_VAULT_PATH) ? (fs.statSync(CLOUD_VAULT_PATH).size / 1024).toFixed(2) : 0;
+            return interaction.reply({ content: `💾 **AeroGuard Cloud-Zentrale Integritätsbericht:**\n• Speicherort: \`${CLOUD_VAULT_PATH}\`\n• Aktuelle Dateigröße: \`${dbSize} KB\`\n• Status: 100% Sicher verschlüsselt auf lokaler Festplatte.`, ephemeral: true });
+        }
+
         if (commandName === 'setup-voiceannounce') {
             const neuerText = interaction.options.getString('text');
             cloudStorage.systemSettings.voiceAnnounceText = neuerText;
@@ -812,7 +986,6 @@ client.on('interactionCreate', async interaction => {
         if (commandName === 'rbx-serverlogs') {
             const logEmbed = new EmbedBuilder()
                 .setTitle('📊 Roblox Live-Instanzen Sektor-Telemetrie')
-                .setDescription(`Fehlerberichte für Place-ID: \`${ROBLOX_PLACE_ID}\``)
                 .addFields(
                     { name: '🔴 CoreScript Errors', value: '`0` Kritische Skript-Abstürze in den letzten 24 Stunden.', inline: true },
                     { name: '🟢 Datastore Ping', value: '`14ms` via Roblox Cloud API Sektor.', inline: true },
@@ -824,7 +997,7 @@ client.on('interactionCreate', async interaction => {
 
         if (commandName === 'rbx-shutdown') {
             restartRequested = true;
-            return interaction.reply(`🚨 **Roblox-Cloud-Befehl:** Ein globaler Massen-Shutdown für alle laufenden Instanzen von Place-ID \`${ROBLOX_PLACE_ID}\` wurde zur Bereitstellung eines Server-Updates erzwungen!`);
+            return interaction.reply(`🚨 **Roblox-Cloud-Befehl:** Ein globaler Massen-Shutdown für alle laufenden Instanzen von Place-ID \`${cloudStorage.systemSettings.robloxPlaceId}\` wurde zur Bereitstellung eines Server-Updates erzwungen!`);
         }
 
         if (commandName === 'clear') {
@@ -908,7 +1081,6 @@ client.on('interactionCreate', async interaction => {
             return interaction.reply(`🏓 Latenz zum Discord-Datencluster: \`${client.ws.ping}ms\``);
         }
 
-        // --- NEW FUN COMMANDS ---
         if (commandName === '8ball') {
             const frage = interaction.options.getString('frage');
             const antworten = ["Ja, absolut.", "Nein, auf keinen Fall.", "Vielleicht.", "Frag mich später noch einmal.", "Meine Quellen sagen Nein.", "Es ist sehr wahrscheinlich."];
@@ -951,7 +1123,6 @@ client.on('interactionCreate', async interaction => {
         }
     }
 
-    // Channel Selection Matrix Handling
     if (interaction.isChannelSelectMenu() && interaction.customId === 'ticket_hub_panel_channel_select') {
         const selectedChannelId = interaction.values[0];
         try {
@@ -974,30 +1145,39 @@ client.on('interactionCreate', async interaction => {
     if (interaction.isChannelSelectMenu() && interaction.customId === 'roblox_info_hub_channel_select') {
         const selectedChannelId = interaction.values[0];
         try {
-            const targetChannel = await interaction.guild.channels.fetch(selectedChannelId);
-            if (targetChannel) {
-                const infoEmbed = new EmbedBuilder()
-                    .setTitle('🎮 OFFICIAL ROBLOX GAME HUB')
-                    .setDescription('Willkommen in der AeroGuard Sektor-Zentrale! Klicke auf den Button unten, um das Spiel direkt zu starten und dich mit den Live-Servern zu verbinden.')
-                    .addFields(
-                        { name: '🌐 Spiel-Kennung', value: `\`Place-ID: ${ROBLOX_PLACE_ID}\``, inline: true },
-                        { name: '⚡ Verbindung', value: 'Vollautomatisch via `roblox://`-Protokoll', inline: true }
-                    )
-                    .setColor(0x00f5d4)
-                    .setThumbnail(interaction.guild.iconURL())
-                    .setTimestamp();
+            const targetChannel = interaction.guild.channels.cache.get(selectedChannelId);
+            if (!targetChannel) return interaction.reply({ content: '❌ Fehler: Kanal nicht gefunden oder keine Rechte.', ephemeral: true });
+            
+            const pId = cloudStorage.systemSettings.robloxPlaceId;
+            
+            const infoEmbed = new EmbedBuilder()
+                .setTitle('🎮 OFFICIAL ROBLOX GAME HUB')
+                .setDescription('Willkommen in der AeroGuard Sektor-Zentrale! Wähle eine Methode, um das Spiel zu betreten.')
+                .addFields(
+                    { name: '🌐 Spiel-Kennung', value: `\`Place-ID: ${pId}\``, inline: true },
+                    { name: '⚡ Verbindung', value: 'Vollautomatisch', inline: true }
+                )
+                .setColor(0x00f5d4)
+                .setThumbnail(interaction.guild.iconURL())
+                .setTimestamp();
 
-                const linkRow = new ActionRowBuilder().addComponents(
-                    new ButtonBuilder()
-                        .setLabel('🚀 Jetzt auf Roblox spielen!')
-                        .setStyle(ButtonStyle.Link)
-                        .setURL(`roblox://placeID=${ROBLOX_PLACE_ID}`)
-                );
+            const linkRow = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setLabel('🌐 Über Browser starten')
+                    .setStyle(ButtonStyle.Link)
+                    .setURL(`https://www.roblox.com/games/${pId}/`),
+                new ButtonBuilder()
+                    .setLabel('🚀 Direkt in App öffnen')
+                    .setStyle(ButtonStyle.Link)
+                    .setURL(`roblox://placeId=${pId}`)
+            );
 
-                await targetChannel.send({ embeds: [infoEmbed], components: [linkRow] });
-                return await interaction.reply({ content: `🟩 **Info-Hub initialisiert:** Die Spiel-Verknüpfung wurde erfolgreich projiziert!`, ephemeral: true });
-            }
-        } catch (e) { return interaction.reply({ content: `❌ Fehler beim Erstellen des Info-Hubs: ${e.message}`, ephemeral: true }); }
+            await targetChannel.send({ embeds: [infoEmbed], components: [linkRow] });
+            return await interaction.reply({ content: `🟩 **Info-Hub initialisiert:** Die Spiel-Verknüpfung wurde erfolgreich projiziert!`, ephemeral: true });
+            
+        } catch (e) { 
+            return interaction.reply({ content: `❌ Fehler beim Erstellen des Info-Hubs: ${e.message}`, ephemeral: true }); 
+        }
     }
 
     if (interaction.isChannelSelectMenu() && interaction.customId === 'voice_support_text_channel_select') {
@@ -1009,7 +1189,7 @@ client.on('interactionCreate', async interaction => {
 });
 
 // =========================================================================
-// INTERNATIONALE MASTER DM-BRIDGE (MESSAGE ROUTER)
+// INTERNATIONALE MASTER DM-BRIDGE (MESSAGE ROUTER & KI-ANTWORTEN)
 // =========================================================================
 client.on('messageCreate', async message => {
     if (message.author.bot) return;
@@ -1101,27 +1281,27 @@ client.on('messageCreate', async message => {
 
         if (cloudStorage.pendingTicketSelections[userId]) {
             const selection = cloudStorage.pendingTicketSelections[userId]; 
-            cloudStorage.systemSettings.ticketCounter += 1;
+            const reason = message.content;
             
-            cloudStorage.activeTickets[userId] = { 
-                ticketNum: cloudStorage.systemSettings.ticketCounter, 
-                guildId: selection.guildId || 'Public-Cluster', 
-                username: message.author.tag, 
-                category: selection.categoryLabel, 
-                reason: message.content, 
-                claimedBy: null 
+            const aiAnswer = analyzeTicketWithAI(reason);
+            
+            cloudStorage.aiPendingTickets[userId] = {
+                guildId: selection.guildId,
+                category: selection.categoryLabel,
+                reason: reason
             };
             
             delete cloudStorage.pendingTicketSelections[userId];
             saveCloudVaultToDisk();
+
+            const aiRow = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId(`ai_ticket_solved_${userId}`).setLabel('✅ Problem gelöst').setStyle(ButtonStyle.Success),
+                new ButtonBuilder().setCustomId(`ai_ticket_human_${userId}`).setLabel('🆘 Menschlichen Supporter rufen').setStyle(ButtonStyle.Danger)
+            );
             
-            await message.reply(`🟩 **Erfolg! Dein Ticket #${cloudStorage.systemSettings.ticketCounter} wurde in der Cloud registriert.**\nEin Sektor-Projektleiter wird sich in Kürze einwählen.`);
-            
-            cloudStorage.systemSettings.authorizedSupporters.forEach(async (suppId) => {
-                try {
-                    const suppUser = await client.users.fetch(suppId);
-                    if (suppUser) await sendCentralTicketPanel(suppUser);
-                } catch(e){}
+            await message.reply({ 
+                content: `🧠 **Die AeroGuard Cloud-KI hat dein Anliegen geprüft!**\n\n${aiAnswer}\n\nKonnten wir dir damit bereits helfen? Wähle unten eine Option:`, 
+                components: [aiRow] 
             });
             return;
         }
@@ -1129,7 +1309,7 @@ client.on('messageCreate', async message => {
 });
 
 // =========================================================================
-// SLASHCOMMAND MATRIX REGISTRATION DEFINITIONS
+// EXPANDED REGISTER COMMAND DEFINITIONS MATRIX
 // =========================================================================
 const extendedCommandDefinitions = [
     new SlashCommandBuilder().setName('status').setDescription('AeroGuard Live-Status, Telemetrie & RAM-Auslastung'),
@@ -1137,6 +1317,8 @@ const extendedCommandDefinitions = [
     new SlashCommandBuilder().setName('ping').setDescription('Gibt die Websocket-Latenz zurück'),
     new SlashCommandBuilder().setName('clear').setDescription('Löscht Chatnachrichten & bereinigt flüchtige RAM-Zuweisungen').addIntegerOption(o => o.setName('anzahl').setDescription('1-100').setRequired(true)),
     new SlashCommandBuilder().setName('warn').setDescription('Verwarnt ein Mitglied formell').addUserOption(o => o.setName('target').setDescription('Nutzer').setRequired(true)).addStringOption(o => o.setName('grund').setDescription('Grund').setRequired(true)),
+    new SlashCommandBuilder().setName('warnlist').setDescription('Zeigt alle Warnungen eines Nutzers an').addUserOption(o => o.setName('ziel').setDescription('Nutzer').setRequired(true)),
+    new SlashCommandBuilder().setName('clearwarns').setDescription('Löscht alle Warnungen eines Nutzers').addUserOption(o => o.setName('ziel').setDescription('Nutzer').setRequired(true)),
     new SlashCommandBuilder().setName('setup-ticketpanel').setDescription('Projiziert das Support-Startpanel in einen spezifischen Kanal'),
     new SlashCommandBuilder().setName('setup-voicesupport').setDescription('Konfiguriere den Textkanal für automatische Support-Warteraum Benachrichtigungen'),
     new SlashCommandBuilder().setName('setup-infohub').setDescription('Konfiguriere den offiziellen Spiele-Info-Kanal mit Direktstart-Links für Roblox'),
@@ -1158,7 +1340,12 @@ const extendedCommandDefinitions = [
     new SlashCommandBuilder().setName('removerole').setDescription('Entzieht einem Spieler eine Rolle').addUserOption(o => o.setName('ziel').setDescription('Der User').setRequired(true)).addRoleOption(o => o.setName('rolle').setDescription('Die Rolle').setRequired(true)),
     new SlashCommandBuilder().setName('8ball').setDescription('Befragt die magische Miesmuschel').addStringOption(o => o.setName('frage').setDescription('Deine Frage').setRequired(true)),
     new SlashCommandBuilder().setName('coinflip').setDescription('Wirft eine Münze'),
-    new SlashCommandBuilder().setName('slots').setDescription('Spielt eine Runde am Casino-Automaten').addIntegerOption(o => o.setName('einsatz').setDescription('AeroCoins Einsatz').setRequired(true))
+    new SlashCommandBuilder().setName('slots').setDescription('Spielt eine Runde am Casino-Automaten').addIntegerOption(o => o.setName('einsatz').setDescription('AeroCoins Einsatz').setRequired(true)),
+    new SlashCommandBuilder().setName('set-placeid').setDescription('Ändert die Roblox Place ID für das Info-Hub live').addStringOption(o => o.setName('placeid').setDescription('Die neue Roblox ID').setRequired(true)),
+    new SlashCommandBuilder().setName('mute').setDescription('Schaltet einen User temporär auf dem Server stumm').addUserOption(o => o.setName('ziel').setDescription('User').setRequired(true)).addIntegerOption(o => o.setName('minuten').setDescription('Dauer').setRequired(true)).addStringOption(o => o.setName('grund').setDescription('Grund').setRequired(true)),
+    new SlashCommandBuilder().setName('unmute').setDescription('Hebt den Timeout eines Users auf').addUserOption(o => o.setName('ziel').setDescription('User').setRequired(true)),
+    new SlashCommandBuilder().setName('lockchannel').setDescription('Sperrt den aktuellen Kanal für alle Mitglieder ab'),
+    new SlashCommandBuilder().setName('unlockchannel').setDescription('Gibt den Kanal nach einer Sperrung wieder frei')
 ].map(cmd => cmd.toJSON());
 
 async function deployExtendedCommands(guildId) {
