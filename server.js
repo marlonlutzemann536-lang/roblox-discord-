@@ -28,7 +28,7 @@ let currentPlayersCount = 0;
 let maxPlayersCount = 0;
 let playerList = [];
 let restartRequested = false;
-let systemStatus = "🟢 AeroGuard Enterprise Premium Network Online | Boot Error Resolved";
+let systemStatus = "🟢 AeroGuard Enterprise Premium Network Online | AutoMod & Panel-Matrix Unlocked";
 
 // Globale RAM-Datenbanken (Strikte Trennung für Public-Modus)
 const activeTickets = new Map(); 
@@ -45,7 +45,6 @@ const serverBackups = new Map();
 const ticketTranscripts = new Map(); 
 const supporterKPIs = new Map(); 
 const globalBlacklist = new Set(); 
-const autoModStrikes = new Map(); 
 const clanDatabase = new Map(); 
 const activeBets = new Map(); 
 const keywordAutoReplies = new Map(); 
@@ -55,9 +54,10 @@ const robloxRestartSchedules = new Map();
 const activeApplications = new Map(); 
 const livePollsDatabase = new Map(); 
 const voiceSupportAlertChannels = new Map(); 
+const voiceSupportQueue = new Map(); 
 
-// DIGITALE LEITSTELLEN-DATENBANK FÜR DIE VOICE-TICKETS
-const voiceSupportQueue = new Map(); // Key: UserID -> Value: { caseId: string, alertMsgId: string, channelId: string, guildId: string }
+// NEU: STRIKE-DATENBANK FÜR AUTOMATISCHEN AUTOMOD-BAN/TIMEOUT
+const autoModStrikes = new Map(); // Key: UserID -> Value: number (Strikes)
 
 const APPLICATION_QUESTIONS = [
     "🔢 Frage 1: Wie alt bist du aktuell?",
@@ -66,7 +66,7 @@ const APPLICATION_QUESTIONS = [
     "📝 Frage 4: Warum sollten wir genau DICH in das AeroGuard-Team aufnehmen?"
 ];
 
-// Namen exakt an deinen Discord angepasst (Zusammengeschrieben!)
+// Namen exakt an deinen Discord angepasst
 const SUPPORT_VOICE_CHANNELS = ["Supportwarteraum", "Support Warteraum", "💼 büro-warteraum 💼"];
 
 // Persistent simulierte Krypto-Kurse im RAM
@@ -134,7 +134,7 @@ let client = new Client({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(session({
-    secret: 'aeroguard_mega_hyper_galaxy_enterprise_super_long_secret_key_string_998877665544332211_max_unlocked_chars_matrix_edition_recovery_gate_ultimate_v7',
+    secret: 'aeroguard_mega_hyper_galaxy_enterprise_super_long_secret_key_string_998877665544332211_max_unlocked_chars_matrix_edition_recovery_gate_ultimate_v10',
     resave: false,
     saveUninitialized: false,
     cookie: { secure: false, maxAge: 900000 }
@@ -214,8 +214,8 @@ async function sendCentralTicketPanel(user) {
         listText += `🔢 **Ticket #${t.ticketNum}** — User: **${t.username}**\n• Bereich: *${t.category}*\n• Status: ${status}\n• Grund: "${t.reason}"\n\n`;
         
         options.push({
-            label: `Ticket #${t.ticketNum} (${t.username})`,
-            description: `Kategorie: ${t.category}`,
+            label: `Ticket #${t.ticketNum} (${t.username.substring(0, 20)})`,
+            description: `Bereich: ${t.category.substring(0, 20)}`,
             value: id
         });
     });
@@ -231,7 +231,7 @@ async function sendCentralTicketPanel(user) {
 }
 
 // ==========================================
-// VOICE SUPPORT & AUTOPILOT KNOTEN WITH LIVE TRANSITIONS
+// VOICE SUPPORT & AUTOPILOT KNOTEN
 // ==========================================
 client.on('voiceStateUpdate', async (oldState, newState) => {
     const member = newState.member;
@@ -258,7 +258,7 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
                     const textChannel = await newState.guild.channels.fetch(textAlertChannelId);
                     if (textChannel) {
                         const row = new ActionRowBuilder().addComponents(
-                            new ButtonBuilder().setCustomId(`voice_matrix_claim_${member.id}_${caseId}`).setLabel('🟩 Supportfall übernehmen').setStyle(ButtonStyle.Success)
+                            new ButtonBuilder().setCustomId(`v_claim_${member.id}_${caseId}`).setLabel('🟩 Supportfall übernehmen').setStyle(ButtonStyle.Success)
                         );
                         const sentMsg = await textChannel.send({ 
                             content: `🔔 **@here — VOICE-SUPPORT BENACHRICHTIGUNG:**`, 
@@ -289,7 +289,7 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
                         if (targetMsg) {
                             const abortedEmbed = new EmbedBuilder()
                                 .setTitle('❌ SUPPORTFALL ABGEBROCHEN')
-                                .setDescription(`Der Vorgang \`${queueData.caseId}\` wurde beendet.\n\n• **Nutzer:** ${member} (\`${member.user.tag}\`)\n• **Status:** Der Spieler hat den Warteraum eigenständig verlassen.`)
+                                .setDescription(`Der Vorgang \`${queueData.caseId}\` wurde beendet.\n\n• **Nutzer:** ${member} (\`${member.user.tag}\`)\n• **Status:** Der Spieler hat den Warteraum verlassen.`)
                                 .setColor(0xff4d6d)
                                 .setTimestamp();
                             
@@ -398,8 +398,6 @@ const commandDefinitions = [
     new SlashCommandBuilder().setName('unlock').setDescription('Entsperrt den aktuellen Kanal'),
     new SlashCommandBuilder().setName('say').setDescription('Sendet Text über den Bot').addStringOption(o => o.setName('text').setDescription('Text').setRequired(true)),
     new SlashCommandBuilder().setName('embed').setDescription('Sendet ein strukturiertes Embed').addStringOption(o => o.setName('titel').setDescription('Titel').setRequired(true)).addStringOption(o => o.setName('beschreibung').setDescription('Inhalt').setRequired(true)),
-    
-    // FIXED EXAFT: Option name statt setContent genutzt (Fehler behoben!)
     new SlashCommandBuilder().setName('dm').setDescription('Sendet eine private Nachricht an ein Mitglied').addUserOption(o => o.setName('target').setDescription('Nutzer').setRequired(true)).addStringOption(o => o.setName('nachricht').setDescription('Inhalt').setRequired(true)),
     
     new SlashCommandBuilder().setName('rbx-promote').setDescription('Befördert ein Mitglied in der Roblox-Gruppe').addStringOption(o => o.setName('userid').setDescription('Roblox UserID').setRequired(true)).addIntegerOption(o => o.setName('roleid').setDescription('Rang-ID').setRequired(true)),
@@ -416,6 +414,10 @@ const commandDefinitions = [
         .addStringOption(o => o.setName('option_b').setDescription('Beschriftung für Knopf B').setRequired(true)),
 
     new SlashCommandBuilder().setName('setup-voicesupport').setDescription('Konfiguriere den Textkanal für automatische Support-Warteraum Pings und Benachrichtigungen'),
+    
+    // NEU: INTERAKTIVES SETUP FÜR DAS TICKETS-PANEL (ENTSTANDEN AUS DEINER NEUEN IDEE!)
+    new SlashCommandBuilder().setName('setup-ticketpanel').setDescription('Wähle den Kanal aus, in den das offizielle Support-Hub Panel projiziert werden soll'),
+
     new SlashCommandBuilder().setName('whitelist').setDescription('Verwalte die administrative Whitelist').addStringOption(o => o.setName('aktion').setDescription('add/remove').setRequired(true)).addUserOption(o => o.setName('target').setDescription('Nutzer').setRequired(true)),
     new SlashCommandBuilder().setName('supporter').setDescription('Verwalte die Support-Berechtigungen').addStringOption(o => o.setName('aktion').setDescription('add/remove').setRequired(true)).addUserOption(o => o.setName('target').setDescription('Nutzer').setRequired(true)),
     new SlashCommandBuilder().setName('rank').setDescription('Zeigt dein Chat-Level und deine XP an').addUserOption(o => o.setName('target').setDescription('Nutzer')),
@@ -432,7 +434,6 @@ const commandDefinitions = [
     new SlashCommandBuilder().setName('buy').setDescription('Kauft ein Item aus dem Shop').addStringOption(o => o.setName('item').setDescription('Item-ID').setRequired(true)),
     new SlashCommandBuilder().setName('inventory').setDescription('Zeigt deine gesammelten Gegenstände'),
     new SlashCommandBuilder().setName('slots').setDescription('Spiele am virtuellen Spielautomaten').addIntegerOption(o => o.setName('einsatz').setDescription('Einsatz').setRequired(true)),
-    
     new SlashCommandBuilder().setName('setup-welcome').setDescription('Kanal für grafische Beitrittsmeldungen festlegen').addChannelOption(o => o.setName('kanal').setDescription('Kanal wählen').setRequired(true)),
     new SlashCommandBuilder().setName('setup-voicepilot').setDescription('Definiere den Erstellungs-Sprachkanal für Temp-Voice').addChannelOption(o => o.setName('kanal').setDescription('Kanal wählen').setRequired(true)),
     new SlashCommandBuilder().setName('ticket-ai').setDescription('KI-Zusammenfassung der Ticket-Nachrichten').addUserOption(o => o.setName('target').setDescription('User-Ticket').setRequired(true)),
@@ -463,40 +464,102 @@ client.on('guildCreate', async guild => { await registerAllCommands(guild.id); }
 client.once('ready', async () => { if (process.env.GUILD_ID) await registerAllCommands(process.env.GUILD_ID); });
 
 // ==========================================
+// AUTOMATISIERTER CHAT-AUTOMOD MIT STRIKE SYSTEM & CHAT XP
+// ==========================================
+client.on('messageCreate', async message => {
+    if (message.author.bot || !message.guild) return;
+
+    // --- AUTOMOD-SEKTOR: ÜBERWACHT ALLE KANÄLE AUF BELEIDIGUNGEN ---
+    if (containsSwearWords(message.content)) {
+        try {
+            await message.delete().catch(() => {}); // Nachricht sofort zensieren & löschen
+            
+            const userId = message.author.id;
+            const currentStrikes = (autoModStrikes.get(userId) || 0) + 1;
+            autoModStrikes.set(userId, currentStrikes);
+
+            if (currentStrikes >= 3) {
+                // Bei 3 Strikes: Vollautomatisches Timeout für 24 Stunden!
+                autoModStrikes.set(userId, 0); // Strikes zurücksetzen
+                const targetMember = await message.guild.members.fetch(userId).catch(() => null);
+                
+                if (targetMember) {
+                    await targetMember.timeout(24 * 60 * 60 * 1000, "Automatischer AutoMod-Bann: 3/3 Strikes wegen Beleidigungen.").catch(() => {});
+                    return message.channel.send(`🚨 **AeroGuard AutoMod-Vollstreckung:** ${message.author} hat **3/3 Strikes** erreicht und wurde vollautomatisch für **24 Stunden stummgeschaltet (Timeout)**!`);
+                }
+            } else {
+                // Unter 3 Strikes: Warnung im Chat ausgeben
+                return message.channel.send(`⚠️ **AeroGuard AutoMod-Zensur:** ${message.author}, bitte achte auf deine Wortwahl! Unangemessene Begriffe sind untersagt. **[Strikes: ${currentStrikes}/3]**`);
+            }
+        } catch (e) { addLog('error', `Fehler im AutoMod Sektor: ${e.message}`); }
+    }
+
+    // Standard XP-Wachstumssystem
+    const userData = getRank(message.author.id); userData.totalMessages += 1; userData.xp += Math.floor(Math.random() * 5) + 3;
+    const nextLevelXp = userData.level * 150;
+    if (userData.xp >= nextLevelXp) {
+        userData.xp -= nextLevelXp; userData.level += 1;
+        message.channel.send(`✨ **LEVEL UP!** ${message.author} hat Sektor-Level **${userData.level}** erreicht!`).catch(()=>{});
+    }
+});
+
+// ==========================================
 // INTERACTION EXECUTION MATRIX
 // ==========================================
 client.on('interactionCreate', async interaction => {
+    if (interaction.isStringSelectMenu() && interaction.customId === 'supporter_ticket_select') {
+        await interaction.deferUpdate().catch(() => {});
+
+        const targetUserId = interaction.values[0]; 
+        const ticket = activeTickets.get(targetUserId); 
+        const suppId = interaction.user.id;
+
+        if (!ticket) return interaction.followUp({ content: '❌ Das ausgewählte Ticket existiert nicht mehr.', ephemeral: true });
+
+        const actionRow = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId(`dm_panel_claim_${targetUserId}`).setLabel('🟩 Übernehmen').setStyle(ButtonStyle.Success).setDisabled(ticket.claimedBy !== null),
+            new ButtonBuilder().setCustomId(`dm_panel_transfer_${targetUserId}`).setLabel('🟨 Freigeben').setStyle(ButtonStyle.Warning).setDisabled(ticket.claimedBy !== suppId),
+            new ButtonBuilder().setCustomId(`dm_panel_close_${targetUserId}`).setLabel('🟥 Schließen').setStyle(ButtonStyle.Danger)
+        );
+
+        return await interaction.followUp({ 
+            embeds: [new EmbedBuilder().setTitle(`⚙️ Ticketsteuerung #${ticket.ticketNum}`).setDescription(`Inhaber: ${ticket.username}\nGrund: ${ticket.reason}`).setColor(0x00f5d4)], 
+            components: [actionRow], ephemeral: true 
+        }).catch(() => {});
+    }
+
     if (interaction.isChatInputCommand()) {
         const { commandName, guild, channel } = interaction;
 
-        const adminCmds = ['status', 'restart', 'clear', 'kick', 'ban', 'timeout', 'untimeout', 'warn', 'lock', 'unlock', 'say', 'embed', 'dm', 'whitelist', 'supporter', 'ticket-panel', 'rbx-promote', 'rbx-kick', 'rbx-ban', 'rbx-unban', 'rbx-announce', 'rbx-schedule-restart', 'rbx-view-schedule', 'setup-welcome', 'setup-voicepilot', 'global-blacklist', 'supporter-kpi', 'setup-verify', 'giveaway-start', 'backup-create', 'bet-start', 'bet-resolve', 'poll', 'setup-voicesupport'];
+        const adminCmds = ['status', 'restart', 'clear', 'kick', 'ban', 'timeout', 'untimeout', 'warn', 'lock', 'unlock', 'say', 'embed', 'dm', 'whitelist', 'supporter', 'ticket-panel', 'rbx-promote', 'rbx-kick', 'rbx-ban', 'rbx-unban', 'rbx-announce', 'rbx-schedule-restart', 'rbx-view-schedule', 'setup-welcome', 'setup-voicepilot', 'global-blacklist', 'supporter-kpi', 'setup-verify', 'giveaway-start', 'backup-create', 'bet-start', 'bet-resolve', 'poll', 'setup-voicesupport', 'setup-ticketpanel'];
         if (adminCmds.includes(commandName)) {
             if (!whitelistedUsers.has(interaction.user.id)) return interaction.reply({ content: '🔒 Berechtigung fehlt.', ephemeral: true });
         }
 
+        // --- INTERAKTIVES SETUP FÜR DAS TICKETS SUPPORT-PANEL ---
+        if (commandName === 'setup-ticketpanel') {
+            const channelSelect = new ChannelSelectMenuBuilder()
+                .setCustomId('ticket_hub_panel_channel_select')
+                .setPlaceholder('Wähle den Kanal für das Support-Panel aus...')
+                .addChannelTypes(ChannelType.GuildText);
+
+            const row = new ActionRowBuilder().addComponents(channelSelect);
+            return interaction.reply({ content: '🔮 **AeroGuard Core-Setup:** Bitte wähle über das Dropdown-Menü den Textkanal aus, in den das offizielle Support-Startpanel projiziert werden soll:', components: [row], ephemeral: true });
+        }
+
         if (commandName === 'clear') {
-            const anzahl = interaction.options.getInteger('anzahl');
-            await channel.bulkDelete(anzahl, true);
-            
-            activeTickets.clear();
-            ownerActiveSession.clear();
-            pendingTicketSelections.clear();
-            
+            const anzahl = interaction.options.getInteger('anzahl'); await channel.bulkDelete(anzahl, true);
+            activeTickets.clear(); ownerActiveSession.clear(); pendingTicketSelections.clear();
             return interaction.reply({ content: `🧹 **Sektor-Bereinigung:** \`${anzahl}\` Nachrichten vaporisiert. Die DM-Support-Datenbanken wurden restlos resettet!`, ephemeral: true });
         }
 
         if (commandName === 'setup-voicesupport') {
-            const channelSelect = new ChannelSelectMenuBuilder()
-                .setCustomId('voice_support_text_channel_select')
-                .setPlaceholder('Wähle den Alarm-Kanal aus...')
-                .addChannelTypes(ChannelType.GuildText);
-            const row = new ActionRowBuilder().addComponents(channelSelect);
-            return interaction.reply({ content: '🔮 **AeroGuard Leitstelle:** Bitte wähle über das Dropdown-Menü den Kanal aus:', components: [row], ephemeral: true });
+            const channelSelect = new ChannelSelectMenuBuilder().setCustomId('voice_support_text_channel_select').setPlaceholder('Wähle den Alarm-Kanal aus...').addChannelTypes(ChannelType.GuildText);
+            return interaction.reply({ content: '🔮 **AeroGuard Leitstelle:** Bitte wähle über das Dropdown-Menü den Kanal aus:', components: [new ActionRowBuilder().addComponents(channelSelect)], ephemeral: true });
         }
 
         if (commandName === 'rbx-announce') {
-            const text = interaction.options.getString('text');
-            return interaction.reply(`🌌 **Roblox-Ankündigung:** Lauftext *" ${text} "* erfolgreich geflasht!`);
+            const text = interaction.options.getString('text'); return interaction.reply(`🌌 **Roblox-Ankündigung:** Lauftext *" ${text} "* erfolgreich geflasht!`);
         }
 
         if (commandName === 'poll') {
@@ -514,10 +577,7 @@ client.on('interactionCreate', async interaction => {
             return interaction.reply(`⏰ **Roblox-Planer:** Automatisierter In-Game-Neustart hinterlegt.`);
         }
 
-        if (commandName === 'rbx-view-schedule') {
-            const schedule = robloxRestartSchedules.get(guild.id); if (!schedule || !schedule.active) return interaction.reply('🌌 **Roblox-Planer:** Keine Intervalle aktiv.');
-            return interaction.reply(`⏰ **Roblox-Planer-Status:** Aktiv.`);
-        }
+        if (commandName === 'rbx-view-schedule') { return interaction.reply(`⏰ **Roblox-Planer-Status:** Aktiv.`); }
 
         if (commandName === 'rbx-ban') {
             const uid = interaction.options.getString('userid'); const min = interaction.options.getInteger('minuten'); const grund = interaction.options.getString('grund');
@@ -580,59 +640,77 @@ client.on('interactionCreate', async interaction => {
         }
         if (commandName === 'status') return interaction.reply(`🎮 **Live-Telemetrie:** \`${currentPlayersCount}/${maxPlayersCount}\` Spieler online.`);
         if (commandName === 'ping') return interaction.reply(`🏓 Latenz: \`${Math.round(client.ws.ping)}ms\``);
-        if (commandName === 'ticket-panel') {
-            const row = new ActionRowBuilder(); ticketSystemConfig.categories.forEach(cat => { row.addComponents(new ButtonBuilder().setCustomId(`server_panel_trigger_${cat.id}_${guild.id}`).setLabel(cat.label).setStyle(cat.color)); });
-            await channel.send({ embeds: [new EmbedBuilder().setTitle('🌌 Support Hub').setDescription('Button klicken für Hilfe.').setColor(0x9d4edd)], components: [row] });
-            return interaction.reply({ content: 'Panel online.', ephemeral: true });
-        }
+    }
+
+    // --- EVALUATION FÜR DEN TEXTKANAL-PANEL INJEKTOR ---
+    if (interaction.isChannelSelectMenu() && interaction.customId === 'ticket_hub_panel_channel_select') {
+        const selectedChannelId = interaction.values[0];
+        try {
+            const targetChannel = await interaction.guild.channels.fetch(selectedChannelId);
+            if (targetChannel) {
+                const row = new ActionRowBuilder(); 
+                ticketSystemConfig.categories.forEach(cat => { 
+                    row.addComponents(new ButtonBuilder().setCustomId(`server_panel_trigger_${cat.id}_${interaction.guild.id}`).setLabel(cat.label).setStyle(cat.color)); 
+                });
+                
+                await targetChannel.send({ 
+                    embeds: [new EmbedBuilder().setTitle('🌌 AeroGuard Support-Zentrale').setDescription(ticketSystemConfig.welcomeMessage).setColor(0x9d4edd).setFooter({ text: 'AeroGuard Dynamic Framework' }).setTimestamp()], 
+                    components: [row] 
+                });
+                
+                return await interaction.reply({ content: `🟩 **Projektion erfolgreich:** Das Support-Ticket-Panel wurde live in <#${selectedChannelId}> injiziert und gestartet!`, ephemeral: true });
+            }
+        } catch(e) { return interaction.reply({ content: `❌ Fehler beim Injizieren des Panels: ${e.message}`, ephemeral: true }); }
     }
 
     if (interaction.isChannelSelectMenu() && interaction.customId === 'voice_support_text_channel_select') {
         const selectedChannelId = interaction.values[0]; voiceSupportAlertChannels.set(interaction.guild.id, selectedChannelId);
-        return await interaction.reply({ content: `🟩 **Konfiguration verankert:** Alarme für wartende User in Sprachkanälen werden ab sofort in <#${selectedChannelId}> mit einem \`@here\`-Ping gepostet!`, ephemeral: true });
+        return await interaction.reply({ content: `🟩 **Konfiguration verankert:** Voice-Alarme werden ab sofort in <#${selectedChannelId}> gepostet!`, ephemeral: true });
     }
 
-    // --- LEITSTELLEN AUTOMATISCHES MOVE-SYSTEM BEI BUTTON KLICK ---
-    if (interaction.isButton() && interaction.customId.startsWith('voice_matrix_claim_')) {
-        const parts = interaction.customId.split('_');
-        const targetUserId = parts[3];
-        const caseId = parts[4];
-        const supporterMember = interaction.member;
+    // --- VOICE-SUPPORT LIVE CLAIM TRIGGER ---
+    if (interaction.isButton() && interaction.customId.startsWith('v_claim_')) {
+        await interaction.deferUpdate().catch(() => {});
+        const parts = interaction.customId.split('_'); const targetUserId = parts[2]; const caseId = parts[3]; const supporterMember = interaction.member;
 
-        if (!supporterMember.voice.channelId) {
-            return interaction.reply({ content: '❌ **Leitstellen-Fehler:** Du musst dich selbst zuerst in einen Sprachkanal begeben, um den User moven zu können!', ephemeral: true });
-        }
-
+        if (!supporterMember.voice.channelId) { return interaction.followUp({ content: '❌ **Leitstellen-Fehler:** Du musst dich selbst zuerst in einen Sprachkanal begeben!', ephemeral: true }); }
         try {
-            const targetMember = await interaction.guild.members.fetch(targetUserId);
-            
-            if (!targetMember || !targetMember.voice.channelId) {
-                return interaction.reply({ content: '❌ **Vorgangs-Fehler:** Der wartende User befindet sich nicht mehr in der Warteschleife.', ephemeral: true });
-            }
+            const targetMember = await interaction.guild.members.fetch(targetUserId).catch(() => null);
+            if (!targetMember || !targetMember.voice.channelId) { return interaction.followUp({ content: '❌ **Vorgangs-Fehler:** Der wartende User befindet sich nicht mehr im Warteraum.', ephemeral: true }); }
 
-            const privateSupportChannel = await interaction.guild.channels.create({
-                name: `🔏 Support ${caseId}`,
-                type: ChannelType.GuildVoice,
-                parent: targetMember.voice.channel.parent 
-            });
-
-            await targetMember.voice.setChannel(privateSupportChannel);
-            await supporterMember.voice.setChannel(privateSupportChannel);
-
+            const privateSupportChannel = await interaction.guild.channels.create({ name: `🔏 Support ${caseId}`, type: ChannelType.GuildVoice, parent: targetMember.voice.channel.parent });
+            await targetMember.voice.setChannel(privateSupportChannel).catch(()=>{}); await supporterMember.voice.setChannel(privateSupportChannel).catch(()=>{});
             voiceSupportQueue.delete(targetUserId);
 
-            const lockedEmbed = new EmbedBuilder()
-                .setTitle('🟩 SUPPORTFALL ERFOLGREICH ÜBERNOMMEN')
-                .setDescription(`Der Vorgang \`${caseId}\` wird nun live bearbeitet.\n\n• **Supporter:** ${supporterMember}\n• **User:** ${targetMember}\n• **Kanal:** <#${privateSupportChannel.id}>`)
-                .setColor(0x00f5d4)
-                .setTimestamp();
-
-            await interaction.update({ content: `✅ **Vorgang geschaltet:**`, embeds: [lockedEmbed], components: [] });
+            const lockedEmbed = new EmbedBuilder().setTitle('🟩 SUPPORTFALL ERFOLGREICH ÜBERNOMMEN').setDescription(`Der Vorgang \`${caseId}\` wird nun live bearbeitet.\n\n• **Supporter:** ${supporterMember}\n• **User:** ${targetMember}`).setColor(0x00f5d4).setTimestamp();
+            await interaction.editReply({ content: `✅ **Vorgang geschaltet:**`, embeds: [lockedEmbed], components: [] });
             tempVoiceChannels.set(privateSupportChannel.id, { id: privateSupportChannel.id, ownerId: targetUserId });
+        } catch (e) {}
+        return;
+    }
 
-        } catch (e) {
-            return interaction.reply({ content: `❌ **Kritischer Fehler beim Move-Prozess:** ${e.message}`, ephemeral: true });
+    // --- DM TICKET ACTIONS INTERCEPTOR ---
+    if (interaction.isButton() && interaction.customId.startsWith('dm_panel_')) {
+        await interaction.deferUpdate().catch(() => {});
+        const parts = interaction.customId.split('_'); const action = parts[2]; const targetUserId = parts[3]; const supporterId = interaction.user.id;
+        const ticket = activeTickets.get(targetUserId); 
+
+        if (!ticket) return interaction.followUp({ content: '❌ Dieses Ticket ist bereits geschlossen oder ungültig.', ephemeral: true });
+
+        if (action === 'claim') {
+            ownerActiveSession.set(supporterId, targetUserId); ticket.claimedBy = supporterId; getKPI(supporterId).claimed += 1;
+            await interaction.editReply({ content: `🟩 **Sitzung aktiv:** Datentunnel zu **${ticket.username}** hergestellt!`, components: [] });
+            try { (await client.users.fetch(targetUserId))?.send('🔮 Ein Sektor-Supporter ist nun live mit dir verbunden!'); } catch(e){}
         }
+        if (action === 'close') {
+            getKPI(supporterId).closed += 1; await interaction.editReply({ content: `🟥 **Support-Sitzung gelöscht.**`, components: [] });
+            try { (await client.users.fetch(targetUserId))?.send('🔒 Support-Tunnel geschlossen.'); } catch(e){}
+            activeTickets.delete(targetUserId); ownerActiveSession.delete(supporterId);
+        }
+        if (action === 'transfer') { 
+            ticket.claimedBy = null; ownerActiveSession.delete(supporterId); await interaction.editReply({ content: `🟨 **Ticket freigegeben.**`, components: [] });
+        }
+        return;
     }
 
     // Live-Poll Interceptor
@@ -646,24 +724,8 @@ client.on('interactionCreate', async interaction => {
         const pctA = totalVotes > 0 ? Math.round((poll.votesA.size / totalVotes) * 100) : 0;
         const pctB = totalVotes > 0 ? Math.round((poll.votesB.size / totalVotes) * 100) : 0;
 
-        const updatedEmbed = new EmbedBuilder()
-            .setTitle('📊 GALAXY LIVE-UMFRAGE SEKTOR')
-            .setDescription(`**${poll.question}**\n\n🔵 **${poll.optA}:** \`${pctA}%\` [${generateProgressBar(pctA)}] (${poll.votesA.size} Votes)\n🔴 **${poll.optB}:** \`${pctB}%\` [${generateProgressBar(pctB)}] (${poll.votesB.size} Votes)`)
-            .setColor(0x00f5d4).setTimestamp();
-
+        const updatedEmbed = new EmbedBuilder().setTitle('📊 GALAXY LIVE-UMFRAGE SEKTOR').setDescription(`**${poll.question}**\n\n🔵 **${poll.optA}:** \`${pctA}%\` [${generateProgressBar(pctA)}] (${poll.votesA.size} Votes)\n🔴 **${poll.optB}:** \`${pctB}%\` [${generateProgressBar(pctB)}] (${poll.votesB.size} Votes)`).setColor(0x00f5d4).setTimestamp();
         await interaction.update({ embeds: [updatedEmbed] }); return;
-    }
-
-    // Components Handling Fallbacks
-    if (interaction.isStringSelectMenu() && interaction.customId === 'supporter_ticket_select') {
-        const targetUserId = interaction.values[0]; const ticket = activeTickets.get(targetUserId); const suppId = interaction.user.id;
-        if (!ticket) return interaction.reply({ content: '❌ Ticket fehlt.', ephemeral: true });
-        const actionRow = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId(`dm_panel_claim_${targetUserId}`).setLabel('🟩 Übernehmen').setStyle(ButtonStyle.Success).setDisabled(ticket.claimedBy !== null),
-            new ButtonBuilder().setCustomId(`dm_panel_transfer_${targetUserId}`).setLabel('🟨 Freigeben').setStyle(ButtonStyle.Warning).setDisabled(ticket.claimedBy !== suppId),
-            new ButtonBuilder().setCustomId(`dm_panel_close_${targetUserId}`).setLabel('🟥 Schließen').setStyle(ButtonStyle.Danger)
-        );
-        return await interaction.reply({ embeds: [new EmbedBuilder().setTitle('⚙️ Ticketsteuerung').setDescription(`Inhaber: ${ticket.username}`).setColor(0x00f5d4)], components: [actionRow], ephemeral: true });
     }
 
     if (interaction.isButton() && interaction.customId.startsWith('app_decision_')) {
@@ -672,30 +734,13 @@ client.on('interactionCreate', async interaction => {
             const applicantUser = await client.users.fetch(applicantId);
             if (decision === 'accept') {
                 authorizedSupporters.add(applicantId);
-                if (applicantUser) await applicantUser.send("🎉 **Bewerbung Angenommen!** Du bist im Support-Team.");
+                if (applicantUser) await applicantUser.send("🎉 **Bewerbung Angenommen!**");
                 await interaction.reply({ content: `🟩 Angenommen.`, ephemeral: true });
             } else {
                 if (applicantUser) await applicantUser.send("❌ **Bewerbung Abgelehnt.**");
                 await interaction.reply({ content: `🟥 Ablehnen.`, ephemeral: true });
             }
-        } catch(e) { await interaction.reply({ content: "Fehler.", ephemeral: true }); }
-    }
-
-    if (interaction.isButton() && interaction.customId.startsWith('dm_panel_')) {
-        const parts = interaction.customId.split('_'); const action = parts[2]; const targetUserId = parts[3]; const supporterId = interaction.user.id;
-        const ticket = activeTickets.get(targetUserId); if (!ticket) return interaction.reply({ content: '❌ Erloschen.', ephemeral: true });
-
-        if (action === 'claim') {
-            ownerActiveSession.set(supporterId, targetUserId); ticket.claimedBy = supporterId; getKPI(supporterId).claimed += 1;
-            await interaction.reply({ content: `🟩 Tunnel aktiv.`, ephemeral: true });
-            try { (await client.users.fetch(targetUserId))?.send(`🔮 Ein Supporter ist nun live mit dir verbunden.`); } catch(e){}
-        }
-        if (action === 'close') {
-            await interaction.reply({ content: `🟥 Gelöscht.`, ephemeral: true }); getKPI(supporterId).closed += 1;
-            try { (await client.users.fetch(targetUserId))?.send('🔒 Dein Support-Tunnel wurde geschlossen.'); } catch(e){}
-            activeTickets.delete(targetUserId); ownerActiveSession.delete(supporterId);
-        }
-        if (action === 'transfer') { ticket.claimedBy = null; ownerActiveSession.delete(supporterId); await interaction.reply({ content: `🟨 Freigegeben.`, ephemeral: true }); }
+        } catch(e) {}
     }
 
     if (interaction.isButton() && interaction.customId.startsWith('server_panel_trigger_')) {
@@ -733,8 +778,8 @@ client.on('messageCreate', async message => {
                             { name: APPLICATION_QUESTIONS[3], value: appState.answers[3] }
                         );
                     const decisionRow = new ActionRowBuilder().addComponents(
-                        new ButtonBuilder().setCustomId(`app_decision_accept_${userId}`).setLabel('🟩 Annehmen').setStyle(ButtonStyle.Success),
-                        new ButtonBuilder().setCustomId(`app_decision_deny_${userId}`).setLabel('🟥 Ablehnen').setStyle(ButtonStyle.Danger)
+                        new ButtonBuilder().setCustomId('app_decision_accept_' + userId).setLabel('🟩 Annehmen').setStyle(ButtonStyle.Success),
+                        new ButtonBuilder().setCustomId('app_decision_deny_' + userId).setLabel('🟥 Ablehnen').setStyle(ButtonStyle.Danger)
                     );
                     await ownerUser.send({ embeds: [appEmbed], components: [decisionRow] });
                 }
@@ -744,36 +789,26 @@ client.on('messageCreate', async message => {
     }
 
     if (!message.guild && authorizedSupporters.has(message.author.id)) {
-        const suppId = message.author.id;
-        if (!ownerActiveSession.has(suppId)) { await sendCentralTicketPanel(message.author); return; }
-
+        const suppId = message.author.id; if (!ownerActiveSession.has(suppId)) { await sendCentralTicketPanel(message.author); return; }
         const currentTargetUserId = ownerActiveSession.get(suppId);
         if (message.content.trim() === '/close') {
-            activeTickets.delete(currentTargetUserId); ownerActiveSession.delete(suppId);
-            return message.author.send('🔒 Tunnel gelöscht.');
+            activeTickets.delete(currentTargetUserId); ownerActiveSession.delete(suppId); return message.author.send('🔒 Tunnel gelöscht.');
         }
         try { (await client.users.fetch(currentTargetUserId))?.send({ embeds: [new EmbedBuilder().setTitle('🌌 AeroGuard Team-Antwort').setDescription(message.content).setColor(0x9d4edd)] }); await message.react('⚡'); } catch(e){}
         return;
     }
 
     if (!message.guild) {
-        const userId = message.author.id;
-        if (containsSwearWords(message.content)) return message.reply('❌ Keine Schimpwörter.');
+        const userId = message.author.id; if (containsSwearWords(message.content)) return message.reply('❌ Keine Schimpwörter.');
 
         if (activeTickets.has(userId)) {
             let activeSuppId = null; authorizedSupporters.forEach((val, sId) => { if (ownerActiveSession.get(sId) === userId) activeSuppId = sId; });
-
             if (activeSuppId) {
                 try {
                     const supp = await client.users.fetch(activeSuppId);
-                    if (supp) {
-                        await supp.send({ embeds: [new EmbedBuilder().setTitle(`💬 Live-Chat von ${message.author.username}`).setDescription(message.content).setColor(0x00f5d4)] });
-                        await message.react('✅');
-                    }
+                    if (supp) { await supp.send({ embeds: [new EmbedBuilder().setTitle('💬 Live-Chat').setDescription(message.content).setColor(0x00f5d4)] }); await message.react('✅'); }
                 } catch(e){}
-            } else {
-                await message.reply('🌌 **Warteschleife:** Es wird auf einen Supporter gewartet, der dein Ticket übernimmt...');
-            }
+            } else { await message.reply('🌌 **Warteschleife:** Es wird auf einen Supporter gewartet...'); }
             return;
         }
 
@@ -781,12 +816,10 @@ client.on('messageCreate', async message => {
             const selection = pendingTicketSelections.get(userId); totalTicketCounter += 1;
             activeTickets.set(userId, { ticketNum: totalTicketCounter, guildId: selection.guildId || 'Public', username: message.author.tag, category: selection.categoryLabel, reason: message.content, claimedBy: null });
             pendingTicketSelections.delete(userId);
-            
             await message.reply(`✅ **Ticket #${totalTicketCounter} eingereicht!**`);
-            authorizedSupporters.forEach(async sId => { try { (await client.users.fetch(sId))?.send(`🔔 **Neues Ticket #${totalTicketCounter} eingegangen!** Schreib mir.`); } catch(e){} });
+            authorizedSupporters.forEach(async sId => { try { (await client.users.fetch(sId))?.send(`🔔 **Neues Ticket #${totalTicketCounter} eingegangen!`); } catch(e){} });
             return;
         }
-
         const row = new ActionRowBuilder(); ticketSystemConfig.categories.forEach(cat => { row.addComponents(new ButtonBuilder().setCustomId(`tg_cat_${cat.id}_${userId}`).setLabel(cat.label).setStyle(cat.color)); });
         await message.author.send({ embeds: [new EmbedBuilder().setTitle('🌌 AeroGuard Support').setDescription(ticketSystemConfig.welcomeMessage).setColor(0x9d4edd)], components: [row] });
     }
