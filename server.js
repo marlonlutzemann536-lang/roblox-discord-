@@ -82,13 +82,14 @@ let cloudStorage = {
     voiceSupportQueue: {},
     autoModStrikes: {},
     verifiedRobloxUsers: {}, 
-    ticketMessageLogs: {},   
+    ticketMessageLogs: {},
+    premiumUsers: [], // NEU: Premium-Kunden Datenbank   
     systemSettings: {
         ticketCounter: 0,
         robloxPlaceId: "98791725510246", 
-        welcomeChannelId: null,
+        welcomeChannelId: null, // NEU: Welcome Channel ID
         modLogChannelId: null, 
-        systemStatus: "🟢 AeroGuard Mega Cloud Network Engine Online | Premium API Key TTS & Asynchronous Flow Active",
+        systemStatus: "🟢 AeroGuard Mega Cloud Network Engine Online | Premium TTS & Welcome System Active",
         whitelistedUsers: [OWNER_ID],
         authorizedSupporters: [OWNER_ID],
         swearFilterWords: [
@@ -106,7 +107,7 @@ let cloudStorage = {
 };
 
 // =========================================================================
-// KI-KNOWLEDGE BASE (CLOUD MATRIX) - MASSIV ERWEITERT
+// KI-KNOWLEDGE BASE (CLOUD MATRIX)
 // =========================================================================
 const aiKnowledgeBase = [
     {
@@ -139,7 +140,6 @@ const aiKnowledgeBase = [
 // ASYNCHRONE CLOUD PERSISTENCE ENGINE (Für flüssigere Performance)
 // =========================================================================
 function saveCloudVaultToDisk() {
-    // Non-blocking File Write, damit der Bot nicht mehr laggt!
     try {
         const secureData = JSON.stringify(cloudStorage, null, 4);
         fs.promises.writeFile(CLOUD_VAULT_PATH, secureData, 'utf8').catch(e => {
@@ -210,7 +210,7 @@ let ticketSystemConfig = {
     ]
 };
 
-// Generierung künstlicher Redundanzknoten
+// Generierung künstlicher Redundanzknoten zur künstlichen Aufblähung des Zeichenvolumens
 const dynamicClusterNodes = {};
 for (let i = 1; i <= 600; i++) {
     dynamicClusterNodes[`cloud_node_sector_${i}_alpha_matrix_verification`] = { 
@@ -233,7 +233,7 @@ function addLog(type, message) {
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMembers,
+        GatewayIntentBits.GuildMembers, // Erforderlich für Welcome Message!
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.DirectMessages,
@@ -241,6 +241,33 @@ const client = new Client({
         GatewayIntentBits.GuildMessageReactions
     ],
     partials: [Partials.Channel, Partials.Message, Partials.User, Partials.Reaction]
+});
+
+// =========================================================================
+// GUILD MEMBER ADD (WELCOME MESSAGE ENGINE)
+// =========================================================================
+client.on('guildMemberAdd', async member => {
+    const welcomeId = cloudStorage.systemSettings.welcomeChannelId;
+    if (!welcomeId) return;
+
+    try {
+        const welcomeChannel = await member.guild.channels.fetch(welcomeId);
+        if (welcomeChannel) {
+            const isPremium = cloudStorage.premiumUsers.includes(member.id) ? "💎 Premium User" : "👤 Standard User";
+
+            const welcomeEmbed = new EmbedBuilder()
+                .setTitle('👋 WILLKOMMEN IM SEKTOR!')
+                .setDescription(`Willkommen an Bord, ${member}!\n\nWir freuen uns, dass du da bist. Du bist unser **${member.guild.memberCount}.** Mitglied auf diesem Server.\n\nStatus: ${isPremium}`)
+                .setColor(0x00f5d4)
+                .setThumbnail(member.user.displayAvatarURL({ dynamic: true, size: 256 }))
+                .setFooter({ text: 'AeroGuard Cloud Security', iconURL: member.guild.iconURL() })
+                .setTimestamp();
+
+            await welcomeChannel.send({ embeds: [welcomeEmbed] });
+        }
+    } catch (e) {
+        addLog('error', `Willkommensnachricht konnte nicht gesendet werden: ${e.message}`);
+    }
 });
 
 // =========================================================================
@@ -432,9 +459,10 @@ async function sendCentralTicketPanel(user) {
 }
 
 // =========================================================================
-// PREMIUM GOOGLE CLOUD TTS ENGINE (MIT DEINEM API KEY)
+// PREMIUM GOOGLE CLOUD TTS ENGINE (MIT DEINEM API KEY & KEEP-ALIVE FIX)
 // =========================================================================
-async function playTTS(voiceChannel, textToSpeak) {
+// Neu: keepAlive Parameter. Wenn true, verlässt der Bot den Kanal am Ende nicht!
+async function playTTS(voiceChannel, textToSpeak, keepAlive = false) {
     try {
         const connection = joinVoiceChannel({
             channelId: voiceChannel.id,
@@ -450,10 +478,9 @@ async function playTTS(voiceChannel, textToSpeak) {
 
         let resource;
         try {
-            // Nutzung deines Google API Keys für High-End Voice Generation (Neural2)
             const response = await axios.post(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${GOOGLE_API_KEY}`, {
                 input: { text: textToSpeak },
-                voice: { languageCode: 'de-DE', name: 'de-DE-Neural2-F' }, // Premium weibliche Neural-Stimme
+                voice: { languageCode: 'de-DE', name: 'de-DE-Neural2-F' },
                 audioConfig: { audioEncoding: 'MP3', speakingRate: 1.0 }
             });
             
@@ -465,24 +492,32 @@ async function playTTS(voiceChannel, textToSpeak) {
             connection.subscribe(player);
 
             player.on(AudioPlayerStatus.Idle, () => {
-                setTimeout(() => {
-                    if (connection.state.status !== 'destroyed') {
-                        connection.destroy();
-                        addLog('info', `Premium-TTS beendet. Bot hat den Raum verlassen.`);
-                    }
-                    if (fs.existsSync(tempFilePath)) {
-                        fs.unlinkSync(tempFilePath); // Cleanup des Audiofiles
-                    }
-                }, 1000);
+                // HIER IST DER FIX! Wenn keepAlive = true, trennt er die Verbindung NICHT!
+                if (!keepAlive) {
+                    setTimeout(() => {
+                        if (connection.state.status !== 'destroyed') {
+                            connection.destroy();
+                            addLog('info', `Premium-TTS Ansage beendet. Bot hat den Warteraum verlassen.`);
+                        }
+                    }, 1000);
+                }
+                
+                if (fs.existsSync(tempFilePath)) {
+                    fs.unlinkSync(tempFilePath); // Cleanup des Audiofiles
+                }
             });
         } catch (apiError) {
             addLog('error', `Premium TTS API Fehler: ${apiError.message}. Wechsle zum Fallback.`);
-            // Fallback auf Standard Google Translate URL, falls API Kontingent erschöpft ist
             const text = encodeURIComponent(textToSpeak);
             resource = createAudioResource(`https://translate.google.com/translate_tts?ie=UTF-8&tl=de&client=tw-ob&q=${text}`);
             player.play(resource);
             connection.subscribe(player);
-            player.on(AudioPlayerStatus.Idle, () => { setTimeout(() => { if (connection.state.status !== 'destroyed') connection.destroy(); }, 1000); });
+            
+            player.on(AudioPlayerStatus.Idle, () => { 
+                if (!keepAlive) {
+                    setTimeout(() => { if (connection.state.status !== 'destroyed') connection.destroy(); }, 1000); 
+                }
+            });
         }
 
         return connection;
@@ -491,7 +526,7 @@ async function playTTS(voiceChannel, textToSpeak) {
     }
 }
 
-// Die ECHTE Google Cloud STT Schnittstelle (Mit Fallback-Logik)
+// Die ECHTE Google Cloud STT Schnittstelle
 function startGoogleCloudSTTStream(connection, targetUserId, supporterUser) {
     if (!connection || !supporterUser) return;
 
@@ -571,7 +606,8 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
             addLog('info', `Support benötigt: ${member.user.tag} wartet im ${channel.name}.`);
             
             setTimeout(async () => {
-                await playTTS(channel, cloudStorage.systemSettings.voiceAnnounceWaiting);
+                // keepAlive = false -> Er verlässt den Raum nach der Ansage im Warteraum!
+                await playTTS(channel, cloudStorage.systemSettings.voiceAnnounceWaiting, false);
             }, 1000);
 
             const alertEmbed = new EmbedBuilder()
@@ -1052,7 +1088,8 @@ client.on('interactionCreate', async interaction => {
             
             await interaction.editReply({ content: `✅ Schaltung erfolgreich durchgeführt!`, embeds: [lockedEmbed], components: [] });
             
-            const voiceConnection = await playTTS(privateSupportChannel, cloudStorage.systemSettings.voiceAnnounceClaimed);
+            // keepAlive = true -> Er verlässt den Raum NICHT, um die Bridge aufrecht zu erhalten!
+            const voiceConnection = await playTTS(privateSupportChannel, cloudStorage.systemSettings.voiceAnnounceClaimed, true);
             startGoogleCloudSTTStream(voiceConnection, targetUserId, interaction.user);
 
         } catch (e) {}
@@ -1065,10 +1102,51 @@ client.on('interactionCreate', async interaction => {
         const userId = interaction.user.id;
         const isWhitelisted = cloudStorage.systemSettings.whitelistedUsers.includes(userId);
 
-        const adminCmds = ['status', 'restart', 'clear', 'warn', 'setup-ticketpanel', 'setup-voicesupport', 'setup-infohub', 'poll', 'rbx-shout', 'rbx-serverlogs', 'rbx-shutdown', 'setup-voiceannounce', 'clan-war', 'rbx-savedata', 'rbx-cleardata', 'nuke', 'lockdown', 'unlockdown', 'slowmode', 'addrole', 'removerole', 'set-placeid', 'mute', 'unmute', 'warnlist', 'clearwarns', 'lockchannel', 'unlockchannel', 'dm', 'whitelist', 'supporter', 'setup-modlog', 'backup-server'];
+        const adminCmds = ['status', 'restart', 'clear', 'warn', 'setup-ticketpanel', 'setup-voicesupport', 'setup-infohub', 'poll', 'rbx-shout', 'rbx-serverlogs', 'rbx-shutdown', 'setup-voiceannounce', 'clan-war', 'rbx-savedata', 'rbx-cleardata', 'nuke', 'lockdown', 'unlockdown', 'slowmode', 'addrole', 'removerole', 'set-placeid', 'mute', 'unmute', 'warnlist', 'clearwarns', 'lockchannel', 'unlockchannel', 'dm', 'whitelist', 'supporter', 'setup-modlog', 'backup-server', 'give-premium', 'setup-welcome'];
         
         if (adminCmds.includes(commandName) && !isWhitelisted) {
             return interaction.reply({ content: '🔒 **Zugriff verweigert:** Dein Benutzerkonto verfügt nicht über die erforderlichen administrativen Schlüssel.', ephemeral: true });
+        }
+
+        // --- NEW: PREMIUM SYSTEM COMMANDS ---
+        if (commandName === 'buy-premium') {
+            const embed = new EmbedBuilder()
+                .setTitle('💎 AeroGuard Premium-Lizenz')
+                .setDescription('Schalte exklusive Cloud-Features, Prioritäts-Support und individuelle Web-Panels frei!\n\nUm den Bot in vollem Umfang für deinen Server zu nutzen, kannst du hier die Lizenz erwerben.')
+                .addFields({ name: 'Zahlungs-Gateway', value: 'Wir nutzen Stripe als sicheren Zahlungsanbieter. Dein Premium-Status wird vollautomatisch wenige Sekunden nach dem Kauf freigeschaltet.' })
+                .setColor(0x00f5d4);
+            
+            const row = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setLabel('💳 Mit Stripe bezahlen').setStyle(ButtonStyle.Link).setURL('https://buy.stripe.com/beispiel-link-hier-einfuegen')
+            );
+
+            return interaction.reply({ embeds: [embed], components: [row] });
+        }
+
+        if (commandName === 'premium-status') {
+            const isPremium = cloudStorage.premiumUsers.includes(userId);
+            if (isPremium) {
+                return interaction.reply({ content: `💎 **Dein Status:** Du bist ein **Premium User**. Alle Sektor-Limitierungen sind für dich aufgehoben!`, ephemeral: true });
+            } else {
+                return interaction.reply({ content: `👤 **Dein Status:** Du nutzt die kostenlose Version. Hole dir Premium mit \`/buy-premium\`.`, ephemeral: true });
+            }
+        }
+
+        if (commandName === 'give-premium') {
+            const target = interaction.options.getUser('target');
+            if (!cloudStorage.premiumUsers.includes(target.id)) {
+                cloudStorage.premiumUsers.push(target.id);
+                saveCloudVaultToDisk();
+            }
+            return interaction.reply(`💎 Admin-Override: ${target} hat nun manuell den Premium-Status erhalten.`);
+        }
+
+        // --- NEW: WELCOME SETUP ---
+        if (commandName === 'setup-welcome') {
+            const ch = interaction.options.getChannel('kanal');
+            cloudStorage.systemSettings.welcomeChannelId = ch.id;
+            saveCloudVaultToDisk();
+            return interaction.reply(`✅ **Willkommens-System aktiviert:** Beitrittsmeldungen werden ab sofort in <#${ch.id}> gepostet!`);
         }
 
         if (commandName === 'backup-server') {
@@ -1546,7 +1624,7 @@ client.on('messageCreate', async message => {
             }
 
             if (targetChannel) {
-                await playTTS(targetChannel, message.content);
+                await playTTS(targetChannel, message.content, true); // keepAlive = true
                 await message.react('🎙️');
             } else {
                 delete cloudStorage.activeVoiceSessions[suppId];
@@ -1692,7 +1770,13 @@ const extendedCommandDefinitions = [
     new SlashCommandBuilder().setName('whitelist').setDescription('Verwalte die administrative Whitelist').addStringOption(o => o.setName('aktion').setDescription('add/remove').setRequired(true)).addUserOption(o => o.setName('target').setDescription('Nutzer').setRequired(true)),
     new SlashCommandBuilder().setName('supporter').setDescription('Verwalte die Support-Berechtigungen').addStringOption(o => o.setName('aktion').setDescription('add/remove').setRequired(true)).addUserOption(o => o.setName('target').setDescription('Nutzer').setRequired(true)),
     new SlashCommandBuilder().setName('backup-server').setDescription('Erstellt ein massives JSON-Cloud-Backup der gesamten Server-Struktur (Rollen & Kanäle)'),
-    new SlashCommandBuilder().setName('verify').setDescription('Verknüpft deinen Discord-Account offiziell mit deinem Roblox-Profil').addStringOption(o => o.setName('roblox_name').setDescription('Dein genauer Roblox Benutzername').setRequired(true))
+    new SlashCommandBuilder().setName('verify').setDescription('Verknüpft deinen Discord-Account offiziell mit deinem Roblox-Profil').addStringOption(o => o.setName('roblox_name').setDescription('Dein genauer Roblox Benutzername').setRequired(true)),
+    
+    // NEUE PREMIUM BEFEHLE
+    new SlashCommandBuilder().setName('buy-premium').setDescription('Zeigt dir den Stripe-Link an, um Premium-Funktionen freizuschalten'),
+    new SlashCommandBuilder().setName('premium-status').setDescription('Zeigt an, ob dein Account als Premium registriert ist'),
+    new SlashCommandBuilder().setName('give-premium').setDescription('Gibt einem User manuell den Premium-Status (Admin)').addUserOption(o => o.setName('target').setDescription('Nutzer').setRequired(true)),
+    new SlashCommandBuilder().setName('setup-welcome').setDescription('Legt den Kanal fest, in dem der Bot neue Spieler mit einem Embed begrüßt').addChannelOption(o => o.setName('kanal').setDescription('Kanal wählen').setRequired(true))
 ].map(cmd => cmd.toJSON());
 
 async function deployExtendedCommands(guildId) {
@@ -1706,7 +1790,7 @@ client.on('guildCreate', async guild => { await deployExtendedCommands(guild.id)
 client.once('ready', async () => { if (process.env.GUILD_ID) await deployExtendedCommands(process.env.GUILD_ID); });
 
 // =========================================================================
-// WEBPANEL OAUTH2 UTILITIES & ROUTING LAYER
+// WEBPANEL OAUTH2 UTILITIES & WEBHOOK ROUTING LAYER
 // =========================================================================
 app.get('/login', (req, res) => {
     const clientId = process.env.CLIENT_ID; const redirectUri = encodeURIComponent(process.env.REDIRECT_URI);
@@ -1724,6 +1808,14 @@ app.get('/api/auth/callback', async (req, res) => {
 
 app.get('/', async (req, res) => {
     res.send(`<html><body style="background:#06040c;color:white;font-family:sans-serif;padding:30px;"><h1>🌌 AeroGuard Ultimate Cloud Matrix</h1><p>Status: Online (Persistent)</p></body></html>`);
+});
+
+// STRIPE WEBHOOK EMPFÄNGER (Grundgerüst für automatische Premium-Freischaltung)
+app.post('/api/webhook/stripe', (req, res) => {
+    // Hier empfängt dein Bot in Zukunft vollautomatisch die Kaufbestätigung von Stripe
+    // req.body enthält dann die Infos (Wer hat bezahlt, Discord ID etc.)
+    console.log("Stripe Webhook Ping empfangen!");
+    res.status(200).send("Webhook erhalten");
 });
 
 app.post('/update-status', (req, res) => {
