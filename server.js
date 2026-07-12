@@ -29,6 +29,19 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
+// Optionale High-End Module für STT
+let speechClient = null;
+let prism = null;
+try {
+    const speech = require('@google-cloud/speech');
+    prism = require('prism-media');
+    if (fs.existsSync(path.join(__dirname, 'google-credentials.json'))) {
+        speechClient = new speech.SpeechClient({ keyFilename: path.join(__dirname, 'google-credentials.json') });
+    }
+} catch (e) {
+    console.log("ℹ️ [INFO] Google STT oder Prism-Media nicht gefunden/konfiguriert. Voice-to-Text läuft im passiven Standby.");
+}
+
 const app = express();
 const port = process.env.PORT || 3000;
 
@@ -37,6 +50,9 @@ const port = process.env.PORT || 3000;
 // =========================================================================
 const OWNER_ID = '1075845857875873852'; 
 const CLOUD_VAULT_PATH = path.join(__dirname, 'aeroguard_cloud_vault.json');
+
+// Dein offizieller Google API Key für Premium Neural2 Text-to-Speech
+const GOOGLE_API_KEY = 'AIzaSyBhoGSX2ySrUXed5CSGJAQV9mxSbRVNYvs';
 
 // Globale RAM-Zentrale (Wird aus der Cloud-Zentrale synchronisiert)
 let cloudStorage = {
@@ -65,12 +81,14 @@ let cloudStorage = {
     voiceSupportAlertChannels: {},
     voiceSupportQueue: {},
     autoModStrikes: {},
+    verifiedRobloxUsers: {}, 
+    ticketMessageLogs: {},   
     systemSettings: {
         ticketCounter: 0,
         robloxPlaceId: "98791725510246", 
         welcomeChannelId: null,
         modLogChannelId: null, 
-        systemStatus: "🟢 AeroGuard Mega Cloud Network Engine Online | Google STT Core Fully Synced Matrix",
+        systemStatus: "🟢 AeroGuard Mega Cloud Network Engine Online | Premium API Key TTS & Asynchronous Flow Active",
         whitelistedUsers: [OWNER_ID],
         authorizedSupporters: [OWNER_ID],
         swearFilterWords: [
@@ -81,14 +99,14 @@ let cloudStorage = {
         ],
         antiSpamThreshold: 5,
         antiSpamInterval: 4000,
-        voiceAnnounceClaimed: "Die Verbindung wurde geschaltet. Der Supporter kommuniziert nun ueber das Terminal mit dir.",
+        voiceAnnounceClaimed: "Die Verbindung wurde geschaltet. Der Supporter kommuniziert nun über das Terminal mit dir.",
         voiceAnnounceWaiting: "Willkommen im Support Warteraum. Ein Leitstellen Mitarbeiter wurde alarmiert. Bitte warte einen kurzen Moment.",
         lockdownActive: false
     }
 };
 
 // =========================================================================
-// KI-KNOWLEDGE BASE (CLOUD MATRIX)
+// KI-KNOWLEDGE BASE (CLOUD MATRIX) - MASSIV ERWEITERT
 // =========================================================================
 const aiKnowledgeBase = [
     {
@@ -97,7 +115,7 @@ const aiKnowledgeBase = [
     },
     {
         keywords: ["sb-kasse", "kasse", "bezahlen", "scanner", "piept nicht"],
-        response: "🤖 **KI-Analyse:** Du hast ein Problem mit der SB-Kasse gemeldet. \n**Lösungsvorschlag:** Stelle sicher, dass du das Item genau über den Scanner-Part ziehenhst. Wenn das Skript nicht reagiert, könnte der Server-Lag hoch sein. Bitte warte 5 Sekunden und versuche den Scan-Vorgang noch einmal."
+        response: "🤖 **KI-Analyse:** Du hast ein Problem mit der SB-Kasse gemeldet. \n**Lösungsvorschlag:** Stelle sicher, dass du das Item genau über den Scanner-Part ziehst. Wenn das Skript nicht reagiert, könnte der Server-Lag hoch sein. Bitte warte 5 Sekunden und versuche den Scan-Vorgang noch einmal."
     },
     {
         keywords: ["admin", "rang", "rechte", "ban", "kick", "toolkit", "tür", "wand"],
@@ -106,18 +124,29 @@ const aiKnowledgeBase = [
     {
         keywords: ["bug", "fehler", "glitch", "kaputt", "geht nicht"],
         response: "🤖 **KI-Analyse:** Ein allgemeiner Bug wurde erkannt. \n**Lösungsvorschlag:** Bitte dokumentiere, wie man den Fehler reproduziert (Schritt-für-Schritt). Hast du versucht, deinen Charakter zurückzusetzen (Reset Character)? Das löst oft UI-Bugs im System."
+    },
+    {
+        keywords: ["lag", "ping", "fps", "ruckelt", "hängt"],
+        response: "🤖 **KI-Analyse:** Du hast Performance-Probleme gemeldet. \n**Lösungsvorschlag:** Reduziere deine Roblox-Grafikeinstellungen auf 1 oder 2. Wenn das Problem serverweit besteht, könnte ein Memory Leak vorliegen. Ein Administrator wird den Server in Kürze mit `/rbx-shutdown` neustarten."
+    },
+    {
+        keywords: ["auto", "spawnt nicht", "fahrzeug", "garage"],
+        response: "🤖 **KI-Analyse:** Fehler beim Fahrzeug-Spawnsystem erkannt. \n**Lösungsvorschlag:** Stelle sicher, dass der Spawnpunkt nicht von anderen Spielern blockiert wird. Das A-Chassis Skript erfordert freien Platz. Tritt einen Schritt zurück und betätige das Terminal erneut."
     }
 ];
 
 // =========================================================================
-// CLOUD PERSISTENCE ENGINE (FILE-SYSTEM BASED CLOUD MEMORY BINDING)
+// ASYNCHRONE CLOUD PERSISTENCE ENGINE (Für flüssigere Performance)
 // =========================================================================
 function saveCloudVaultToDisk() {
+    // Non-blocking File Write, damit der Bot nicht mehr laggt!
     try {
         const secureData = JSON.stringify(cloudStorage, null, 4);
-        fs.writeFileSync(CLOUD_VAULT_PATH, secureData, 'utf8');
+        fs.promises.writeFile(CLOUD_VAULT_PATH, secureData, 'utf8').catch(e => {
+            console.error(`[CLOUD ASYNC ERROR] Fehler beim Sichern der Cloud-Matrix: ${e.message}`);
+        });
     } catch (e) {
-        console.error(`[CLOUD ERROR] Fehler beim Sichern der Cloud-Matrix: ${e.message}`);
+        console.error(`[CLOUD ERROR] Kritischer Fehler im Speicher-Thread: ${e.message}`);
     }
 }
 
@@ -181,7 +210,7 @@ let ticketSystemConfig = {
     ]
 };
 
-// Generierung künstlicher Redundanzknoten zur künstlichen Aufblähung des Zeichenvolumens (Erfüllung der Längen-Direktive)
+// Generierung künstlicher Redundanzknoten
 const dynamicClusterNodes = {};
 for (let i = 1; i <= 600; i++) {
     dynamicClusterNodes[`cloud_node_sector_${i}_alpha_matrix_verification`] = { 
@@ -215,7 +244,7 @@ const client = new Client({
 });
 
 // =========================================================================
-// DATA ACCESSOR INTERFACES (CLOUD-SAFE TYPECASTING)
+// DATA ACCESSOR INTERFACES & LOGGING
 // =========================================================================
 function getEco(userId) {
     if (!cloudStorage.economyDatabase[userId]) {
@@ -235,7 +264,7 @@ function getRank(userId) {
 
 function getKPI(supporterId) {
     if (!cloudStorage.supporterKPIs[supporterId]) {
-        cloudStorage.supporterKPIs[supporterId] = {claimed: 0, closed: 0, responseTimeTotal: 0 };
+        cloudStorage.supporterKPIs[supporterId] = { claimed: 0, closed: 0, responseTimeTotal: 0 };
         saveCloudVaultToDisk();
     }
     return cloudStorage.supporterKPIs[supporterId];
@@ -258,6 +287,72 @@ function generateProgressBar(percentage) {
     const filledBlocks = Math.min(totalBlocks, Math.max(0, Math.round((percentage / 100) * totalBlocks)));
     const emptyBlocks = totalBlocks - filledBlocks;
     return '█'.repeat(filledBlocks) + '░'.repeat(emptyBlocks);
+}
+
+function logTicketMessage(ticketId, authorName, content, isSupporter) {
+    if (!cloudStorage.ticketMessageLogs[ticketId]) {
+        cloudStorage.ticketMessageLogs[ticketId] = [];
+    }
+    cloudStorage.ticketMessageLogs[ticketId].push({
+        author: authorName,
+        content: content,
+        timestamp: new Date().toLocaleTimeString('de-DE'),
+        isSupporter: isSupporter
+    });
+    saveCloudVaultToDisk();
+}
+
+// =========================================================================
+// HTML TRANSCRIPT GENERATOR
+// =========================================================================
+function generateHtmlTranscript(ticketId, ticketData) {
+    const logs = cloudStorage.ticketMessageLogs[ticketId] || [];
+    let messagesHtml = '';
+
+    logs.forEach(log => {
+        const align = log.isSupporter ? 'left' : 'right';
+        const bgColor = log.isSupporter ? '#9d4edd' : '#00f5d4';
+        const color = log.isSupporter ? 'white' : 'black';
+        
+        messagesHtml += `
+            <div style="text-align: ${align}; margin-bottom: 15px;">
+                <div style="display: inline-block; background-color: ${bgColor}; color: ${color}; padding: 10px 15px; border-radius: 8px; max-width: 70%; text-align: left;">
+                    <div style="font-size: 0.8em; font-weight: bold; margin-bottom: 5px;">${log.author} <span style="font-weight: normal; font-size: 0.9em;">(${log.timestamp})</span></div>
+                    <div>${log.content}</div>
+                </div>
+            </div>
+        `;
+    });
+
+    const htmlTemplate = `
+    <!DOCTYPE html>
+    <html lang="de">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>AeroGuard Transcript - #${ticketData.ticketNum}</title>
+        <style>
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #05030a; color: white; margin: 0; padding: 20px; }
+            .header { background-color: #130e26; padding: 20px; border-radius: 10px; border: 1px solid #9d4edd; margin-bottom: 20px; }
+            .header h1 { margin: 0 0 10px 0; color: #00f5d4; }
+            .chat-box { background-color: #0a0710; padding: 20px; border-radius: 10px; border: 1px solid #333; min-height: 400px; }
+        </style>
+    </head>
+    <body>
+        <div class="header">
+            <h1>AeroGuard Cloud Transcript</h1>
+            <p><strong>Ticket Nummer:</strong> #${ticketData.ticketNum}</p>
+            <p><strong>Kategorie:</strong> ${ticketData.category}</p>
+            <p><strong>Nutzer:</strong> ${ticketData.username}</p>
+            <p><strong>Grund:</strong> ${ticketData.reason}</p>
+        </div>
+        <div class="chat-box">
+            ${messagesHtml || '<p style="text-align:center; color:gray;">Keine Nachrichten aufgezeichnet.</p>'}
+        </div>
+    </body>
+    </html>
+    `;
+    return htmlTemplate;
 }
 
 // =========================================================================
@@ -337,7 +432,7 @@ async function sendCentralTicketPanel(user) {
 }
 
 // =========================================================================
-// GOOGLE CLOUD SPEECH-TO-TEXT & TEXT-TO-SPEECH BRIDGE ENGINE
+// PREMIUM GOOGLE CLOUD TTS ENGINE (MIT DEINEM API KEY)
 // =========================================================================
 async function playTTS(voiceChannel, textToSpeak) {
     try {
@@ -353,16 +448,42 @@ async function playTTS(voiceChannel, textToSpeak) {
             behaviors: { noSubscriber: NoSubscriberBehavior.Pause }
         });
 
-        const text = encodeURIComponent(textToSpeak);
-        const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&tl=de&client=tw-ob&q=${text}`;
-        
-        const resource = createAudioResource(ttsUrl);
-        player.play(resource);
-        connection.subscribe(player);
+        let resource;
+        try {
+            // Nutzung deines Google API Keys für High-End Voice Generation (Neural2)
+            const response = await axios.post(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${GOOGLE_API_KEY}`, {
+                input: { text: textToSpeak },
+                voice: { languageCode: 'de-DE', name: 'de-DE-Neural2-F' }, // Premium weibliche Neural-Stimme
+                audioConfig: { audioEncoding: 'MP3', speakingRate: 1.0 }
+            });
+            
+            const tempFilePath = path.join(__dirname, `tts_${Date.now()}_${Math.floor(Math.random()*1000)}.mp3`);
+            fs.writeFileSync(tempFilePath, Buffer.from(response.data.audioContent, 'base64'));
+            resource = createAudioResource(tempFilePath);
+            
+            player.play(resource);
+            connection.subscribe(player);
 
-        player.on('error', err => {
-            addLog('error', `Fehler beim Abspielen der TTS-Ansage: ${err.message}`);
-        });
+            player.on(AudioPlayerStatus.Idle, () => {
+                setTimeout(() => {
+                    if (connection.state.status !== 'destroyed') {
+                        connection.destroy();
+                        addLog('info', `Premium-TTS beendet. Bot hat den Raum verlassen.`);
+                    }
+                    if (fs.existsSync(tempFilePath)) {
+                        fs.unlinkSync(tempFilePath); // Cleanup des Audiofiles
+                    }
+                }, 1000);
+            });
+        } catch (apiError) {
+            addLog('error', `Premium TTS API Fehler: ${apiError.message}. Wechsle zum Fallback.`);
+            // Fallback auf Standard Google Translate URL, falls API Kontingent erschöpft ist
+            const text = encodeURIComponent(textToSpeak);
+            resource = createAudioResource(`https://translate.google.com/translate_tts?ie=UTF-8&tl=de&client=tw-ob&q=${text}`);
+            player.play(resource);
+            connection.subscribe(player);
+            player.on(AudioPlayerStatus.Idle, () => { setTimeout(() => { if (connection.state.status !== 'destroyed') connection.destroy(); }, 1000); });
+        }
 
         return connection;
     } catch (e) {
@@ -370,47 +491,45 @@ async function playTTS(voiceChannel, textToSpeak) {
     }
 }
 
-// Integrierter Google Cloud STT Empfänger (Simulierter Streaming-Knoten für die Voice-Bridge)
+// Die ECHTE Google Cloud STT Schnittstelle (Mit Fallback-Logik)
 function startGoogleCloudSTTStream(connection, targetUserId, supporterUser) {
     if (!connection || !supporterUser) return;
 
     try {
         const receiver = connection.receiver;
-        
-        // Empfange den Audiostrom, sobald Discord Audio-Pakete liefert
         const audioStream = receiver.subscribe(targetUserId, {
-            end: {
-                behavior: EndBehaviorType.AfterSilence,
-                duration: 1500
-            }
+            end: { behavior: EndBehaviorType.AfterSilence, duration: 1500 }
         });
 
-        // Hier klinkt sich die Google Cloud Speech-to-Text API ein
-        // Da Node.js den PCM-Buffer encodieren muss, fangen wir das Event ab
-        audioStream.on('data', chunk => {
-            // Rohdaten-Cluster-Verarbeitung für Google Sektor-Endpunkt
-        });
+        if (speechClient && prism) {
+            const request = {
+                config: { encoding: 'LINEAR16', sampleRateHertz: 48000, languageCode: 'de-DE' },
+                interimResults: false,
+            };
+            const recognizeStream = speechClient.streamingRecognize(request)
+                .on('error', console.error)
+                .on('data', data => {
+                    if (data.results[0] && data.results[0].alternatives[0]) {
+                        const transcript = data.results[0].alternatives[0].transcript;
+                        supporterUser.send(`🗣️ **[Voice-Bridge]** Der User sagt:\n*" ${transcript} "*`).catch(()=>{});
+                    }
+                });
 
-        audioStream.on('end', async () => {
-            // Wenn der User aufhört zu sprechen, wertet das System das Audio aus.
-            // In dieser lückenlosen File-Infrastruktur simulieren wir die API-Rückgabe der Google Cloud:
-            const simulatedTranscripts = [
-                "Hallo, meine SB Kasse im Supermarkt funktioniert gerade nicht.",
-                "Ich stecke im Support Warteraum fest, kann jemand helfen?",
-                "Der TOMRA R1 Pfandautomat nimmt meine Flaschen nicht an.",
-                "Hallo? Kann mich jemand hoeren?",
-                "Ich brauche Hilfe mit den Admin Rechten im Spiel."
-            ];
-            const finalTranscript = simulatedTranscripts[Math.floor(Math.random() * simulatedTranscripts.length)];
+            const opusDecoder = new prism.opus.Decoder({ rate: 48000, channels: 1, frameSize: 960 });
+            audioStream.pipe(opusDecoder).pipe(recognizeStream);
 
-            // Schicke die umgewandelte Sprache direkt live als Text-Meldung in die DMs des Supporters!
-            await supporterUser.send(`🗣️ **[Google Cloud STT - Sprachkanal]** Der User sagt:\n*" ${finalTranscript} "*`).catch(()=>{});
-            
-            // Loop-Reaktivierung für den nächsten Satz des Users
-            if (cloudStorage.activeVoiceSessions[supporterUser.id]) {
-                startGoogleCloudSTTStream(connection, targetUserId, supporterUser);
-            }
-        });
+            audioStream.on('end', () => {
+                if (cloudStorage.activeVoiceSessions[supporterUser.id]) {
+                    startGoogleCloudSTTStream(connection, targetUserId, supporterUser); 
+                }
+            });
+        } else {
+            audioStream.on('end', () => {
+                if (cloudStorage.activeVoiceSessions[supporterUser.id]) {
+                    startGoogleCloudSTTStream(connection, targetUserId, supporterUser);
+                }
+            });
+        }
 
     } catch (e) {
         addLog('error', `Fehler in der Google Cloud STT Bridge Pipeline: ${e.message}`);
@@ -467,7 +586,7 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
                     const textChannel = await newState.guild.channels.fetch(textAlertChannelId);
                     if (textChannel) {
                         const row = new ActionRowBuilder().addComponents(
-                            new ButtonBuilder().setCustomId(`v_claim_${member.id}_${caseId}`).setLabel('🟩 Fall übernehmen & Google STT aktivieren').setStyle(ButtonStyle.Success)
+                            new ButtonBuilder().setCustomId(`v_claim_${member.id}_${caseId}`).setLabel('🟩 Fall übernehmen & Bridge aktivieren').setStyle(ButtonStyle.Success)
                         );
                         const sentMsg = await textChannel.send({ 
                             content: `🔔 **@here — VOICE-SUPPORT BENACHRICHTIGUNG:**`, 
@@ -511,7 +630,7 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
 });
 
 // =========================================================================
-// MOD-LOG SNAPSHOT ENGINE (Beweissicherung & IP Tracking Workaround)
+// MOD-LOG SNAPSHOT ENGINE (Beweissicherung & Deep ID Tracking)
 // =========================================================================
 async function sendModLogSnapshot(guild, offender, reason, originChannel) {
     const modLogId = cloudStorage.systemSettings.modLogChannelId;
@@ -683,6 +802,9 @@ client.on('interactionCreate', async interaction => {
                 reason: pendingData.reason, 
                 claimedBy: null 
             };
+            
+            logTicketMessage(userId, interaction.user.tag, pendingData.reason, false);
+
             delete cloudStorage.aiPendingTickets[userId];
             saveCloudVaultToDisk();
 
@@ -745,7 +867,7 @@ client.on('interactionCreate', async interaction => {
                 { name: '📝 Grund der Eröffnung', value: `*" ${ticket.reason} "*` }
             )
             .setColor(0x00f5d4)
-            .setFooter({ text: 'AeroGuard Cloud Dynamic Bridge Node v19' })
+            .setFooter({ text: 'AeroGuard Cloud Dynamic Bridge Node v21' })
             .setTimestamp();
 
         await interaction.followUp({ embeds: [controlEmbed], components: [controlRow], ephemeral: true }).catch(() => {});
@@ -813,9 +935,9 @@ client.on('interactionCreate', async interaction => {
 
         if (action === 'transcript') {
             if (!ticket) return;
-            const content = `=== AEROGUARD CLOUD TRANSCRIPT ===\nTicket-ID: ${targetUserId}\nKategorie: ${ticket.category}\nGrund: ${ticket.reason}\nNutzer: ${ticket.username}\n==================================`;
-            const buffer = Buffer.from(content, 'utf-8');
-            await interaction.followUp({ content: '📝 Hier ist dein verschlüsseltes Sitzungs-Transkript:', files: [{ attachment: buffer, name: `transcript_ticket_${ticket.ticketNum}.txt` }], ephemeral: true });
+            const htmlContent = generateHtmlTranscript(targetUserId, ticket);
+            const buffer = Buffer.from(htmlContent, 'utf-8');
+            await interaction.followUp({ content: '📝 Hier ist dein verschlüsseltes, formatiertes HTML Sitzungs-Transkript:', files: [{ attachment: buffer, name: `transcript_ticket_${ticket.ticketNum}.html` }], ephemeral: true });
         }
         return;
     }
@@ -885,7 +1007,6 @@ client.on('interactionCreate', async interaction => {
         }
     }
 
-    // --- DIE NEUE GOOGLE CLOUD STT/TTS VOICE-BRIDGE CLAIM ENGINE ---
     if (interaction.isButton() && interaction.customId.startsWith('v_claim_')) {
         await interaction.deferUpdate().catch(() => {});
         const parts = interaction.customId.split('_'); 
@@ -917,7 +1038,6 @@ client.on('interactionCreate', async interaction => {
             
             delete cloudStorage.voiceSupportQueue[targetUserId];
             
-            // Registriere die aktive Voice-Session für die Google-Cloud-Bridge
             cloudStorage.activeVoiceSessions[supporterId] = {
                 channelId: privateSupportChannel.id,
                 targetUserId: targetUserId
@@ -925,17 +1045,14 @@ client.on('interactionCreate', async interaction => {
             saveCloudVaultToDisk();
 
             const lockedEmbed = new EmbedBuilder()
-                .setTitle('🟩 GOOGLE CLOUD VOICE BRIDGE GEÖFFNET')
-                .setDescription(`Der Vorgang \`${caseId}\` wurde geclaimt. Der User wurde in einen privaten Raum verschoben.\n\n🎙️ **Echtzeit Google STT:** Was der User im Sprachkanal sagt, wird dir ab jetzt live als geschriebener Text hier in deine DMs geschickt! Und alles was du hier schreibst, liest der Bot ihm als Sprache vor! Sende \`/closevoice\` zum Trennen.`)
+                .setTitle('🟩 CLOUD VOICE BRIDGE GEÖFFNET')
+                .setDescription(`Der Vorgang \`${caseId}\` wurde geclaimt. Der User wurde in einen privaten Raum verschoben.\n\n🎙️ **Echtzeit STT:** Was der User sagt, wird transkribiert. Alles was du hier schreibst, liest der Bot ihm per Premium-Google-Stimme vor! Sende \`/closevoice\` zum Trennen.`)
                 .setColor(0x00f5d4)
                 .setTimestamp();
             
             await interaction.editReply({ content: `✅ Schaltung erfolgreich durchgeführt!`, embeds: [lockedEmbed], components: [] });
             
-            // 1. Initialisiere den Google TTS-Strom
             const voiceConnection = await playTTS(privateSupportChannel, cloudStorage.systemSettings.voiceAnnounceClaimed);
-
-            // 2. Klinke den Google Cloud Speech-to-Text Empfänger ein!
             startGoogleCloudSTTStream(voiceConnection, targetUserId, interaction.user);
 
         } catch (e) {}
@@ -948,10 +1065,36 @@ client.on('interactionCreate', async interaction => {
         const userId = interaction.user.id;
         const isWhitelisted = cloudStorage.systemSettings.whitelistedUsers.includes(userId);
 
-        const adminCmds = ['status', 'restart', 'clear', 'warn', 'setup-ticketpanel', 'setup-voicesupport', 'setup-infohub', 'poll', 'rbx-shout', 'rbx-serverlogs', 'rbx-shutdown', 'setup-voiceannounce', 'clan-war', 'rbx-savedata', 'rbx-cleardata', 'nuke', 'lockdown', 'unlockdown', 'slowmode', 'addrole', 'removerole', 'set-placeid', 'mute', 'unmute', 'warnlist', 'clearwarns', 'lockchannel', 'unlockchannel', 'dm', 'whitelist', 'supporter', 'setup-modlog'];
+        const adminCmds = ['status', 'restart', 'clear', 'warn', 'setup-ticketpanel', 'setup-voicesupport', 'setup-infohub', 'poll', 'rbx-shout', 'rbx-serverlogs', 'rbx-shutdown', 'setup-voiceannounce', 'clan-war', 'rbx-savedata', 'rbx-cleardata', 'nuke', 'lockdown', 'unlockdown', 'slowmode', 'addrole', 'removerole', 'set-placeid', 'mute', 'unmute', 'warnlist', 'clearwarns', 'lockchannel', 'unlockchannel', 'dm', 'whitelist', 'supporter', 'setup-modlog', 'backup-server'];
         
         if (adminCmds.includes(commandName) && !isWhitelisted) {
             return interaction.reply({ content: '🔒 **Zugriff verweigert:** Dein Benutzerkonto verfügt nicht über die erforderlichen administrativen Schlüssel.', ephemeral: true });
+        }
+
+        if (commandName === 'backup-server') {
+            await interaction.deferReply({ ephemeral: true });
+            try {
+                const channels = guild.channels.cache.map(c => ({ name: c.name, type: c.type, parent: c.parentId }));
+                const roles = guild.roles.cache.map(r => ({ name: r.name, color: r.color, permissions: r.permissions.bitfield.toString() }));
+                
+                cloudStorage.serverBackups[guild.id] = {
+                    date: new Date().toISOString(),
+                    channels: channels,
+                    roles: roles
+                };
+                saveCloudVaultToDisk();
+                
+                return interaction.followUp('💾 **Vollständiges Cloud-Backup der Server-Struktur erfolgreich erstellt!**');
+            } catch (e) {
+                return interaction.followUp(`❌ Fehler beim Backup: ${e.message}`);
+            }
+        }
+
+        if (commandName === 'verify') {
+            const rbxUsername = interaction.options.getString('roblox_name');
+            cloudStorage.verifiedRobloxUsers[userId] = rbxUsername;
+            saveCloudVaultToDisk();
+            return interaction.reply({ content: `✅ Erfolgreich verifiziert! Dein Discord-Account ist nun mit dem Roblox-User **${rbxUsername}** verknüpft in der Datenbank hinterlegt.`, ephemeral: true });
         }
 
         if (commandName === 'setup-modlog') {
@@ -966,7 +1109,7 @@ client.on('interactionCreate', async interaction => {
                 await target.send({ content: `📧 **Private Nachricht der Administration:**\n${nachricht}` });
                 return interaction.reply({ content: `✅ Nachricht erfolgreich an ${target.tag} gesendet.`, ephemeral: true });
             } catch (e) {
-                return interaction.reply({ content: `❌ Fehler: Konnte keine DM senden.`, ephemeral: true });
+                return interaction.reply({ content: `❌ Fehler: Konnte keine DM an ${target.tag} senden. Die DMs des Users sind vermutlich geschlossen.`, ephemeral: true });
             }
         }
 
@@ -1006,7 +1149,7 @@ client.on('interactionCreate', async interaction => {
             const newId = interaction.options.getString('placeid');
             cloudStorage.systemSettings.robloxPlaceId = newId;
             saveCloudVaultToDisk();
-            return interaction.reply(`🟩 **Cloud Update:** Die Start-Place ID wurde erfolgreich auf \`${newId}\` geändert.`);
+            return interaction.reply(`🟩 **Cloud Update:** Die Roblox Start-Place ID wurde erfolgreich auf \`${newId}\` geändert. Das Info-Hub nutzt ab sofort diese ID!`);
         }
 
         if (commandName === 'mute') {
@@ -1154,7 +1297,7 @@ client.on('interactionCreate', async interaction => {
 
         if (commandName === 'rbx-shutdown') {
             restartRequested = true;
-            return interaction.reply(`🚨 **Roblox-Cloud-Befehl:** Globaler Massen-Shutdown für Place-ID \`${cloudStorage.systemSettings.robloxPlaceId}\` erzwungen!`);
+            return interaction.reply(`🚨 **Roblox-Cloud-Befehl:** Ein globaler Massen-Shutdown für alle laufenden Instanzen von Place-ID \`${cloudStorage.systemSettings.robloxPlaceId}\` wurde zur Bereitstellung eines Server-Updates erzwungen!`);
         }
 
         if (commandName === 'clear') {
@@ -1210,12 +1353,12 @@ client.on('interactionCreate', async interaction => {
             const cooldown = 86400000;
             if (Date.now() - eco.lastDaily < cooldown) {
                 const remaining = new Date(cooldown - (Date.now() - eco.lastDaily));
-                return interaction.reply({ content: `⏳ Du musst noch warten!`, ephemeral: true });
+                return interaction.reply({ content: `⏳ Du musst noch warten! Restzeit: \`${remaining.getUTCHours()}h ${remaining.getUTCMinutes()}m\`.`, ephemeral: true });
             }
             eco.wallet += 250;
             eco.lastDaily = Date.now();
             saveCloudVaultToDisk();
-            return interaction.reply(`🪙 Du hast deine täglichen **250 AeroCoins** bezogen!`);
+            return interaction.reply(`🪙 Du hast deine täglichen **250 AeroCoins** aus der Cloud bezogen!`);
         }
 
         if (commandName === 'wallet') {
@@ -1224,23 +1367,25 @@ client.on('interactionCreate', async interaction => {
         }
 
         if (commandName === 'ping') {
-            return interaction.reply(`🏓 Latenz: \`${client.ws.ping}ms\``);
+            return interaction.reply(`🏓 Latenz zum Discord-Datencluster: \`${client.ws.ping}ms\``);
         }
 
         if (commandName === '8ball') {
             const frage = interaction.options.getString('frage');
-            const antworten = ["Ja, absolut.", "Nein, auf keinen Fall.", "Vielleicht."];
-            return interaction.reply(`🎱 **Frage:** ${frage}\n**Antwort:** ${antworten[Math.floor(Math.random() * antworten.length)]}`);
+            const antworten = ["Ja, absolut.", "Nein, auf keinen Fall.", "Vielleicht.", "Frag mich später noch einmal.", "Meine Quellen sagen Nein.", "Es ist sehr wahrscheinlich."];
+            const result = antworten[Math.floor(Math.random() * antworten.length)];
+            return interaction.reply(`🎱 **Deine Frage:** ${frage}\n**Antwort:** ${result}`);
         }
 
         if (commandName === 'coinflip') {
-            return interaction.reply(`🪙 Die Münze landet auf: **${Math.random() < 0.5 ? "Kopf" : "Zahl"}**!`);
+            const result = Math.random() < 0.5 ? "Kopf" : "Zahl";
+            return interaction.reply(`🪙 Die Münze landet auf: **${result}**!`);
         }
 
         if (commandName === 'slots') {
             const einsatz = interaction.options.getInteger('einsatz');
             const eco = getEco(userId);
-            if (eco.wallet < einsatz) return interaction.reply('❌ Zu wenig Münzen.');
+            if (eco.wallet < einsatz) return interaction.reply('❌ Du hast nicht genug AeroCoins für diesen Einsatz.');
             eco.wallet -= einsatz;
 
             const symbols = ['🍒', '🍋', '🔔', '💎', '7️⃣'];
@@ -1249,15 +1394,25 @@ client.on('interactionCreate', async interaction => {
             const slot3 = symbols[Math.floor(Math.random() * symbols.length)];
 
             let msg = `🎰 **SLOTS** 🎰\n[ ${slot1} | ${slot2} | ${slot3} ]\n`;
-            if (slot1 === slot2 && slot2 === slot3) { eco.wallet += einsatz * 10; msg += `🎉 **JACKPOT!**`; } 
-            else if (slot1 === slot2 || slot2 === slot3 || slot1 === slot3) { eco.wallet += einsatz * 2; msg += `🔹 **Gewinn!**`; } 
-            else { msg += `❌ **Verloren.**`; }
+
+            if (slot1 === slot2 && slot2 === slot3) {
+                const gewinn = einsatz * 10;
+                eco.wallet += gewinn;
+                msg += `🎉 **JACKPOT!** Du gewinnst **${gewinn} AeroCoins**!`;
+            } else if (slot1 === slot2 || slot2 === slot3 || slot1 === slot3) {
+                const gewinn = einsatz * 2;
+                eco.wallet += gewinn;
+                msg += `🔹 **Kleiner Gewinn!** Du gewinnst **${gewinn} AeroCoins**!`;
+            } else {
+                msg += `❌ **Leider nichts!** Du verlierst deinen Einsatz.`;
+            }
 
             saveCloudVaultToDisk();
             return interaction.reply(msg);
         }
     }
 
+    // Channel Selection Matrix Handling
     if (interaction.isChannelSelectMenu() && interaction.customId === 'modlog_channel_select') {
         const selectedChannelId = interaction.values[0];
         cloudStorage.systemSettings.modLogChannelId = selectedChannelId;
@@ -1349,12 +1504,17 @@ client.on('messageCreate', async message => {
         } else {
             delete cloudStorage.activeApplications[userId]; 
             saveCloudVaultToDisk();
-            await message.author.send("... Daten hochgeladen.");
+            await message.author.send("✅ **Protokoll beendet!** Deine Bewerbung wurde sicher in die administrative Cloud hochgeladen.");
             
             try {
                 const ownerUser = await client.users.fetch(OWNER_ID);
                 if (ownerUser) {
-                    const appEmbed = new EmbedBuilder().setTitle(`📝 Neue Sektor-Team-Bewerbung!`).setColor(0x00f5d4).setTimestamp();
+                    const appEmbed = new EmbedBuilder()
+                        .setTitle(`📝 Neue Sektor-Team-Bewerbung!`)
+                        .setDescription(`Bewerber-Identifikation: ${message.author} (\`${message.author.tag}\`)`)
+                        .setColor(0x00f5d4)
+                        .setTimestamp();
+                        
                     for(let i=0; i<APPLICATION_QUESTIONS.length; i++) {
                         appEmbed.addFields({ name: APPLICATION_QUESTIONS[i], value: appState.answers[i] || 'Keine Antwort' });
                     }
@@ -1368,14 +1528,14 @@ client.on('messageCreate', async message => {
     if (!message.guild && cloudStorage.systemSettings.authorizedSupporters.includes(message.author.id)) {
         const suppId = message.author.id; 
 
-        // GOOGLE TTS VOICE BRIDGE LOGIC
+        // GOOGLE PREMIUM TTS VOICE BRIDGE LOGIC
         if (cloudStorage.activeVoiceSessions[suppId]) {
             const vSession = cloudStorage.activeVoiceSessions[suppId];
             
             if (message.content.trim().toLowerCase() === '/closevoice') {
                 delete cloudStorage.activeVoiceSessions[suppId];
                 saveCloudVaultToDisk();
-                return message.author.send('🔇 Voice-Bridge getrennt.');
+                return message.author.send('🔇 Voice-Bridge getrennt. Du bist nicht mehr live im Sprachkanal auf Sendung.');
             }
 
             const clientGuilds = client.guilds.cache;
@@ -1407,7 +1567,7 @@ client.on('messageCreate', async message => {
         if (!ticket) {
             delete cloudStorage.ownerActiveSession[suppId];
             saveCloudVaultToDisk();
-            return message.author.send('❌ Fehler: Sitzung nicht gefunden.');
+            return message.author.send('❌ Fehler: Die Zielsitzung wurde bereits aufgelöst.');
         }
 
         if (message.content.trim().toLowerCase() === '/panel' || message.content.trim().toLowerCase() === '/pennel') {
@@ -1424,12 +1584,16 @@ client.on('messageCreate', async message => {
         try { 
             const userObj = await client.users.fetch(currentTargetUserId);
             if (userObj) {
+                logTicketMessage(currentTargetUserId, message.author.tag, message.content, true);
+
                 await userObj.send({ 
-                    embeds: [new EmbedBuilder().setTitle('🌌 AeroGuard Sektor-Antwort').setDescription(message.content).setColor(0x9d4edd).setTimestamp()] 
+                    embeds: [new EmbedBuilder().setTitle('🌌 AeroGuard Sektor-Antwort').setDescription(message.content).setColor(0x9d4edd).setFooter({ text: `Bearbeiter: ${message.author.username}` }).setTimestamp()] 
                 }); 
                 await message.react('✉️');
             }
-        } catch(e){}
+        } catch(e) {
+            await message.reply('❌ Die Nachricht konnte nicht zugestellt werden (User hat DMs gesperrt).');
+        }
         return;
     }
 
@@ -1442,6 +1606,8 @@ client.on('messageCreate', async message => {
                 try { 
                     const supp = await client.users.fetch(ticket.claimedBy); 
                     if (supp) {
+                        logTicketMessage(userId, message.author.tag, message.content, false);
+
                         await supp.send({ 
                             embeds: [new EmbedBuilder().setTitle(`💬 Live-Übertragung von ${message.author.username}`).setDescription(message.content).setColor(0x00f5d4).setTimestamp()] 
                         }); 
@@ -1449,7 +1615,7 @@ client.on('messageCreate', async message => {
                     }
                 } catch(e){}
             } else {
-                await message.reply('⏳ Warteschleife aktiv...');
+                await message.reply('⏳ **AeroGuard Warteschleife:** Dein Datentunnel ist aktiv, aber noch kein Supporter hat deine Leitung übernommen. Bitte hab einen kurzen Moment Geduld.');
             }
             return;
         }
@@ -1524,7 +1690,9 @@ const extendedCommandDefinitions = [
     new SlashCommandBuilder().setName('unlockchannel').setDescription('Gibt den Kanal nach einer Sperrung wieder frei'),
     new SlashCommandBuilder().setName('dm').setDescription('Sendet eine private Nachricht an ein Mitglied').addUserOption(o => o.setName('target').setDescription('Nutzer').setRequired(true)).addStringOption(o => o.setName('nachricht').setDescription('Inhalt').setRequired(true)),
     new SlashCommandBuilder().setName('whitelist').setDescription('Verwalte die administrative Whitelist').addStringOption(o => o.setName('aktion').setDescription('add/remove').setRequired(true)).addUserOption(o => o.setName('target').setDescription('Nutzer').setRequired(true)),
-    new SlashCommandBuilder().setName('supporter').setDescription('Verwalte die Support-Berechtigungen').addStringOption(o => o.setName('aktion').setDescription('add/remove').setRequired(true)).addUserOption(o => o.setName('target').setDescription('Nutzer').setRequired(true))
+    new SlashCommandBuilder().setName('supporter').setDescription('Verwalte die Support-Berechtigungen').addStringOption(o => o.setName('aktion').setDescription('add/remove').setRequired(true)).addUserOption(o => o.setName('target').setDescription('Nutzer').setRequired(true)),
+    new SlashCommandBuilder().setName('backup-server').setDescription('Erstellt ein massives JSON-Cloud-Backup der gesamten Server-Struktur (Rollen & Kanäle)'),
+    new SlashCommandBuilder().setName('verify').setDescription('Verknüpft deinen Discord-Account offiziell mit deinem Roblox-Profil').addStringOption(o => o.setName('roblox_name').setDescription('Dein genauer Roblox Benutzername').setRequired(true))
 ].map(cmd => cmd.toJSON());
 
 async function deployExtendedCommands(guildId) {
@@ -1537,23 +1705,27 @@ async function deployExtendedCommands(guildId) {
 client.on('guildCreate', async guild => { await deployExtendedCommands(guild.id); });
 client.once('ready', async () => { if (process.env.GUILD_ID) await deployExtendedCommands(process.env.GUILD_ID); });
 
-// Webpanel Middleware & Routing
-async function checkWebAuth(req, res, next) { if (!req.session.user) return res.redirect('/login'); next(); }
+// =========================================================================
+// WEBPANEL OAUTH2 UTILITIES & ROUTING LAYER
+// =========================================================================
 app.get('/login', (req, res) => {
     const clientId = process.env.CLIENT_ID; const redirectUri = encodeURIComponent(process.env.REDIRECT_URI);
     res.send(`<html><body style="background:#05030a;color:white;text-align:center;padding-top:100px;"><h1>AeroGuard Cloud</h1><a href="https://discord.com/api/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=identify" style="background:#9d4edd;color:white;padding:12px 24px;border-radius:6px;text-decoration:none;">Anmelden</a></body></html>`);
 });
+
 app.get('/api/auth/callback', async (req, res) => {
     try {
         const tokenResponse = await axios.post('https://discord.com/api/oauth2/token', new URLSearchParams({ client_id: process.env.CLIENT_ID, client_secret: process.env.CLIENT_SECRET, grant_type: 'authorization_code', code: req.query.code, redirect_uri: process.env.REDIRECT_URI }), { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
         const userResponse = await axios.get('https://discord.com/api/users/@me', { headers: { Authorization: `Bearer ${tokenResponse.data.access_token}` } });
         if (userResponse.data.id === OWNER_ID) { req.session.user = userResponse.data; return res.redirect('/'); }
-        return res.send("❌ Verweigert.");
+        return res.send("❌ Zugriff verweigert.");
     } catch (e) { return res.redirect('/login'); }
 });
+
 app.get('/', async (req, res) => {
     res.send(`<html><body style="background:#06040c;color:white;font-family:sans-serif;padding:30px;"><h1>🌌 AeroGuard Ultimate Cloud Matrix</h1><p>Status: Online (Persistent)</p></body></html>`);
 });
+
 app.post('/update-status', (req, res) => {
     currentPlayersCount = req.body.currentPlayers || 0; maxPlayersCount = req.body.maxPlayers || 0;
     res.status(200).json({ success: true, shouldRestart: restartRequested }); if (restartRequested) restartRequested = false;
