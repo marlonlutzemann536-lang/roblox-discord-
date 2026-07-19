@@ -30,7 +30,7 @@ const path = require('path');
 const crypto = require('crypto');
 
 // =========================================================================
-// GOOGLE STT INITIALISIERUNG ÜBER UMWELTVARIABLE
+// GOOGLE STT INITIALISIERUNG (100% SICHER ÜBER ENVIRONMENT VARIABLE)
 // =========================================================================
 let speechClient = null;
 let prism = null;
@@ -38,11 +38,11 @@ try {
     const speech = require('@google-cloud/speech');
     prism = require('prism-media');
     
-    // Wir lesen die Daten direkt aus der Umgebungsvariable
+    // 🟢 Der Bot liest den Key jetzt komplett unsichtbar aus dem Render-Speicher aus!
     if (process.env.GOOGLE_CREDENTIALS) {
         const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
         speechClient = new speech.SpeechClient({ credentials });
-        console.log("✅ [INFO] Google STT erfolgreich über Umgebungsvariable konfiguriert.");
+        console.log("✅ [INFO] Google STT erfolgreich über Render-Umgebungsvariable konfiguriert.");
     } else {
         console.log("⚠️ [INFO] Keine GOOGLE_CREDENTIALS gefunden. Spracherkennung läuft im Passiv-Modus.");
     }
@@ -101,7 +101,7 @@ let cloudStorage = {
         modLogChannelId: null, 
         liveStatusChannelId: null, 
         liveStatusMessageId: null,
-        autoRoleId: null, // NEU: AutoRole ID
+        autoRoleId: null, // AutoRole ID
         systemStatus: "🟢 AeroGuard Mega Cloud Network Engine Online | Premium TTS & Welcome System Active",
         whitelistedUsers: [OWNER_ID],
         authorizedSupporters: [OWNER_ID],
@@ -260,7 +260,7 @@ const client = new Client({
 // GUILD MEMBER ADD (WELCOME MESSAGE & AUTOROLE ENGINE)
 // =========================================================================
 client.on('guildMemberAdd', async member => {
-    // 🟢 NEU: Autorole System
+    // 🟢 Autorole System
     const autoRoleId = cloudStorage.systemSettings.autoRoleId;
     if (autoRoleId) {
         try {
@@ -557,9 +557,8 @@ async function playTTS(voiceChannel, textToSpeak, keepAlive = false) {
 function startGoogleCloudSTTStream(connection, targetUserId, supporterUser) {
     if (!connection || !supporterUser) return;
 
-    // 🟢 NEU: Warnung an den Supporter, falls Google STT nicht konfiguriert ist!
     if (!speechClient || !prism) {
-        supporterUser.send(`⚠️ **System-Warnung:** Die Google Cloud STT API (Spracherkennung) ist auf dem Server nicht korrekt konfiguriert (google-credentials.json fehlt). Die Stimme des Users kann momentan nicht in Text umgewandelt werden!`).catch(()=>{});
+        supporterUser.send(`⚠️ **System-Warnung:** Die Google Cloud STT API (Spracherkennung) ist auf dem Server nicht korrekt konfiguriert (GOOGLE_CREDENTIALS fehlen). Die Stimme des Users kann momentan nicht in Text umgewandelt werden!`).catch(()=>{});
         return;
     }
 
@@ -588,10 +587,10 @@ function startGoogleCloudSTTStream(connection, targetUserId, supporterUser) {
                 if (data.results[0] && data.results[0].alternatives[0]) {
                     const transcript = data.results[0].alternatives[0].transcript.trim();
                     
-                    // 🟢 NEU: Speichere das Voice-Transkript auch im HTML-Protokoll
+                    // Speichere das Voice-Transkript auch im HTML-Protokoll
                     logTicketMessage(targetUserId, "VOICE (Spieler)", transcript, false);
                     
-                    // Sende das Zitat direkt an den Supporter, um Caching-Fehler zu vermeiden
+                    // Sende das Zitat direkt an den Supporter
                     supporterUser.send(`🗣️ **[LIVE-VOICE] Der hilfebedürftige Spieler sagt:**\n> *"${transcript}"*`).catch(()=>{});
                 }
             });
@@ -1177,7 +1176,6 @@ client.on('interactionCreate', async interaction => {
             return interaction.reply({ content: '🔒 **Zugriff verweigert:** Dein Benutzerkonto verfügt nicht über die erforderlichen administrativen Schlüssel.', ephemeral: true });
         }
 
-        // 🟢 NEU: Autorole Command
         if (commandName === 'setup-autorole') {
             const rolle = interaction.options.getRole('rolle');
             cloudStorage.systemSettings.autoRoleId = rolle.id;
@@ -1290,7 +1288,6 @@ client.on('interactionCreate', async interaction => {
             }
         }
 
-        // 🟢 NEU: Erweiterter Supporter-Command (Weist automatisch die Rolle zu)
         if (commandName === 'supporter') {
             const aktion = interaction.options.getString('aktion');
             const targetUser = interaction.options.getUser('target');
