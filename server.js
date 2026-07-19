@@ -1,3 +1,7 @@
+// =========================================================================
+// UPDATE: 19.07.2026 - AeroGuard Core Update Force Sync (Inkl. Blacklist & /close)
+// =========================================================================
+
 const express = require('express');
 const { 
     Client, 
@@ -79,7 +83,7 @@ let cloudStorage = {
     serverBackups: {},
     ticketTranscripts: {},
     supporterKPIs: {},
-    globalBlacklist: [],
+    globalBlacklist: [], // Hier wird die Ticket-Blacklist gespeichert
     clanDatabase: {},
     activeBets: {},
     keywordAutoReplies: {},
@@ -170,6 +174,9 @@ function loadCloudVaultFromDisk() {
             const parsedData = JSON.parse(rawData);
             cloudStorage = { ...cloudStorage, ...parsedData };
             cloudStorage.systemSettings = { ...cloudStorage.systemSettings, ...parsedData.systemSettings };
+            
+            if (!cloudStorage.globalBlacklist) cloudStorage.globalBlacklist = [];
+            
             console.log("🟩 [AEROGUARD CLOUD] Cloud-Datenbank erfolgreich wiederhergestellt! Konfigurationen geladen.");
         } else {
             console.log("⚠️ [AEROGUARD CLOUD] Keine bestehende Cloud-Datenbank gefunden. Initialisiere leere Master-Matrix...");
@@ -940,14 +947,14 @@ client.on('interactionCreate', async interaction => {
 
         const controlEmbed = new EmbedBuilder()
             .setTitle(`⚙️ TICKET STEUERUNGS-ZENTRALE (#${ticket.ticketNum})`)
-            .setDescription(`Ticket übernommen von: **${interaction.user.tag}**\n\nDu bist nun live verbunden. Jede Nachricht, die du hier schreibst, wird direkt als sicheres Text-Zitat an den User gesendet. Verwende die Buttons unten, um das Ticket zu steuern oder Schnell-Antworten (Makros) an den User zu senden.`)
+            .setDescription(`Ticket übernommen von: **${interaction.user.tag}**\n\nDu bist nun live verbunden. Jede Nachricht, die du hier schreibst, wird direkt als sicheres Text-Zitat an den User gesendet. Verwende die Buttons unten oder schreibe einfach \`/close\` in den Chat, um das Ticket schnell zu beenden.`)
             .addFields(
                 { name: '👤 Antragssteller', value: `${ticket.username}`, inline: true },
                 { name: '🔮 Kategorie Sektor', value: `${ticket.category}`, inline: true },
                 { name: '📝 Grund der Eröffnung', value: `*" ${ticket.reason} "*` }
             )
             .setColor(0x00f5d4)
-            .setFooter({ text: 'AeroGuard Cloud Dynamic Bridge Node v22' })
+            .setFooter({ text: 'AeroGuard Cloud Dynamic Bridge Node v23' })
             .setTimestamp();
 
         await interaction.followUp({ embeds: [controlEmbed], components: [controlRow, macroRow], ephemeral: true }).catch(() => {});
@@ -1086,6 +1093,11 @@ client.on('interactionCreate', async interaction => {
         const catId = parts[3]; 
         const gId = parts[4]; 
         const userId = interaction.user.id;
+
+        // 🟢 NEU: BLACKLIST CHECK VOR TICKET-ERSTELLUNG
+        if (cloudStorage.globalBlacklist && cloudStorage.globalBlacklist.includes(userId)) {
+            return interaction.reply({ content: '🚫 **Zugriff verweigert:** Du wurdest von der Administration auf die Blacklist gesetzt und kannst das Ticket-System nicht mehr nutzen.', ephemeral: true });
+        }
         
         if (catId === 'team') {
             cloudStorage.activeApplications[userId] = { step: 0, answers: [], guildId: gId };
@@ -1170,10 +1182,28 @@ client.on('interactionCreate', async interaction => {
         const userId = interaction.user.id;
         const isWhitelisted = cloudStorage.systemSettings.whitelistedUsers.includes(userId);
 
-        const adminCmds = ['status', 'restart', 'clear', 'warn', 'setup-ticketpanel', 'setup-voicesupport', 'setup-infohub', 'poll', 'rbx-shout', 'rbx-serverlogs', 'rbx-shutdown', 'setup-voiceannounce', 'clan-war', 'rbx-savedata', 'rbx-cleardata', 'nuke', 'lockdown', 'unlockdown', 'slowmode', 'addrole', 'removerole', 'set-placeid', 'mute', 'unmute', 'warnlist', 'clearwarns', 'lockchannel', 'unlockchannel', 'dm', 'whitelist', 'supporter', 'setup-modlog', 'backup-server', 'give-premium', 'setup-welcome', 'setup-livestatus', 'setup-autorole'];
+        const adminCmds = ['status', 'restart', 'clear', 'warn', 'setup-ticketpanel', 'setup-voicesupport', 'setup-infohub', 'poll', 'rbx-shout', 'rbx-serverlogs', 'rbx-shutdown', 'setup-voiceannounce', 'clan-war', 'rbx-savedata', 'rbx-cleardata', 'nuke', 'lockdown', 'unlockdown', 'slowmode', 'addrole', 'removerole', 'set-placeid', 'mute', 'unmute', 'warnlist', 'clearwarns', 'lockchannel', 'unlockchannel', 'dm', 'whitelist', 'supporter', 'setup-modlog', 'backup-server', 'give-premium', 'setup-welcome', 'setup-livestatus', 'setup-autorole', 'blacklist'];
         
         if (adminCmds.includes(commandName) && !isWhitelisted) {
             return interaction.reply({ content: '🔒 **Zugriff verweigert:** Dein Benutzerkonto verfügt nicht über die erforderlichen administrativen Schlüssel.', ephemeral: true });
+        }
+
+        // 🟢 NEU: BLACKLIST SLASH-COMMAND LOGIK
+        if (commandName === 'blacklist') {
+            const aktion = interaction.options.getString('aktion');
+            const target = interaction.options.getUser('target');
+            
+            if (aktion === 'add') {
+                if (!cloudStorage.globalBlacklist.includes(target.id)) {
+                    cloudStorage.globalBlacklist.push(target.id);
+                }
+                saveCloudVaultToDisk();
+                return interaction.reply(`🚫 ${target} wurde auf die Blacklist gesetzt und kann ab sofort keine Support-Tickets mehr erstellen.`);
+            } else if (aktion === 'remove') {
+                cloudStorage.globalBlacklist = cloudStorage.globalBlacklist.filter(id => id !== target.id);
+                saveCloudVaultToDisk();
+                return interaction.reply(`✅ ${target} wurde von der Blacklist entfernt und kann wieder Tickets erstellen.`);
+            }
         }
 
         if (commandName === 'setup-autorole') {
@@ -1770,6 +1800,29 @@ client.on('messageCreate', async message => {
             return message.author.send('❌ Fehler: Die Zielsitzung wurde bereits aufgelöst.');
         }
 
+        // 🟢 NEU: TICKET SCHNELL BEENDEN PER /CLOSE TEXT COMMAND
+        if (message.content.trim().toLowerCase() === '/close') {
+            getKPI(suppId).closed += 1; 
+            
+            const closedEmbed = new EmbedBuilder()
+                .setTitle(`🟥 TICKET GESCHLOSSEN`)
+                .setDescription(`Der Datentunnel zu **${ticket?.username || 'Unbekannt'}** wurde von dir per Schnell-Befehl beendet und gelöscht.`)
+                .setColor(0xff0000)
+                .setTimestamp();
+
+            await message.author.send({ embeds: [closedEmbed] });
+            
+            try { 
+                const targetUserObj = await client.users.fetch(currentTargetUserId);
+                if (targetUserObj) await targetUserObj.send('🔒 Dein AeroGuard Support-Tunnel wurde von der Administration geschlossen und archiviert. Vielen Dank für deine Anfrage!'); 
+            } catch(e){}
+            
+            delete cloudStorage.activeTickets[currentTargetUserId]; 
+            delete cloudStorage.ownerActiveSession[suppId];
+            saveCloudVaultToDisk();
+            return;
+        }
+
         if (message.content.trim().toLowerCase() === '/panel' || message.content.trim().toLowerCase() === '/pennel') {
             const controlRow = new ActionRowBuilder().addComponents(
                 new ButtonBuilder().setCustomId(`dm_panel_close_${currentTargetUserId}`).setLabel('🟥 Ticket schließen').setStyle(ButtonStyle.Danger),
@@ -1897,7 +1950,9 @@ const extendedCommandDefinitions = [
     new SlashCommandBuilder().setName('give-premium').setDescription('Gibt einem User manuell den Premium-Status (Admin)').addUserOption(o => o.setName('target').setDescription('Nutzer').setRequired(true)),
     new SlashCommandBuilder().setName('setup-welcome').setDescription('Legt den Kanal fest, in dem der Bot neue Spieler mit einem Embed begrüßt').addChannelOption(o => o.setName('kanal').setDescription('Kanal wählen').setRequired(true)),
     new SlashCommandBuilder().setName('setup-livestatus').setDescription('Richtet ein Live-Embed ein, das die Roblox Spielerzahlen in Echtzeit synchronisiert'),
-    new SlashCommandBuilder().setName('setup-autorole').setDescription('Legt die automatische Rolle (z.B. verifiziert) beim Server-Beitritt fest').addRoleOption(o => o.setName('rolle').setDescription('Die Rolle, die neue User erhalten').setRequired(true))
+    new SlashCommandBuilder().setName('setup-autorole').setDescription('Legt die automatische Rolle (z.B. verifiziert) beim Server-Beitritt fest').addRoleOption(o => o.setName('rolle').setDescription('Die Rolle, die neue User erhalten').setRequired(true)),
+    // 🟢 NEU: BLACKLIST SLASH COMMAND
+    new SlashCommandBuilder().setName('blacklist').setDescription('Sperrt oder entsperrt einen Nutzer für das Ticket-System').addStringOption(o => o.setName('aktion').setDescription('add/remove').setRequired(true)).addUserOption(o => o.setName('target').setDescription('Nutzer').setRequired(true))
 ].map(cmd => cmd.toJSON());
 
 async function deployExtendedCommands(guildId) {
