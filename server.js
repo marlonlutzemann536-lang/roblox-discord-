@@ -29,17 +29,25 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-// Optionale High-End Module für STT
+// =========================================================================
+// GOOGLE STT INITIALISIERUNG ÜBER UMWELTVARIABLE
+// =========================================================================
 let speechClient = null;
 let prism = null;
 try {
     const speech = require('@google-cloud/speech');
     prism = require('prism-media');
-    if (fs.existsSync(path.join(__dirname, 'google-credentials.json'))) {
-        speechClient = new speech.SpeechClient({ keyFilename: path.join(__dirname, 'google-credentials.json') });
+    
+    // Wir lesen die Daten direkt aus der Umgebungsvariable
+    if (process.env.GOOGLE_CREDENTIALS) {
+        const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
+        speechClient = new speech.SpeechClient({ credentials });
+        console.log("✅ [INFO] Google STT erfolgreich über Umgebungsvariable konfiguriert.");
+    } else {
+        console.log("⚠️ [INFO] Keine GOOGLE_CREDENTIALS gefunden. Spracherkennung läuft im Passiv-Modus.");
     }
 } catch (e) {
-    console.log("ℹ️ [INFO] Google STT oder Prism-Media nicht gefunden/konfiguriert. Voice-to-Text läuft im passiven Standby.");
+    console.error("❌ [ERROR] Fehler bei der STT-Initialisierung:", e.message);
 }
 
 const app = express();
