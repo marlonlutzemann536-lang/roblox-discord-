@@ -43,6 +43,8 @@ try {
 }
 
 const app = express();
+// Middleware für JSON-Parsing des Roblox-Skripts
+app.use(express.json());
 const port = process.env.PORT || 3000;
 
 // =========================================================================
@@ -83,12 +85,14 @@ let cloudStorage = {
     autoModStrikes: {},
     verifiedRobloxUsers: {}, 
     ticketMessageLogs: {},
-    premiumUsers: [], // NEU: Premium-Kunden Datenbank   
+    premiumUsers: [], 
     systemSettings: {
         ticketCounter: 0,
         robloxPlaceId: "98791725510246", 
-        welcomeChannelId: null, // NEU: Welcome Channel ID
+        welcomeChannelId: null, 
         modLogChannelId: null, 
+        liveStatusChannelId: null, 
+        liveStatusMessageId: null, 
         systemStatus: "🟢 AeroGuard Mega Cloud Network Engine Online | Premium TTS & Welcome System Active",
         whitelistedUsers: [OWNER_ID],
         authorizedSupporters: [OWNER_ID],
@@ -233,7 +237,7 @@ function addLog(type, message) {
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMembers, // Erforderlich für Welcome Message!
+        GatewayIntentBits.GuildMembers, 
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.DirectMessages,
@@ -459,9 +463,8 @@ async function sendCentralTicketPanel(user) {
 }
 
 // =========================================================================
-// PREMIUM GOOGLE CLOUD TTS ENGINE (MIT DEINEM API KEY & KEEP-ALIVE FIX)
+// PREMIUM GOOGLE CLOUD TTS ENGINE
 // =========================================================================
-// Neu: keepAlive Parameter. Wenn true, verlässt der Bot den Kanal am Ende nicht!
 async function playTTS(voiceChannel, textToSpeak, keepAlive = false) {
     try {
         const connection = joinVoiceChannel({
@@ -492,7 +495,6 @@ async function playTTS(voiceChannel, textToSpeak, keepAlive = false) {
             connection.subscribe(player);
 
             player.on(AudioPlayerStatus.Idle, () => {
-                // HIER IST DER FIX! Wenn keepAlive = true, trennt er die Verbindung NICHT!
                 if (!keepAlive) {
                     setTimeout(() => {
                         if (connection.state.status !== 'destroyed') {
@@ -503,7 +505,7 @@ async function playTTS(voiceChannel, textToSpeak, keepAlive = false) {
                 }
                 
                 if (fs.existsSync(tempFilePath)) {
-                    fs.unlinkSync(tempFilePath); // Cleanup des Audiofiles
+                    fs.unlinkSync(tempFilePath); 
                 }
             });
         } catch (apiError) {
@@ -526,35 +528,54 @@ async function playTTS(voiceChannel, textToSpeak, keepAlive = false) {
     }
 }
 
-// Die ECHTE Google Cloud STT Schnittstelle
+// =========================================================================
+// ECHTE GOOGLE CLOUD STT SCHNITTSTELLE (GEFIXT FÜR DISCORD STEREO)
+// =========================================================================
 function startGoogleCloudSTTStream(connection, targetUserId, supporterUser) {
     if (!connection || !supporterUser) return;
 
     try {
         const receiver = connection.receiver;
+        // Hört genau auf den Ziel-User und beendet den Stream nach 1,5s Stille
         const audioStream = receiver.subscribe(targetUserId, {
             end: { behavior: EndBehaviorType.AfterSilence, duration: 1500 }
         });
 
         if (speechClient && prism) {
             const request = {
-                config: { encoding: 'LINEAR16', sampleRateHertz: 48000, languageCode: 'de-DE' },
+                config: { 
+                    encoding: 'LINEAR16', 
+                    sampleRateHertz: 48000, 
+                    audioChannelCount: 2, // FIX: Discord sendet IMMER 2 Kanäle (Stereo)!
+                    languageCode: 'de-DE',
+                    enableAutomaticPunctuation: true // NEU: Baut Kommas und Punkte ein
+                },
                 interimResults: false,
             };
+
             const recognizeStream = speechClient.streamingRecognize(request)
-                .on('error', console.error)
+                .on('error', (err) => {
+                    // Ignoriert den harmlosen "Code 11" Timeout-Fehler von Google
+                    if(err.code !== 11) console.error("STT Error:", err.message); 
+                })
                 .on('data', data => {
                     if (data.results[0] && data.results[0].alternatives[0]) {
                         const transcript = data.results[0].alternatives[0].transcript;
-                        supporterUser.send(`🗣️ **[Voice-Bridge]** Der User sagt:\n*" ${transcript} "*`).catch(()=>{});
+                        // Sende das extrem saubere Zitat direkt an den Supporter
+                        supporterUser.send(`🗣️ **[LIVE-VOICE] Der User sagt:**\n> *"${transcript.trim()}"*`).catch(()=>{});
                     }
                 });
 
-            const opusDecoder = new prism.opus.Decoder({ rate: 48000, channels: 1, frameSize: 960 });
+            // FIX: Der Decoder muss die Pakete zwingend auf 2 Kanälen verarbeiten!
+            const opusDecoder = new prism.opus.Decoder({ rate: 48000, channels: 2, frameSize: 960 });
+            
+            // Leite die Audio-Daten durch den Decoder zur Google KI
             audioStream.pipe(opusDecoder).pipe(recognizeStream);
 
+            // Wenn der User aufhört zu reden (nach 1,5s Stille)
             audioStream.on('end', () => {
                 if (cloudStorage.activeVoiceSessions[supporterUser.id]) {
+                    // Startet die Lausch-Funktion sofort wieder neu, sobald er den nächsten Satz anfängt
                     startGoogleCloudSTTStream(connection, targetUserId, supporterUser); 
                 }
             });
@@ -606,7 +627,6 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
             addLog('info', `Support benötigt: ${member.user.tag} wartet im ${channel.name}.`);
             
             setTimeout(async () => {
-                // keepAlive = false -> Er verlässt den Raum nach der Ansage im Warteraum!
                 await playTTS(channel, cloudStorage.systemSettings.voiceAnnounceWaiting, false);
             }, 1000);
 
@@ -666,7 +686,7 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
 });
 
 // =========================================================================
-// MOD-LOG SNAPSHOT ENGINE (Beweissicherung & Deep ID Tracking)
+// MOD-LOG SNAPSHOT ENGINE
 // =========================================================================
 async function sendModLogSnapshot(guild, offender, reason, originChannel) {
     const modLogId = cloudStorage.systemSettings.modLogChannelId;
@@ -705,7 +725,7 @@ async function sendModLogSnapshot(guild, offender, reason, originChannel) {
 }
 
 // =========================================================================
-// MILITÄRISCHES CHAT-AUTOMOD, ANTI-RAID & ANTI-SPAM MATRIX
+// CHAT-AUTOMOD, ANTI-RAID & ANTI-SPAM
 // =========================================================================
 client.on('messageCreate', async message => {
     if (message.author.bot || !message.guild) return;
@@ -889,34 +909,65 @@ client.on('interactionCreate', async interaction => {
         await interaction.editReply({ embeds: [originalEmbed], components: [disabledRow] }).catch(()=>{});
 
         const controlRow = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId(`dm_panel_close_${targetUserId}`).setLabel('🟥 Ticket schließen').setStyle(ButtonStyle.Danger),
-            new ButtonBuilder().setCustomId(`dm_panel_transfer_${targetUserId}`).setLabel('🟨 In Warteschleife freigeben').setStyle(ButtonStyle.Warning),
-            new ButtonBuilder().setCustomId(`dm_panel_transcript_${targetUserId}`).setLabel('📝 Transkript generieren').setStyle(ButtonStyle.Secondary)
+            new ButtonBuilder().setCustomId(`dm_panel_close_${targetUserId}`).setLabel('🟥 Schließen').setStyle(ButtonStyle.Danger),
+            new ButtonBuilder().setCustomId(`dm_panel_transfer_${targetUserId}`).setLabel('🟨 In Warteschleife').setStyle(ButtonStyle.Warning),
+            new ButtonBuilder().setCustomId(`dm_panel_transcript_${targetUserId}`).setLabel('📝 Transkript').setStyle(ButtonStyle.Secondary)
+        );
+
+        const macroRow = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId(`dm_macro_hello_${targetUserId}`).setLabel('👋 Begrüßung').setStyle(ButtonStyle.Primary),
+            new ButtonBuilder().setCustomId(`dm_macro_wait_${targetUserId}`).setLabel('⏳ Bitte warten').setStyle(ButtonStyle.Primary),
+            new ButtonBuilder().setCustomId(`dm_macro_done_${targetUserId}`).setLabel('✅ Erledigt').setStyle(ButtonStyle.Success)
         );
 
         const controlEmbed = new EmbedBuilder()
             .setTitle(`⚙️ TICKET STEUERUNGS-ZENTRALE (#${ticket.ticketNum})`)
-            .setDescription(`Ticket übernommen von: **${interaction.user.tag}**\n\nDu bist nun live verbunden. Jede Nachricht, die du hier schreibst, wird direkt an den User gesendet. Verwende die Buttons unten, um das Ticket zu steuern. (Oder tippe \`/panel\` im Chat).`)
+            .setDescription(`Ticket übernommen von: **${interaction.user.tag}**\n\nDu bist nun live verbunden. Jede Nachricht, die du hier schreibst, wird direkt als sicheres Text-Zitat an den User gesendet. Verwende die Buttons unten, um das Ticket zu steuern oder Schnell-Antworten (Makros) an den User zu senden.`)
             .addFields(
                 { name: '👤 Antragssteller', value: `${ticket.username}`, inline: true },
                 { name: '🔮 Kategorie Sektor', value: `${ticket.category}`, inline: true },
                 { name: '📝 Grund der Eröffnung', value: `*" ${ticket.reason} "*` }
             )
             .setColor(0x00f5d4)
-            .setFooter({ text: 'AeroGuard Cloud Dynamic Bridge Node v21' })
+            .setFooter({ text: 'AeroGuard Cloud Dynamic Bridge Node v22' })
             .setTimestamp();
 
-        await interaction.followUp({ embeds: [controlEmbed], components: [controlRow], ephemeral: true }).catch(() => {});
+        await interaction.followUp({ embeds: [controlEmbed], components: [controlRow, macroRow], ephemeral: true }).catch(() => {});
         
         try { 
             const userObj = await client.users.fetch(targetUserId);
             if (userObj) await userObj.send({
                 embeds: [new EmbedBuilder()
                     .setTitle('🟩 TICKET ÜBERNOMMEN')
-                    .setDescription(`Ein Projektleiter ist nun für dich da!\n\n**Ticket übernommen von:** \`${interaction.user.tag}\``)
+                    .setDescription(`Ein Projektleiter ist nun live im Chat für dich da!\n\n**Ticket übernommen von:** \`${interaction.user.tag}\`\n\n*(Alles was du jetzt schreibst, wird direkt an den Supporter weitergeleitet)*`)
                     .setColor(0x00f5d4)]
             }); 
         } catch(e){}
+        return;
+    }
+
+    if (interaction.isButton() && interaction.customId.startsWith('dm_macro_')) {
+        await interaction.deferUpdate().catch(() => {});
+        const parts = interaction.customId.split('_');
+        const macroType = parts[2];
+        const targetUserId = parts[3];
+
+        try {
+            const userObj = await client.users.fetch(targetUserId);
+            let replyText = "";
+
+            if (macroType === 'hello') replyText = `👋 Hallo! Ich habe dein Ticket soeben übernommen. Wie genau kann ich dir bei deinem Problem helfen?`;
+            if (macroType === 'wait') replyText = `⏳ Ich überprüfe das System gerade für dich. Bitte gib mir einen kurzen Moment Zeit.`;
+            if (macroType === 'done') replyText = `✅ Alles klar, ich habe den Fehler behoben. Gibt es sonst noch etwas, bei dem ich dir helfen kann?`;
+
+            if (userObj) {
+                logTicketMessage(targetUserId, interaction.user.tag, replyText, true);
+                await userObj.send(`🛡️ **Supporter ${interaction.user.username} antwortet:**\n> ${replyText}`);
+                await interaction.followUp({ content: `✅ Makro gesendet: *"${replyText}"*`, ephemeral: true });
+            }
+        } catch(e) {
+            await interaction.followUp({ content: '❌ Fehler beim Senden des Makros.', ephemeral: true });
+        }
         return;
     }
 
@@ -941,7 +992,7 @@ client.on('interactionCreate', async interaction => {
             
             try { 
                 const targetUserObj = await client.users.fetch(targetUserId);
-                if (targetUserObj) await targetUserObj.send('🔒 Dein AeroGuard Support-Tunnel wurde von der Administration geschlossen und archiviert.'); 
+                if (targetUserObj) await targetUserObj.send('🔒 Dein AeroGuard Support-Tunnel wurde von der Administration geschlossen und archiviert. Vielen Dank für deine Anfrage!'); 
             } catch(e){}
             
             delete cloudStorage.activeTickets[targetUserId]; 
@@ -1088,7 +1139,6 @@ client.on('interactionCreate', async interaction => {
             
             await interaction.editReply({ content: `✅ Schaltung erfolgreich durchgeführt!`, embeds: [lockedEmbed], components: [] });
             
-            // keepAlive = true -> Er verlässt den Raum NICHT, um die Bridge aufrecht zu erhalten!
             const voiceConnection = await playTTS(privateSupportChannel, cloudStorage.systemSettings.voiceAnnounceClaimed, true);
             startGoogleCloudSTTStream(voiceConnection, targetUserId, interaction.user);
 
@@ -1102,13 +1152,20 @@ client.on('interactionCreate', async interaction => {
         const userId = interaction.user.id;
         const isWhitelisted = cloudStorage.systemSettings.whitelistedUsers.includes(userId);
 
-        const adminCmds = ['status', 'restart', 'clear', 'warn', 'setup-ticketpanel', 'setup-voicesupport', 'setup-infohub', 'poll', 'rbx-shout', 'rbx-serverlogs', 'rbx-shutdown', 'setup-voiceannounce', 'clan-war', 'rbx-savedata', 'rbx-cleardata', 'nuke', 'lockdown', 'unlockdown', 'slowmode', 'addrole', 'removerole', 'set-placeid', 'mute', 'unmute', 'warnlist', 'clearwarns', 'lockchannel', 'unlockchannel', 'dm', 'whitelist', 'supporter', 'setup-modlog', 'backup-server', 'give-premium', 'setup-welcome'];
+        const adminCmds = ['status', 'restart', 'clear', 'warn', 'setup-ticketpanel', 'setup-voicesupport', 'setup-infohub', 'poll', 'rbx-shout', 'rbx-serverlogs', 'rbx-shutdown', 'setup-voiceannounce', 'clan-war', 'rbx-savedata', 'rbx-cleardata', 'nuke', 'lockdown', 'unlockdown', 'slowmode', 'addrole', 'removerole', 'set-placeid', 'mute', 'unmute', 'warnlist', 'clearwarns', 'lockchannel', 'unlockchannel', 'dm', 'whitelist', 'supporter', 'setup-modlog', 'backup-server', 'give-premium', 'setup-welcome', 'setup-livestatus'];
         
         if (adminCmds.includes(commandName) && !isWhitelisted) {
             return interaction.reply({ content: '🔒 **Zugriff verweigert:** Dein Benutzerkonto verfügt nicht über die erforderlichen administrativen Schlüssel.', ephemeral: true });
         }
 
-        // --- NEW: PREMIUM SYSTEM COMMANDS ---
+        if (commandName === 'setup-livestatus') {
+            const channelSelect = new ChannelSelectMenuBuilder()
+                .setCustomId('live_status_channel_select')
+                .setPlaceholder('Kanal für Live-Status wählen...')
+                .addChannelTypes(ChannelType.GuildText);
+            return interaction.reply({ content: '📊 **AeroGuard Core-Setup:** Wähle den Zielkanal für das synchronisierte Live-Status Panel:', components: [new ActionRowBuilder().addComponents(channelSelect)], ephemeral: true });
+        }
+
         if (commandName === 'buy-premium') {
             const embed = new EmbedBuilder()
                 .setTitle('💎 AeroGuard Premium-Lizenz')
@@ -1141,7 +1198,6 @@ client.on('interactionCreate', async interaction => {
             return interaction.reply(`💎 Admin-Override: ${target} hat nun manuell den Premium-Status erhalten.`);
         }
 
-        // --- NEW: WELCOME SETUP ---
         if (commandName === 'setup-welcome') {
             const ch = interaction.options.getChannel('kanal');
             cloudStorage.systemSettings.welcomeChannelId = ch.id;
@@ -1498,6 +1554,26 @@ client.on('interactionCreate', async interaction => {
         return await interaction.reply({ content: `🟩 **Mod-Log verankert:** Snapshots und Beweisfotos werden ab sofort in <#${selectedChannelId}> gespeichert!`, ephemeral: true });
     }
 
+    if (interaction.isChannelSelectMenu() && interaction.customId === 'live_status_channel_select') {
+        const selectedChannelId = interaction.values[0];
+        try {
+            const targetChannel = await interaction.guild.channels.fetch(selectedChannelId);
+            if (targetChannel) {
+                const statusEmbed = new EmbedBuilder()
+                    .setTitle('🔴 ROBLOX LIVE-STATUS SEKTOR')
+                    .setDescription('Wartet auf erste Synchronisation vom Roblox-Server...')
+                    .setColor(0x00f5d4);
+                const msg = await targetChannel.send({ embeds: [statusEmbed] });
+                
+                cloudStorage.systemSettings.liveStatusChannelId = selectedChannelId;
+                cloudStorage.systemSettings.liveStatusMessageId = msg.id;
+                saveCloudVaultToDisk();
+
+                return await interaction.reply({ content: `🟩 **Live-Status Panel erfolgreich verankert!** Sobald das Roblox-Skript funkt, aktualisiert sich die Anzeige hier.`, ephemeral: true });
+            }
+        } catch(e) { return interaction.reply({ content: `❌ Fehler: ${e.message}`, ephemeral: true }); }
+    }
+
     if (interaction.isChannelSelectMenu() && interaction.customId === 'ticket_hub_panel_channel_select') {
         const selectedChannelId = interaction.values[0];
         try {
@@ -1624,7 +1700,7 @@ client.on('messageCreate', async message => {
             }
 
             if (targetChannel) {
-                await playTTS(targetChannel, message.content, true); // keepAlive = true
+                await playTTS(targetChannel, message.content, true); 
                 await message.react('🎙️');
             } else {
                 delete cloudStorage.activeVoiceSessions[suppId];
@@ -1663,10 +1739,7 @@ client.on('messageCreate', async message => {
             const userObj = await client.users.fetch(currentTargetUserId);
             if (userObj) {
                 logTicketMessage(currentTargetUserId, message.author.tag, message.content, true);
-
-                await userObj.send({ 
-                    embeds: [new EmbedBuilder().setTitle('🌌 AeroGuard Sektor-Antwort').setDescription(message.content).setColor(0x9d4edd).setFooter({ text: `Bearbeiter: ${message.author.username}` }).setTimestamp()] 
-                }); 
+                await userObj.send(`🛡️ **Supporter ${message.author.username} antwortet:**\n> ${message.content}`); 
                 await message.react('✉️');
             }
         } catch(e) {
@@ -1685,15 +1758,17 @@ client.on('messageCreate', async message => {
                     const supp = await client.users.fetch(ticket.claimedBy); 
                     if (supp) {
                         logTicketMessage(userId, message.author.tag, message.content, false);
-
-                        await supp.send({ 
-                            embeds: [new EmbedBuilder().setTitle(`💬 Live-Übertragung von ${message.author.username}`).setDescription(message.content).setColor(0x00f5d4).setTimestamp()] 
-                        }); 
+                        await supp.send(`🗣️ **[LIVE-CHAT] Nachricht von ${message.author.username}:**\n> ${message.content}`);
                         await message.react('✅'); 
                     }
                 } catch(e){}
             } else {
-                await message.reply('⏳ **AeroGuard Warteschleife:** Dein Datentunnel ist aktiv, aber noch kein Supporter hat deine Leitung übernommen. Bitte hab einen kurzen Moment Geduld.');
+                const waitMsgs = [
+                    "⏳ **Warteschleife:** Wir haben deine Nachricht sicher in der Datenbank gespeichert. Bitte warte auf einen Supporter.",
+                    "⏳ **AeroGuard System:** Dein Datentunnel ist aktiv. Ein Agent wird sich gleich um dich kümmern.",
+                    "⏳ **Info:** Die Projektleitung wurde über deine neue Nachricht informiert. Halte dich bereit."
+                ];
+                await message.reply(waitMsgs[Math.floor(Math.random() * waitMsgs.length)]);
             }
             return;
         }
@@ -1771,12 +1846,11 @@ const extendedCommandDefinitions = [
     new SlashCommandBuilder().setName('supporter').setDescription('Verwalte die Support-Berechtigungen').addStringOption(o => o.setName('aktion').setDescription('add/remove').setRequired(true)).addUserOption(o => o.setName('target').setDescription('Nutzer').setRequired(true)),
     new SlashCommandBuilder().setName('backup-server').setDescription('Erstellt ein massives JSON-Cloud-Backup der gesamten Server-Struktur (Rollen & Kanäle)'),
     new SlashCommandBuilder().setName('verify').setDescription('Verknüpft deinen Discord-Account offiziell mit deinem Roblox-Profil').addStringOption(o => o.setName('roblox_name').setDescription('Dein genauer Roblox Benutzername').setRequired(true)),
-    
-    // NEUE PREMIUM BEFEHLE
     new SlashCommandBuilder().setName('buy-premium').setDescription('Zeigt dir den Stripe-Link an, um Premium-Funktionen freizuschalten'),
     new SlashCommandBuilder().setName('premium-status').setDescription('Zeigt an, ob dein Account als Premium registriert ist'),
     new SlashCommandBuilder().setName('give-premium').setDescription('Gibt einem User manuell den Premium-Status (Admin)').addUserOption(o => o.setName('target').setDescription('Nutzer').setRequired(true)),
-    new SlashCommandBuilder().setName('setup-welcome').setDescription('Legt den Kanal fest, in dem der Bot neue Spieler mit einem Embed begrüßt').addChannelOption(o => o.setName('kanal').setDescription('Kanal wählen').setRequired(true))
+    new SlashCommandBuilder().setName('setup-welcome').setDescription('Legt den Kanal fest, in dem der Bot neue Spieler mit einem Embed begrüßt').addChannelOption(o => o.setName('kanal').setDescription('Kanal wählen').setRequired(true)),
+    new SlashCommandBuilder().setName('setup-livestatus').setDescription('Richtet ein Live-Embed ein, das die Roblox Spielerzahlen in Echtzeit synchronisiert')
 ].map(cmd => cmd.toJSON());
 
 async function deployExtendedCommands(guildId) {
@@ -1810,17 +1884,41 @@ app.get('/', async (req, res) => {
     res.send(`<html><body style="background:#06040c;color:white;font-family:sans-serif;padding:30px;"><h1>🌌 AeroGuard Ultimate Cloud Matrix</h1><p>Status: Online (Persistent)</p></body></html>`);
 });
 
-// STRIPE WEBHOOK EMPFÄNGER (Grundgerüst für automatische Premium-Freischaltung)
 app.post('/api/webhook/stripe', (req, res) => {
-    // Hier empfängt dein Bot in Zukunft vollautomatisch die Kaufbestätigung von Stripe
-    // req.body enthält dann die Infos (Wer hat bezahlt, Discord ID etc.)
     console.log("Stripe Webhook Ping empfangen!");
     res.status(200).send("Webhook erhalten");
 });
 
-app.post('/update-status', (req, res) => {
-    currentPlayersCount = req.body.currentPlayers || 0; maxPlayersCount = req.body.maxPlayers || 0;
-    res.status(200).json({ success: true, shouldRestart: restartRequested }); if (restartRequested) restartRequested = false;
+app.post('/update-status', async (req, res) => {
+    currentPlayersCount = req.body.currentPlayers || 0; 
+    maxPlayersCount = req.body.maxPlayers || 0;
+    
+    if (cloudStorage.systemSettings.liveStatusChannelId && cloudStorage.systemSettings.liveStatusMessageId) {
+        try {
+            const channel = await client.channels.fetch(cloudStorage.systemSettings.liveStatusChannelId);
+            if (channel) {
+                const msg = await channel.messages.fetch(cloudStorage.systemSettings.liveStatusMessageId);
+                if (msg) {
+                    const statusEmbed = new EmbedBuilder()
+                        .setTitle('🔴 ROBLOX LIVE-STATUS SEKTOR')
+                        .setDescription('Diese Anzeige synchronisiert sich in Echtzeit mit dem Roblox-Server.')
+                        .addFields(
+                            { name: '👥 Aktuelle Spieler', value: `\`${currentPlayersCount} / ${maxPlayersCount}\` Spieler online`, inline: true },
+                            { name: '⚙️ Server Status', value: currentPlayersCount > 0 ? '🟢 Aktiv' : '🟡 Standby', inline: true },
+                            { name: '🔄 Letzter Ping', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: false }
+                        )
+                        .setColor(0x00f5d4)
+                        .setTimestamp();
+                    await msg.edit({ embeds: [statusEmbed] });
+                }
+            }
+        } catch(e) {
+            console.log("ℹ️ [INFO] Konnte Live-Status Embed nicht updaten (eventuell gelöscht).");
+        }
+    }
+
+    res.status(200).json({ success: true, shouldRestart: restartRequested }); 
+    if (restartRequested) restartRequested = false;
 });
 
 client.login(process.env.DISCORD_TOKEN);
