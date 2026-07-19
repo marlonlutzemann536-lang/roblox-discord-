@@ -92,7 +92,8 @@ let cloudStorage = {
         welcomeChannelId: null, 
         modLogChannelId: null, 
         liveStatusChannelId: null, 
-        liveStatusMessageId: null, 
+        liveStatusMessageId: null,
+        autoRoleId: null, // NEU: AutoRole ID
         systemStatus: "🟢 AeroGuard Mega Cloud Network Engine Online | Premium TTS & Welcome System Active",
         whitelistedUsers: [OWNER_ID],
         authorizedSupporters: [OWNER_ID],
@@ -248,9 +249,23 @@ const client = new Client({
 });
 
 // =========================================================================
-// GUILD MEMBER ADD (WELCOME MESSAGE ENGINE)
+// GUILD MEMBER ADD (WELCOME MESSAGE & AUTOROLE ENGINE)
 // =========================================================================
 client.on('guildMemberAdd', async member => {
+    // 🟢 NEU: Autorole System
+    const autoRoleId = cloudStorage.systemSettings.autoRoleId;
+    if (autoRoleId) {
+        try {
+            const role = member.guild.roles.cache.get(autoRoleId);
+            if (role) {
+                await member.roles.add(role);
+                addLog('info', `Autorole ${role.name} an ${member.user.tag} vergeben.`);
+            }
+        } catch(e) {
+            addLog('error', `Fehler bei der Autorole-Vergabe: ${e.message}`);
+        }
+    }
+
     const welcomeId = cloudStorage.systemSettings.welcomeChannelId;
     if (!welcomeId) return;
 
@@ -534,58 +549,54 @@ async function playTTS(voiceChannel, textToSpeak, keepAlive = false) {
 function startGoogleCloudSTTStream(connection, targetUserId, supporterUser) {
     if (!connection || !supporterUser) return;
 
+    // 🟢 NEU: Warnung an den Supporter, falls Google STT nicht konfiguriert ist!
+    if (!speechClient || !prism) {
+        supporterUser.send(`⚠️ **System-Warnung:** Die Google Cloud STT API (Spracherkennung) ist auf dem Server nicht korrekt konfiguriert (google-credentials.json fehlt). Die Stimme des Users kann momentan nicht in Text umgewandelt werden!`).catch(()=>{});
+        return;
+    }
+
     try {
         const receiver = connection.receiver;
-        // Hört genau auf den Ziel-User und beendet den Stream nach 1,5s Stille
         const audioStream = receiver.subscribe(targetUserId, {
             end: { behavior: EndBehaviorType.AfterSilence, duration: 1500 }
         });
 
-        if (speechClient && prism) {
-            const request = {
-                config: { 
-                    encoding: 'LINEAR16', 
-                    sampleRateHertz: 48000, 
-                    audioChannelCount: 2, // FIX: Discord sendet IMMER 2 Kanäle (Stereo)!
-                    languageCode: 'de-DE',
-                    enableAutomaticPunctuation: true // NEU: Baut Kommas und Punkte ein
-                },
-                interimResults: false,
-            };
+        const request = {
+            config: { 
+                encoding: 'LINEAR16', 
+                sampleRateHertz: 48000, 
+                audioChannelCount: 2, 
+                languageCode: 'de-DE',
+                enableAutomaticPunctuation: true 
+            },
+            interimResults: false,
+        };
 
-            const recognizeStream = speechClient.streamingRecognize(request)
-                .on('error', (err) => {
-                    // Ignoriert den harmlosen "Code 11" Timeout-Fehler von Google
-                    if(err.code !== 11) console.error("STT Error:", err.message); 
-                })
-                .on('data', data => {
-                    if (data.results[0] && data.results[0].alternatives[0]) {
-                        const transcript = data.results[0].alternatives[0].transcript;
-                        // Sende das extrem saubere Zitat direkt an den Supporter
-                        supporterUser.send(`🗣️ **[LIVE-VOICE] Der User sagt:**\n> *"${transcript.trim()}"*`).catch(()=>{});
-                    }
-                });
-
-            // FIX: Der Decoder muss die Pakete zwingend auf 2 Kanälen verarbeiten!
-            const opusDecoder = new prism.opus.Decoder({ rate: 48000, channels: 2, frameSize: 960 });
-            
-            // Leite die Audio-Daten durch den Decoder zur Google KI
-            audioStream.pipe(opusDecoder).pipe(recognizeStream);
-
-            // Wenn der User aufhört zu reden (nach 1,5s Stille)
-            audioStream.on('end', () => {
-                if (cloudStorage.activeVoiceSessions[supporterUser.id]) {
-                    // Startet die Lausch-Funktion sofort wieder neu, sobald er den nächsten Satz anfängt
-                    startGoogleCloudSTTStream(connection, targetUserId, supporterUser); 
+        const recognizeStream = speechClient.streamingRecognize(request)
+            .on('error', (err) => {
+                if(err.code !== 11) console.error("STT Error:", err.message); 
+            })
+            .on('data', data => {
+                if (data.results[0] && data.results[0].alternatives[0]) {
+                    const transcript = data.results[0].alternatives[0].transcript.trim();
+                    
+                    // 🟢 NEU: Speichere das Voice-Transkript auch im HTML-Protokoll
+                    logTicketMessage(targetUserId, "VOICE (Spieler)", transcript, false);
+                    
+                    // Sende das Zitat direkt an den Supporter, um Caching-Fehler zu vermeiden
+                    supporterUser.send(`🗣️ **[LIVE-VOICE] Der hilfebedürftige Spieler sagt:**\n> *"${transcript}"*`).catch(()=>{});
                 }
             });
-        } else {
-            audioStream.on('end', () => {
-                if (cloudStorage.activeVoiceSessions[supporterUser.id]) {
-                    startGoogleCloudSTTStream(connection, targetUserId, supporterUser);
-                }
-            });
-        }
+
+        const opusDecoder = new prism.opus.Decoder({ rate: 48000, channels: 2, frameSize: 960 });
+        
+        audioStream.pipe(opusDecoder).pipe(recognizeStream);
+
+        audioStream.on('end', () => {
+            if (cloudStorage.activeVoiceSessions[supporterUser.id]) {
+                startGoogleCloudSTTStream(connection, targetUserId, supporterUser); 
+            }
+        });
 
     } catch (e) {
         addLog('error', `Fehler in der Google Cloud STT Bridge Pipeline: ${e.message}`);
@@ -1152,10 +1163,18 @@ client.on('interactionCreate', async interaction => {
         const userId = interaction.user.id;
         const isWhitelisted = cloudStorage.systemSettings.whitelistedUsers.includes(userId);
 
-        const adminCmds = ['status', 'restart', 'clear', 'warn', 'setup-ticketpanel', 'setup-voicesupport', 'setup-infohub', 'poll', 'rbx-shout', 'rbx-serverlogs', 'rbx-shutdown', 'setup-voiceannounce', 'clan-war', 'rbx-savedata', 'rbx-cleardata', 'nuke', 'lockdown', 'unlockdown', 'slowmode', 'addrole', 'removerole', 'set-placeid', 'mute', 'unmute', 'warnlist', 'clearwarns', 'lockchannel', 'unlockchannel', 'dm', 'whitelist', 'supporter', 'setup-modlog', 'backup-server', 'give-premium', 'setup-welcome', 'setup-livestatus'];
+        const adminCmds = ['status', 'restart', 'clear', 'warn', 'setup-ticketpanel', 'setup-voicesupport', 'setup-infohub', 'poll', 'rbx-shout', 'rbx-serverlogs', 'rbx-shutdown', 'setup-voiceannounce', 'clan-war', 'rbx-savedata', 'rbx-cleardata', 'nuke', 'lockdown', 'unlockdown', 'slowmode', 'addrole', 'removerole', 'set-placeid', 'mute', 'unmute', 'warnlist', 'clearwarns', 'lockchannel', 'unlockchannel', 'dm', 'whitelist', 'supporter', 'setup-modlog', 'backup-server', 'give-premium', 'setup-welcome', 'setup-livestatus', 'setup-autorole'];
         
         if (adminCmds.includes(commandName) && !isWhitelisted) {
             return interaction.reply({ content: '🔒 **Zugriff verweigert:** Dein Benutzerkonto verfügt nicht über die erforderlichen administrativen Schlüssel.', ephemeral: true });
+        }
+
+        // 🟢 NEU: Autorole Command
+        if (commandName === 'setup-autorole') {
+            const rolle = interaction.options.getRole('rolle');
+            cloudStorage.systemSettings.autoRoleId = rolle.id;
+            saveCloudVaultToDisk();
+            return interaction.reply(`✅ **Autorole aktiviert:** Jeder neue Spieler erhält beim Beitritt auf den Server ab sofort vollautomatisch die Rolle **${rolle.name}**.`);
         }
 
         if (commandName === 'setup-livestatus') {
@@ -1263,19 +1282,41 @@ client.on('interactionCreate', async interaction => {
             }
         }
 
+        // 🟢 NEU: Erweiterter Supporter-Command (Weist automatisch die Rolle zu)
         if (commandName === 'supporter') {
             const aktion = interaction.options.getString('aktion');
-            const target = interaction.options.getUser('target');
+            const targetUser = interaction.options.getUser('target');
+            const targetMember = await guild.members.fetch(targetUser.id).catch(() => null);
+            
+            const roleName = "Supporter Berechtigung Ticket und Voice System";
+            let supporterRole = guild.roles.cache.find(r => r.name === roleName);
+            
+            if (!supporterRole) {
+                supporterRole = await guild.roles.create({
+                    name: roleName,
+                    color: 0x9d4edd,
+                    reason: 'Automatisch generierte Rolle durch den /supporter Command'
+                }).catch(()=>{});
+            }
+
             if (aktion === 'add') {
-                if (!cloudStorage.systemSettings.authorizedSupporters.includes(target.id)) {
-                    cloudStorage.systemSettings.authorizedSupporters.push(target.id);
+                if (!cloudStorage.systemSettings.authorizedSupporters.includes(targetUser.id)) {
+                    cloudStorage.systemSettings.authorizedSupporters.push(targetUser.id);
                 }
                 saveCloudVaultToDisk();
-                return interaction.reply(`✅ ${target} ist nun offiziell im Support-Team registriert.`);
+                
+                if (targetMember && supporterRole) {
+                    await targetMember.roles.add(supporterRole).catch(()=>{});
+                }
+                return interaction.reply(`✅ ${targetUser} ist nun offiziell im Support-Team registriert und hat die Rolle **${roleName}** erhalten.`);
             } else if (aktion === 'remove') {
-                cloudStorage.systemSettings.authorizedSupporters = cloudStorage.systemSettings.authorizedSupporters.filter(id => id !== target.id);
+                cloudStorage.systemSettings.authorizedSupporters = cloudStorage.systemSettings.authorizedSupporters.filter(id => id !== targetUser.id);
                 saveCloudVaultToDisk();
-                return interaction.reply(`🗑️ ${target} wurde aus dem Support-Team entfernt.`);
+                
+                if (targetMember && supporterRole) {
+                    await targetMember.roles.remove(supporterRole).catch(()=>{});
+                }
+                return interaction.reply(`🗑️ ${targetUser} wurde aus dem Support-Team entfernt. Die Berechtigungs-Rolle wurde ebenfalls entzogen.`);
             }
         }
 
@@ -1850,7 +1891,8 @@ const extendedCommandDefinitions = [
     new SlashCommandBuilder().setName('premium-status').setDescription('Zeigt an, ob dein Account als Premium registriert ist'),
     new SlashCommandBuilder().setName('give-premium').setDescription('Gibt einem User manuell den Premium-Status (Admin)').addUserOption(o => o.setName('target').setDescription('Nutzer').setRequired(true)),
     new SlashCommandBuilder().setName('setup-welcome').setDescription('Legt den Kanal fest, in dem der Bot neue Spieler mit einem Embed begrüßt').addChannelOption(o => o.setName('kanal').setDescription('Kanal wählen').setRequired(true)),
-    new SlashCommandBuilder().setName('setup-livestatus').setDescription('Richtet ein Live-Embed ein, das die Roblox Spielerzahlen in Echtzeit synchronisiert')
+    new SlashCommandBuilder().setName('setup-livestatus').setDescription('Richtet ein Live-Embed ein, das die Roblox Spielerzahlen in Echtzeit synchronisiert'),
+    new SlashCommandBuilder().setName('setup-autorole').setDescription('Legt die automatische Rolle (z.B. verifiziert) beim Server-Beitritt fest').addRoleOption(o => o.setName('rolle').setDescription('Die Rolle, die neue User erhalten').setRequired(true))
 ].map(cmd => cmd.toJSON());
 
 async function deployExtendedCommands(guildId) {
