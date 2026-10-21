@@ -33,14 +33,34 @@ Willkommen bei **AeroGuard Core v3.3**! Das System wurde mit einem **vollautomat
 ### 👑 3. Exklusive Root-Funktion: „Support-Server AeroGuard erstellen“
 * **1-Klick Komplett-Setup durch den Bot-Besitzer (`OWNER_ID = 1075845857875873852`):**
   * Der Bot-Besitzer kann den Bot auf seinen neuen Support-Server einladen und den gesamten Server vollautomatisch mit einem Klick aufbauen lassen!
-  * **Ausführungsmöglichkeiten:**
+  * **Ausführung:**
     1. **Im Webpanel:** Direkt oben im Starter-Dashboard leuchtet für den Besitzer der goldene Button **`👑 Support-Server AeroGuard erstellen`**.
     2. **Im Discord Chat:** Der Slash-Befehl **`/setup-support-server`** (nur für den Besitzer ausführbar).
   * **Was der Bot dabei alles selbstständig macht:**
-    * 👑 **Rollen & Berechtigungen:** Erstellt `👑 AeroGuard Leitung (Owner)` (wird dem Besitzer direkt zugewiesen), `🛡️ AeroGuard Staff`, `🎫 AeroGuard Support-Team`, `✨ Server Booster / VIP` und `🎮 Verifiziert (Roblox)`.
-    * 📌 **6 Kategorien & 21 Kanäle:** Strukturiert und vergibt Berechtigungen (Staff-Bereich privat, Info-Hub read-only für @everyone).
-    * 📜 **Pre-Filled Embeds:** Postet sofort alle Embeds (Regelwerk, Willkommen, Patchnotes, Live Bot-Status Monitor, FAQ-Leitfaden, Suggestions-Anleitung, Bug-Report-Format).
-    * 🎫 **Support Hub:** Stellt das vollwertige interaktive Support-Panel mit Kategorie-Buttons bereit.
+    * 👑 **8 Rollen mit Rechten & Farben:**
+      1. `👑 Projektleitung / Bot-Owner` (wird dem Besitzer direkt zugewiesen, Administrator)
+      2. `💎 Management / Co-Leitung` (ManageGuild, Administrator)
+      3. `🛡️ Head-Moderator / Staff-Leitung` (Mod-Rechte, MoveMembers)
+      4. `🎫 AeroGuard Support-Team` (Ticket-Rechte, MoveMembers, MuteMembers)
+      5. `🤖 AeroGuard Bots / System`
+      6. `✨ Server Booster / VIP`
+      7. `🎮 Verifiziert (Roblox)`
+      8. `👥 Community / Mitglied`
+    * 🔊 **Dedizierte Voice-Support & Warteraum Suite:**
+      * `🚨・Support Warteraum` (Limit: 10 User, automatische Leitstellen-Meldung bei Beitritt).
+      * `🔒・Support Talk 1 (Privat)` (Limit: 2 User, 1-on-1 Support).
+      * `🔒・Support Talk 2 (Privat)` (Limit: 2 User, 1-on-1 Support).
+      * `🔒・Support Talk 3 (Privat)` (Limit: 3 User).
+      * `🎙️・Team Besprechung (Intern)` (Staff-Only).
+    * ⚡ **Live Voice-Support Automation & Leitstelle:**
+      * Sobald ein User den Warteraum betritt, sendet der Bot eine interaktive Leitstellen-Meldung in `#🚨・warteraum-leitstelle` mit 1-Klick-Buttons:
+        * `📞 In Talk 1 ziehen`
+        * `📞 In Talk 2 ziehen`
+        * `📞 In Talk 3 ziehen`
+        * `🔔 Team anpingen`
+      * **Schnellaufruf-Befehl `/support-next`:** Ein Supporter in Talk 1 oder 2 tippt einfach `/support-next`, und der Bot holt den nächsten wartenden User sofort zu ihm!
+    * 📌 **7 Kategorien & 22 Kanäle:** Vollständige Strukturierung (Zentrale, Support & Feedback, Community, Events, Voice-Support, Community-Talks, Management).
+    * 📜 **Pre-Filled Embeds:** Postet sofort alle Embeds (Regelwerk, Willkommen, Patchnotes, Live Bot-Status Monitor, FAQ-Dokumentation, Ticket-Panel mit Buttons, Vorschläge & Bug-Reports).
     * ⚙️ **Cloud-Vault Verknüpfung:** Speichert alle IDs für Tickets, Moderations-Logs, Suggestions und Status-Monitor automatisch ab.
 
 ---
