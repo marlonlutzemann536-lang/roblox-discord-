@@ -1,62 +1,76 @@
-# 🚀 AeroGuard Core — Text- & Ticket-Spezialisierte Discord & Roblox Suite
+# 🚀 AeroGuard Core — Text- & Ticket-Spezialisierte Discord & Roblox Suite (v2.6)
 
-Willkommen bei **AeroGuard Core v2.5**! Der Bot wurde vollständig für **Text-Nachrichten, Server-Kanal-Tickets, AutoMod und Roblox-Synchronisation** optimiert. Sprach-Warteräume und Voice-Features wurden vollständig entfernt, um maximale Performance, Stabilität und Klarheit zu gewährleisten.
-
----
-
-## 🔒 1. Berechtigungssystem: Wer darf ins Web-Dashboard?
-
-Das Dashboard unter `http://localhost:3000/dashboard` ist nun **rollen- und serverbasiert geschützt**:
-1. **👑 Bot-Owner (Root):** Hat Vollzugriff auf alle Server, auf denen der Bot installiert ist.
-2. **👑 Server-Besitzer:** Jeder Serverbesitzer kann sich per Discord anmelden und erhält automatisch die volle Kontrolle über seinen eigenen Server!
-3. **🛡️ Autorisierte Support-Rolle & Admins:** 
-   - Der Serverbesitzer kann im Dashboard eine **Support-Rolle** (z. B. *@Support*, *@Team*, *@Moderator*) festlegen.
-   - Alle Mitglieder mit dieser Rolle (oder Administrator-Rechten) können sich ebenfalls einloggen und die Tickets sowie Einstellungen dieses Servers verwalten!
-4. **⛔ Random User (Unberechtigte Personen):**
-   - Personen ohne Besitzer- oder Support-Rolle auf einem Bot-Server werden beim Login sofort geblockt (*Zugriff verweigert*).
+Willkommen bei **AeroGuard Core v2.6**! Der Bot wurde vollständig für **Text-Nachrichten, anpassbare Server-Kanal-Tickets, offizielle Roblox-API-Verknüpfung und dauerhafte Web-Transkripte** erweitert.
 
 ---
 
-## 🎛️ 2. Modernisiertes Multi-Server Dashboard (`/dashboard`)
+## 🎨 1. Anpassbare Ticket-Kategorien & Gründe (Dashboard)
 
-- **Server-Auswahl:** Zeigt dir nur die Server an, auf denen du als Besitzer oder Support-Rolle berechtigt bist.
-- **Rollen-Badge:** Zeigt dir direkt an, mit welchem Rang du angemeldet bist (`👑 Server-Besitzer`, `🛡️ Autorisierte Support-Rolle` oder `👑 System Owner`).
-- **Aktive Module (Einzeln per Leuchtschalter steuerbar):**
-  1. 🎫 **Ticket-System** (Server-Kanäle & Modal-Popups)
-  2. 🛡️ **AutoMod & Wortfilter** (Spam, Toxizität & Phishing-Schutz)
-  3. 🚨 **Anti-Raid / Alt-Schutz** (Blockieren von Fake-Accounts)
-  4. ⭐ **Level- & Economy-System** (XP-Punkte & Chat-Belohnungen)
-  5. 🎮 **Roblox Info-Hub** (Live Place-Synchronisation)
-  6. 🔒 **Emergency Server Lockdown** (Chat-Sperre im Notfall)
-- **Live-Ticket-Verwaltung:**
-  - **Live-Suche:** Suche sofort nach Ticket-Nummer, Benutzername oder Roblox-IGN.
-  - **Filter-Tabs:** Schalte zwischen *Alle*, *Offen* und *In Bearbeitung* um.
-  - **HTML-Transkripte:** Direkter Link zum Einsehen und Herunterladen.
-- **Support-Panel Bereitstellung:** Projiziere das Ticket-Panel mit einem Klick aus dem Dashboard in jeden beliebigen Textkanal des Servers.
+Server-Besitzer und autorisierte Supporter können im Web-Dashboard unter `http://localhost:3000/dashboard` alle Ticket-Gründe für ihren Server flexibel konfigurieren:
+* **Eigene Kategorien erstellen:** Name/Label frei wählbar (z. B. *🔮 Allgemeiner Support*, *🐛 Bug melden*, *🚨 Spieler-Report*, *📝 Team-Bewerbung*, *🤝 Partnerschaft*, *👑 VIP-Support*).
+* **Button-Design anpassen:** 🟢 Grün (*Success*), 🔵 Blau (*Primary*), 🔴 Rot (*Danger*) oder ⚪ Grau (*Secondary*).
+* **🎮 Roblox-Pflicht Toggle:** Für sensible Kategorien (wie Bug-Reports oder In-Game-Spielermeldungen) kann festgelegt werden, dass nur verifizierte Roblox-Spieler das Ticket öffnen dürfen!
 
 ---
 
-## 🌐 3. Öffentliche Startseite (`/`) & Bot-Einladung
+## 🎮 2. Offizielle Roblox API Integration (Echte Gamertags statt Fake-Namen)
 
-- Unter `http://localhost:3000/` finden Besucher eine moderne Landing Page mit:
-  - Erklärung aller Funktionen und Features (*Was ist AeroGuard?*).
-  - Live-Telemetrie (Bot-Status, Server-Zähler, Ping, bearbeitete Tickets).
-  - **🤖 Bot einladen:** Klick auf den Button öffnet deinen offiziellen Einladungslink mit allen benötigten Berechtigungen.
-  - **Anmelden:** Schneller Wechsel zum geschützten Dashboard.
+Keine manuellen Fake-Eingaben mehr:
+* **Roblox Users & Thumbnails API:**
+  * Der Bot validiert Spielernamen live über die offizielle **Roblox Users API** (`https://users.roblox.com/v1/usernames/users`).
+  * Ruft echte Roblox User-IDs, Display-Namen und offizielle Profil-Links ab.
+  * Lädt das 3D-Avatar-Headshot-Thumbnail über die **Roblox Thumbnails API** (`https://thumbnails.roblox.com/v1/users/avatar-headshot`).
+* **Roblox-Gateway beim Ticket-Öffnen:**
+  * Hat eine Kategorie die **Roblox-Pflicht** aktiviert, prüft der Bot, ob der Discord-Nutzer verifiziert ist.
+  * Falls nicht, erscheint ein Pop-up mit dem Button **🎮 Mit Roblox anmelden / verifizieren**.
+  * Nach der Eingabe des Roblox-Namens wird die Identität verifiziert und das Ticket wird direkt mit verknüpftem Profil und Avatar erstellt.
+* **Slash-Command:** `/verify [roblox_name]` validiert und verknüpft den Account ebenfalls direkt mit der Cloud-Datenbank.
 
 ---
 
-## 🚀 Schnellanleitung
+## 📜 3. Dauerhafte Web-Transkripte auf der AeroGuard-Webseite
 
-1. **Bot starten:**
-   ```bash
-   node server.js
-   ```
+Alle geschlossenen Tickets werden ab sofort dauerhaft auf der Webseite archiviert:
+* **Web-Route:** `https://roblox-discord-g44u.onrender.com/transcript/:transcriptId` (oder `http://localhost:3000/transcript/:id`).
+* **Automatische Archivierung beim Schließen (`!close` oder Button):**
+  1. Das vollständige Chat-Protokoll inklusive Avataren, Zeitstempeln und Supporter/User-Rollen wird als permanenter Datensatz in der Cloud-Datenbank gespeichert.
+  2. **DM an den Ersteller:** Der Ticket-Ersteller erhält eine Direktnachricht mit dem Button **🌐 Transkript online ansehen**, um das Ticket jederzeit im Browser aufzurufen.
+  3. **Server-Logkanal:** Im konfigurierten Log-Kanal wird das Archivierungs-Embed mit dem Button **🌐 Online-Transkript öffnen** gepostet.
+  4. **Web-Dashboard:** Im Dashboard unter `/dashboard` gibt es eine durchsuchbare Tabelle aller archivierten Transkripte mit einem direkten Button zur Online-Ansicht.
+* **Transkript-Features:**
+  * Cyberpunk Dark-Mode Design mit Farb-Badges für Supporter und Ersteller.
+  * Verknüpftes Roblox-Profil inklusive 3D-Avatar-Bild und Profil-Link.
+  * Aktionen im Header: **🖨️ Drucken / PDF speichern**, **🔗 Link kopieren** und **🏠 Offizielle Webseite**.
 
-2. **Startseite öffnen:**
-   ```text
-   http://localhost:3000/
-   ```
+---
 
-3. **Anmelden:**
-   Melde dich per Discord an. Sobald du Serverbesitzer bist oder die Support-Rolle besitzt, erscheint dein Server zur Steuerung im Dashboard!
+## 🔒 4. Berechtigungssystem: Wer darf ins Dashboard?
+
+Das Dashboard unter `http://localhost:3000/dashboard` ist rollen- und serverbasiert geschützt:
+1. **👑 Bot-Owner (Root):** Vollzugriff auf alle Server.
+2. **👑 Server-Besitzer:** Volle Kontrolle über den eigenen Server.
+3. **🛡️ Autorisierte Support-Rolle & Admins:** Berechtigter Zugriff für Supporter/Moderatoren auf Tickets und Einstellungen.
+
+---
+
+## 🌐 5. Web-Routen im Überblick
+
+| Route | Beschreibung | Zugriff |
+| :--- | :--- | :--- |
+| `GET /` | Öffentliche AeroGuard Landing Page mit Live-Statistiken & Bot-Einladung | Öffentlich |
+| `GET /login` | Discord OAuth2-Anmeldung | Öffentlich |
+| `GET /dashboard` | Enterprise Multi-Server Dashboard mit Kategorien-Editor, Live-Tickets & Transkripten | Berechtigte |
+| `GET /transcript/:id` | Modernes, interaktives Ticket-Transkript mit Roblox-Profil & Druckfunktion | Öffentlich / Mit Link |
+| `POST /api/guild/:id/settings` | Server-Module, Support-Rolle & Ticket-Kategorien speichern | Berechtigte |
+| `POST /api/guild/:id/deploy-panel` | Support-Panel im ausgewählten Discord-Kanal posten | Berechtigte |
+
+---
+
+## ⚡ 6. Wichtige Chat-Befehle
+
+* `!setup` oder `!panel` – *Support-Panel im aktuellen Kanal aufstellen (Admins)*
+* `!close` – *Ticket mit Bestätigungsabfrage schließen & Web-Transkript erstellen*
+* `!claim` – *Ticket als Supporter übernehmen*
+* `!transcript` – *HTML-Transkript als Sofortdatei anfordern*
+* `!add @User` / `!remove @User` – *Nutzer zum Ticket hinzufügen oder entfernen*
+* `/verify [roblox_name]` – *Discord-Account mit Roblox-Account über offizielle API verknüpfen*

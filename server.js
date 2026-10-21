@@ -104,6 +104,69 @@ async function getUserGuildPermission(userId, guildId) {
     return { authorized: false, roleLabel: 'Keine Berechtigung' };
 }
 
+
+// =========================================================================
+// OFFICIAL ROBLOX USERS & THUMBNAILS API RESOLVER
+// =========================================================================
+async function resolveRobloxUser(usernameOrId) {
+    if (!usernameOrId) return null;
+    const input = String(usernameOrId).trim().replace(/^@/, '');
+    const isId = /^\d+$/.test(input);
+    let userId = null, username = null, displayName = null;
+
+    try {
+        if (isId) {
+            const res = await fetch(`https://users.roblox.com/v1/users/${input}`);
+            if (res.ok) {
+                const data = await res.json();
+                userId = data.id;
+                username = data.name;
+                displayName = data.displayName || data.name;
+            }
+        } else {
+            const res = await fetch('https://users.roblox.com/v1/usernames/users', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ usernames: [input], excludeBannedUsers: false })
+            });
+            if (res.ok) {
+                const data = await res.json();
+                if (data.data && data.data.length > 0) {
+                    const u = data.data[0];
+                    userId = u.id;
+                    username = u.name;
+                    displayName = u.displayName || u.name;
+                }
+            }
+        }
+
+        if (!userId) return null;
+
+        // Fetch avatar thumbnail
+        let avatarUrl = 'https://tr.rbxcdn.com/30DAY-AvatarHeadshot-310966282D3529E36976BF6B07B1DC90-Png/150/150/AvatarHeadshot/Png/noFilter';
+        try {
+            const thumbRes = await fetch(`https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${userId}&size=150x150&format=Png&isCircular=false`);
+            if (thumbRes.ok) {
+                const thumbData = await thumbRes.json();
+                if (thumbData.data && thumbData.data.length > 0 && thumbData.data[0].imageUrl) {
+                    avatarUrl = thumbData.data[0].imageUrl;
+                }
+            }
+        } catch(e) {}
+
+        return {
+            id: userId,
+            username: username,
+            displayName: displayName,
+            avatarUrl: avatarUrl,
+            profileUrl: `https://www.roblox.com/users/${userId}/profile`
+        };
+    } catch(e) {
+        addLog('warn', `Roblox API Fehler für "${input}": ${e.message}`);
+        return null;
+    }
+}
+
 function getGuildSettings(guildId) {
     if (!cloudStorage.guildSettings) cloudStorage.guildSettings = {};
     if (!cloudStorage.guildSettings[guildId]) {
@@ -112,16 +175,31 @@ function getGuildSettings(guildId) {
                 tickets: true,
                 autoMod: true,
                 antiRaid: true,
-                voiceSupport: true,
                 levelSystem: true,
                 robloxHub: true,
                 lockdown: false
             },
             ticketCategoryId: cloudStorage.systemSettings.ticketCategoryId || null,
             supportRoleId: cloudStorage.systemSettings.supportRoleId || null,
-            ticketLogChannelId: cloudStorage.systemSettings.ticketLogChannelId || null
+            ticketLogChannelId: cloudStorage.systemSettings.ticketLogChannelId || null,
+            ticketCategories: [
+                { id: "support", label: "🔮 Allgemeiner Support", color: "Success", requireRoblox: false },
+                { id: "bug", label: "🐛 Bug/Fehler melden", color: "Danger", requireRoblox: true },
+                { id: "player_report", label: "🚨 Spieler-Report", color: "Danger", requireRoblox: true },
+                { id: "team", label: "📝 Team-Bewerbung", color: "Primary", requireRoblox: false },
+                { id: "partner", label: "🤝 Partnerschaft", color: "Secondary", requireRoblox: false }
+            ]
         };
         saveCloudVaultToDisk();
+    }
+    if (!cloudStorage.guildSettings[guildId].ticketCategories || cloudStorage.guildSettings[guildId].ticketCategories.length === 0) {
+        cloudStorage.guildSettings[guildId].ticketCategories = [
+            { id: "support", label: "🔮 Allgemeiner Support", color: "Success", requireRoblox: false },
+            { id: "bug", label: "🐛 Bug/Fehler melden", color: "Danger", requireRoblox: true },
+            { id: "player_report", label: "🚨 Spieler-Report", color: "Danger", requireRoblox: true },
+            { id: "team", label: "📝 Team-Bewerbung", color: "Primary", requireRoblox: false },
+            { id: "partner", label: "🤝 Partnerschaft", color: "Secondary", requireRoblox: false }
+        ];
     }
     return cloudStorage.guildSettings[guildId];
 }
@@ -149,6 +227,7 @@ let cloudStorage = {
     activeGiveaways: {},
     serverBackups: {},
     ticketTranscripts: {},
+    savedTranscripts: {},
     supporterKPIs: {},
     globalBlacklist: [], // Hier wird die Ticket-Blacklist gespeichert
     clanDatabase: {},
@@ -445,14 +524,48 @@ function logTicketMessage(ticketId, authorName, content, isSupporter) {
 // =========================================================================
 // HTML TRANSCRIPT GENERATOR
 // =========================================================================
-function generateHtmlTranscript(ticketId, ticketData) {
-    const logs = cloudStorage.ticketMessageLogs[ticketId] || [];
+
+function buildTicketPanelActionRows(guildId) {
+    const gSettings = getGuildSettings(guildId);
+    const cats = (gSettings.ticketCategories && gSettings.ticketCategories.length > 0)
+        ? gSettings.ticketCategories
+        : ticketSystemConfig.categories;
+
+    const rows = [];
+    let currentRow = new ActionRowBuilder();
+
+    cats.forEach((cat) => {
+        if (currentRow.components.length >= 5) {
+            rows.push(currentRow);
+            currentRow = new ActionRowBuilder();
+        }
+        let style = ButtonStyle.Success;
+        if (cat.color === 'Danger' || cat.color === 4) style = ButtonStyle.Danger;
+        else if (cat.color === 'Primary' || cat.color === 1) style = ButtonStyle.Primary;
+        else if (cat.color === 'Secondary' || cat.color === 2) style = ButtonStyle.Secondary;
+
+        currentRow.addComponents(
+            new ButtonBuilder()
+                .setCustomId('server_panel_trigger_' + cat.id + '_' + guildId)
+                .setLabel(cat.label)
+                .setStyle(style)
+        );
+    });
+
+    if (currentRow.components.length > 0) {
+        rows.push(currentRow);
+    }
+    return rows;
+}
+
+function generateHtmlTranscript(ticketId, ticketData, transcriptKey) {
+    const logs = ticketData.messages || cloudStorage.ticketMessageLogs[ticketId] || [];
     let messagesHtml = '';
 
     logs.forEach(log => {
         const isSupp = log.isSupporter;
         const alignClass = isSupp ? 'supporter-msg' : 'user-msg';
-        const badgeLabel = isSupp ? 'Supporter' : 'Nutzer';
+        const badgeLabel = isSupp ? 'Support-Team' : 'Ticket-Ersteller';
         const badgeClass = isSupp ? 'badge-supporter' : 'badge-user';
         
         const safeAuthor = (log.author || 'User').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -470,74 +583,151 @@ function generateHtmlTranscript(ticketId, ticketData) {
         '</div>';
     });
 
-    const num = ticketData.ticketNum || '0000';
+    const num = String(ticketData.ticketNum || '0000').padStart(4, '0');
     const user = ticketData.username || 'Unbekannt';
     const cat = ticketData.category || 'Support';
-    const ign = ticketData.ign || 'Nicht angegeben';
     const reason = ticketData.reason || 'Keine Beschreibung angegeben';
+    const rbx = ticketData.robloxData || (cloudStorage.verifiedRobloxUsers ? cloudStorage.verifiedRobloxUsers[ticketData.userId] : null);
+    const rbxDisplay = rbx ? rbx.displayName + ' (@' + rbx.username + ')' : (ticketData.ign || 'Nicht verknüpft');
+    const rbxProfile = rbx ? rbx.profileUrl : null;
+    const rbxAvatar = rbx ? rbx.avatarUrl : null;
+    const key = transcriptKey || ticketData.id || ticketId;
 
-    const htmlTemplate = '<!DOCTYPE html>\n' +
-'<html lang="de">\n' +
-'<head>\n' +
-'    <meta charset="UTF-8">\n' +
-'    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n' +
-'    <title>AeroGuard Transcript - #' + num + '</title>\n' +
-'    <style>\n' +
-'        :root { --bg-body: #080b12; --bg-card: #0f1422; --border-subtle: rgba(255, 255, 255, 0.08); --cyan: #00f3ff; --purple: #9d4edd; --text-main: #f0f4fc; --text-muted: #94a3b8; }\n' +
-'        * { box-sizing: border-box; margin: 0; padding: 0; }\n' +
-'        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: var(--bg-body); color: var(--text-main); padding: 30px 20px; line-height: 1.5; }\n' +
-'        .container { max-width: 900px; margin: 0 auto; }\n' +
-'        .header-card { background: var(--bg-card); border: 1px solid rgba(0, 243, 255, 0.3); border-radius: 12px; padding: 24px; margin-bottom: 24px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6); }\n' +
-'        .header-title-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid var(--border-subtle); padding-bottom: 12px; }\n' +
-'        .header-title { font-size: 1.5rem; font-weight: 800; color: var(--cyan); letter-spacing: -0.02em; }\n' +
-'        .grid-info { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }\n' +
-'        .info-cell { background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-subtle); padding: 10px 14px; border-radius: 8px; }\n' +
-'        .info-label { font-size: 0.72rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; letter-spacing: 0.05em; }\n' +
-'        .info-val { font-size: 0.95rem; font-weight: 600; color: #fff; margin-top: 4px; word-break: break-word; }\n' +
-'        .chat-container { display: flex; flex-direction: column; gap: 16px; min-height: 300px; }\n' +
-'        .message-wrapper { display: flex; width: 100%; }\n' +
-'        .message-wrapper.supporter-msg { justify-content: flex-start; }\n' +
-'        .message-wrapper.user-msg { justify-content: flex-end; }\n' +
-'        .message-bubble { max-width: 78%; padding: 12px 18px; border-radius: 12px; }\n' +
-'        .supporter-msg .message-bubble { background: #151a2e; border: 1px solid rgba(157, 78, 221, 0.4); border-bottom-left-radius: 2px; }\n' +
-'        .user-msg .message-bubble { background: #0d2230; border: 1px solid rgba(0, 243, 255, 0.4); border-bottom-right-radius: 2px; }\n' +
-'        .message-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 0.78rem; }\n' +
-'        .author-name { font-weight: 700; color: #fff; }\n' +
-'        .badge { font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; font-weight: 800; text-transform: uppercase; }\n' +
-'        .badge-supporter { background: var(--purple); color: #fff; }\n' +
-'        .badge-user { background: var(--cyan); color: #000; }\n' +
-'        .timestamp { color: var(--text-muted); }\n' +
-'        .message-body { font-size: 0.92rem; color: #e2e8f0; word-break: break-word; }\n' +
-'        .empty-notice { text-align: center; color: var(--text-muted); padding: 50px 0; font-size: 0.95rem; }\n' +
-'        .footer-note { text-align: center; margin-top: 40px; font-size: 0.8rem; color: var(--text-muted); }\n' +
-'    </style>\n' +
-'</head>\n' +
-'<body>\n' +
-'    <div class="container">\n' +
-'        <div class="header-card">\n' +
-'            <div class="header-title-row">\n' +
-'                <div class="header-title">AEROGUARD CLOUD TRANSCRIPT</div>\n' +
-'                <div style="font-size: 0.85rem; color: var(--cyan); font-weight: bold;">Ticket #' + num + '</div>\n' +
-'            </div>\n' +
-'            <div class="grid-info">\n' +
-'                <div class="info-cell"><div class="info-label">Ticket Ersteller</div><div class="info-val">' + user + '</div></div>\n' +
-'                <div class="info-cell"><div class="info-label">Kategorie</div><div class="info-val">' + cat + '</div></div>\n' +
-'                <div class="info-cell"><div class="info-label">In-Game Name / Roblox</div><div class="info-val">' + ign + '</div></div>\n' +
-'                <div class="info-cell"><div class="info-label">Status</div><div class="info-val" style="color: #4ade80;">Archiviert / Geschlossen</div></div>\n' +
-'            </div>\n' +
-'            <div style="margin-top: 14px; background: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px; border: 1px solid var(--border-subtle);">\n' +
-'                <div class="info-label">Gemeldetes Anliegen</div>\n' +
-'                <div style="font-size: 0.92rem; color: #cbd5e1; margin-top: 4px;">' + reason + '</div>\n' +
-'            </div>\n' +
-'        </div>\n' +
-'        <div class="chat-container">\n' +
-'            ' + (messagesHtml || '<div class="empty-notice">Keine Textnachrichten in diesem Ticket protokolliert.</div>') + '\n' +
-'        </div>\n' +
-'        <div class="footer-note">AeroGuard Enterprise Support System • Generiert am ' + new Date().toLocaleString('de-DE') + '</div>\n' +
-'    </div>\n' +
-'</body>\n' +
-'</html>';
-    return htmlTemplate;
+    return `<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AeroGuard Transkript #${num} — ${cat}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #07080f;
+            --surface: #0e1222;
+            --surface-card: #13192f;
+            --border: rgba(255, 255, 255, 0.08);
+            --border-glow: rgba(0, 243, 255, 0.25);
+            --cyan: #00f3ff;
+            --purple: #9d4edd;
+            --green: #10b981;
+            --text-main: #f0f4fc;
+            --text-muted: #94a3b8;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Outfit', sans-serif; background: var(--bg); color: var(--text-main); padding: 30px 20px; line-height: 1.5; min-height: 100vh; }
+        .container { max-width: 950px; margin: 0 auto; }
+        .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 14px; }
+        .brand { display: flex; align-items: center; gap: 12px; font-weight: 800; font-size: 1.25rem; color: #fff; text-decoration: none; }
+        .brand-logo { width: 38px; height: 38px; border-radius: 10px; background: linear-gradient(135deg, var(--cyan), var(--purple)); display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
+        .actions-row { display: flex; gap: 10px; }
+        .btn-action { background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border); color: #fff; padding: 8px 16px; border-radius: 8px; font-family: inherit; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: all 0.2s; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+        .btn-action:hover { background: rgba(0, 243, 255, 0.15); border-color: var(--cyan); color: var(--cyan); }
+        .btn-action.primary { background: linear-gradient(135deg, var(--cyan), #0099ff); color: #000; border: none; }
+        
+        .header-card { background: var(--surface); border: 1px solid var(--border-glow); border-radius: 16px; padding: 24px; margin-bottom: 24px; box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5); position: relative; overflow: hidden; }
+        .header-card::before { content: ''; position: absolute; top:0; left:0; right:0; height: 3px; background: linear-gradient(90deg, var(--cyan), var(--purple)); }
+        .header-title-row { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 16px; flex-wrap: wrap; gap: 12px; }
+        .header-title { font-size: 1.6rem; font-weight: 800; color: #fff; display: flex; align-items: center; gap: 10px; }
+        .header-title span { color: var(--cyan); font-family: 'JetBrains Mono', monospace; }
+        .status-badge { background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.4); color: #34d399; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+
+        .meta-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; }
+        .meta-cell { background: var(--surface-card); border: 1px solid var(--border); padding: 12px 16px; border-radius: 10px; }
+        .meta-label { font-size: 0.72rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; letter-spacing: 0.06em; margin-bottom: 4px; }
+        .meta-val { font-size: 0.95rem; font-weight: 600; color: #fff; word-break: break-word; display: flex; align-items: center; gap: 8px; }
+        .meta-val a { color: var(--cyan); text-decoration: none; }
+        .meta-val a:hover { text-decoration: underline; }
+        .rbx-avatar-mini { width: 28px; height: 28px; border-radius: 6px; border: 1px solid var(--cyan); object-fit: cover; }
+
+        .chat-section { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px; min-height: 350px; }
+        .section-title { font-size: 1.1rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+        .chat-container { display: flex; flex-direction: column; gap: 16px; }
+        .message-wrapper { display: flex; width: 100%; }
+        .message-wrapper.supporter-msg { justify-content: flex-start; }
+        .message-wrapper.user-msg { justify-content: flex-end; }
+        .message-bubble { max-width: 80%; border-radius: 12px; padding: 14px 18px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3); }
+        .supporter-msg .message-bubble { background: rgba(157, 78, 221, 0.12); border: 1px solid rgba(157, 78, 221, 0.35); border-left: 3px solid var(--purple); }
+        .user-msg .message-bubble { background: rgba(0, 243, 255, 0.08); border: 1px solid rgba(0, 243, 255, 0.3); border-right: 3px solid var(--cyan); }
+        .message-header { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; font-size: 0.8rem; }
+        .author-name { font-weight: 700; color: #fff; }
+        .badge { font-size: 0.65rem; padding: 2px 8px; border-radius: 12px; font-weight: 700; text-transform: uppercase; }
+        .badge-supporter { background: var(--purple); color: #fff; }
+        .badge-user { background: rgba(0, 243, 255, 0.2); color: var(--cyan); }
+        .timestamp { color: var(--text-muted); font-size: 0.72rem; font-family: 'JetBrains Mono', monospace; margin-left: auto; }
+        .message-body { font-size: 0.95rem; color: #e2e8f0; line-height: 1.6; word-break: break-word; }
+
+        .footer { text-align: center; margin-top: 30px; color: var(--text-muted); font-size: 0.8rem; }
+        @media print {
+            body { background: #fff !important; color: #000 !important; }
+            .btn-action, .top-bar { display: none !important; }
+            .header-card, .chat-section, .meta-cell { border: 1px solid #ccc !important; background: #fff !important; color: #000 !important; box-shadow: none !important; }
+            .message-body, .author-name, .meta-val { color: #000 !important; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="top-bar">
+            <a href="/" class="brand">
+                <div class="brand-logo">🛡️</div>
+                <span>AeroGuard Core</span>
+            </a>
+            <div class="actions-row">
+                <button onclick="window.print()" class="btn-action">🖨️ Drucken / PDF</button>
+                <button onclick="navigator.clipboard.writeText(window.location.href); alert('Transkript-Link in die Zwischenablage kopiert!');" class="btn-action">🔗 Link kopieren</button>
+                <a href="/" class="btn-action primary">🏠 Offizielle Webseite</a>
+            </div>
+        </div>
+
+        <div class="header-card">
+            <div class="header-title-row">
+                <div>
+                    <div class="header-title">Ticket <span>#${num}</span></div>
+                    <div style="color:var(--text-muted); font-size:0.85rem; margin-top:4px;">${ticketData.guildName || 'Discord Server'} • Kategorie: ${cat}</div>
+                </div>
+                <div class="status-badge">ARCHIVIERT</div>
+            </div>
+
+            <div class="meta-grid">
+                <div class="meta-cell">
+                    <div class="meta-label">Ersteller (Discord)</div>
+                    <div class="meta-val">${user}</div>
+                </div>
+                <div class="meta-cell">
+                    <div class="meta-label">Roblox-Account</div>
+                    <div class="meta-val">
+                        ${rbxAvatar ? '<img src="' + rbxAvatar + '" class="rbx-avatar-mini" alt="Roblox">' : '🎮'}
+                        ${rbxProfile ? '<a href="' + rbxProfile + '" target="_blank">' + rbxDisplay + '</a>' : '<span>' + rbxDisplay + '</span>'}
+                    </div>
+                </div>
+                <div class="meta-cell">
+                    <div class="meta-label">Geschlossen von</div>
+                    <div class="meta-val">${ticketData.closedBy || 'System / Auto'}</div>
+                </div>
+                <div class="meta-cell">
+                    <div class="meta-label">Bearbeiter (Claimed)</div>
+                    <div class="meta-val">${ticketData.claimedBy ? '<@' + ticketData.claimedBy + '>' : 'Alle Supporter'}</div>
+                </div>
+                <div class="meta-cell" style="grid-column: 1 / -1;">
+                    <div class="meta-label">Grund / Ursprüngliches Anliegen</div>
+                    <div class="meta-val" style="font-weight: 500;">${reason}</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="chat-section">
+            <div class="section-title">💬 Vollständiges Chat-Protokoll (${logs.length} Nachrichten)</div>
+            <div class="chat-container">
+                ${messagesHtml.length > 0 ? messagesHtml : '<p style="text-align:center; color:var(--text-muted); padding:30px;">Keine Nachrichten in diesem Ticket protokolliert.</p>'}
+            </div>
+        </div>
+
+        <div class="footer">
+            AeroGuard Enterprise Support Core • Offizielles Web-Transkript • ID: ${key}
+        </div>
+    </div>
+</body>
+</html>`;
 }
 
 // =========================================================================
@@ -674,25 +864,16 @@ client.on('messageCreate', async message => {
         }
 
         // Deploy Support Hub Panel
-        const row = new ActionRowBuilder(); 
-        ticketSystemConfig.categories.forEach(cat => { 
-            row.addComponents(
-                new ButtonBuilder()
-                    .setCustomId('server_panel_trigger_' + cat.id + '_' + message.guild.id)
-                    .setLabel(cat.label)
-                    .setStyle(cat.color)
-            ); 
-        });
-        
+        const panelRows = buildTicketPanelActionRows(message.guild.id);
         const panelEmbed = new EmbedBuilder()
             .setTitle('🛰️ AeroGuard Core Support Hub')
             .setDescription(ticketSystemConfig.welcomeMessage)
             .setColor(0x9d4edd)
-            .setThumbnail(message.guild.iconURL() || client.user.displayAvatarURL())
+            .setThumbnail(message.guild.iconURL() || (client.user ? client.user.displayAvatarURL() : null))
             .setFooter({ text: 'Klicke auf eine Kategorie, um ein privates Ticket mit dem Team zu eröffnen.' })
             .setTimestamp();
 
-        await message.channel.send({ embeds: [panelEmbed], components: [row] });
+        await message.channel.send({ embeds: [panelEmbed], components: panelRows });
         return message.reply('✅ **AeroGuard Ticket-System bereit!** Das interaktive Support-Panel wurde in diesen Kanal gesendet. Tickets werden automatisch unter **' + (parentCategory ? parentCategory.name : 'SUPPORT-TICKETS') + '** erstellt.');
     }
 
@@ -967,8 +1148,32 @@ client.on('interactionCreate', async interaction => {
             });
         }
 
-        const selectedCat = ticketSystemConfig.categories.find(c => c.id === catId); 
+        const gSettings = getGuildSettings(interaction.guild.id);
+        const categories = (gSettings.ticketCategories && gSettings.ticketCategories.length > 0)
+            ? gSettings.ticketCategories
+            : ticketSystemConfig.categories;
+        const selectedCat = categories.find(c => c.id === catId); 
         const catLabel = selectedCat ? selectedCat.label : "Support";
+        const requireRoblox = selectedCat ? (selectedCat.requireRoblox === true) : false;
+        const verifiedRoblox = cloudStorage.verifiedRobloxUsers ? cloudStorage.verifiedRobloxUsers[userId] : null;
+
+        // ROBLOX GATEWAY ENFORCEMENT
+        if (requireRoblox && !verifiedRoblox) {
+            const rbxNoticeEmbed = new EmbedBuilder()
+                .setTitle('🔒 Roblox-Verknüpfung erforderlich')
+                .setDescription(`Für die Ticket-Kategorie **${catLabel}** ist ein verknüpfter Roblox-Account Pflicht!\n\nNur verifizierte Spieler können dieses Ticket öffnen, damit unser Support-Team dich sofort im Spiel zuweisen und dir direkt helfen kann.`)
+                .setColor(0x00f3ff)
+                .setFooter({ text: 'AeroGuard Roblox Verification Suite' });
+
+            const rbxRow = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setCustomId('trigger_rbx_link_' + catId + '_' + interaction.guild.id)
+                    .setLabel('🎮 Mit Roblox anmelden / verifizieren')
+                    .setStyle(ButtonStyle.Success)
+            );
+
+            return interaction.reply({ embeds: [rbxNoticeEmbed], components: [rbxRow], ephemeral: true });
+        }
 
         // Show Modal Popup
         const modal = new ModalBuilder()
@@ -986,11 +1191,16 @@ client.on('interactionCreate', async interaction => {
 
         const ignInput = new TextInputBuilder()
             .setCustomId('ticket_ign')
-            .setLabel('Roblox-Name / GamerTag (optional)')
+            .setLabel('Roblox-Name / GamerTag')
             .setStyle(TextInputStyle.Short)
-            .setPlaceholder('z. B. GamerAndre99')
             .setRequired(false)
-            .setMaxLength(50);
+            .setMaxLength(60);
+
+        if (verifiedRoblox) {
+            ignInput.setValue(`${verifiedRoblox.username} (ID: ${verifiedRoblox.id}) [Verifiziert]`);
+        } else {
+            ignInput.setPlaceholder('z. B. GamerAndre99 (oder /verify nutzen)');
+        }
 
         modal.addComponents(
             new ActionRowBuilder().addComponents(reasonInput),
@@ -1000,63 +1210,68 @@ client.on('interactionCreate', async interaction => {
         return await interaction.showModal(modal);
     }
 
-    if (interaction.isButton() && interaction.customId.startsWith('v_claim_')) {
-        await interaction.deferUpdate().catch(() => {});
-        const parts = interaction.customId.split('_'); 
-        const targetUserId = parts[2]; 
-        const caseId = parts[3]; 
-        const supporterMember = interaction.member;
-        const supporterId = interaction.user.id;
-        
-        const queueData = cloudStorage.voiceSupportQueue[targetUserId];
-        if (!queueData) return interaction.followUp({ content: '❌ Fehler: Dieser User ist nicht mehr in der Warteschleife.', ephemeral: true });
+    // BUTTON: Open Roblox Verification Modal
+    if (interaction.isButton() && interaction.customId.startsWith('trigger_rbx_link_')) {
+        const parts = interaction.customId.split('_');
+        const catId = parts[3];
+        const guildId = parts[4];
 
-        try {
-            const targetMember = await interaction.guild.members.fetch(targetUserId).catch(() => null);
-            if (!targetMember || !targetMember.voice.channelId) {
-                return interaction.followUp({ content: '❌ **Fehler:** Der User hat den Voice-Kanal verlassen.', ephemeral: true });
-            }
+        const verifyModal = new ModalBuilder()
+            .setCustomId('modal_rbx_link_' + catId + '_' + guildId)
+            .setTitle('Roblox-Account verknüpfen');
 
-            const privateSupportChannel = await interaction.guild.channels.create({ 
-                name: `🔏 Support ${caseId}`, 
-                type: ChannelType.GuildVoice, 
-                parent: targetMember.voice.channel.parent 
-            });
-            
-            await targetMember.voice.setChannel(privateSupportChannel).catch(()=>{}); 
-            
-            if (supporterMember.voice.channelId) {
-                await supporterMember.voice.setChannel(privateSupportChannel).catch(()=>{});
-            }
-            
-            delete cloudStorage.voiceSupportQueue[targetUserId];
-            
-            cloudStorage.activeVoiceSessions[supporterId] = {
-                channelId: privateSupportChannel.id,
-                targetUserId: targetUserId
-            };
-            saveCloudVaultToDisk();
+        const rbxInput = new TextInputBuilder()
+            .setCustomId('rbx_username_input')
+            .setLabel('Dein Roblox-Benutzername oder ID')
+            .setStyle(TextInputStyle.Short)
+            .setPlaceholder('z. B. Builderman oder 156')
+            .setRequired(true)
+            .setMinLength(2)
+            .setMaxLength(50);
 
-            const lockedEmbed = new EmbedBuilder()
-                .setTitle('🟩 CLOUD VOICE BRIDGE GEÖFFNET')
-                .setDescription(`Der Vorgang \`${caseId}\` wurde geclaimt. Der User wurde in einen privaten Raum verschoben.\n\n🎙️ **Echtzeit STT:** Was der User sagt, wird transkribiert. Alles was du hier schreibst, liest der Bot ihm per Premium-Google-Stimme vor! Sende \`/closevoice\` zum Trennen.`)
-                .setColor(0x00f5d4)
-                .setTimestamp();
-            
-            await interaction.editReply({ content: `✅ Schaltung erfolgreich durchgeführt!`, embeds: [lockedEmbed], components: [] });
-            
-            const voiceConnection = await playTTS(privateSupportChannel, cloudStorage.systemSettings.voiceAnnounceClaimed, true);
-            startGoogleCloudSTTStream(voiceConnection, targetUserId, interaction.user);
-
-        } catch (e) {}
-        return;
+        verifyModal.addComponents(new ActionRowBuilder().addComponents(rbxInput));
+        return await interaction.showModal(verifyModal);
     }
 
-    // 💻 CHAT SLASH-COMMAND EXECUTION LAYER
-    
-    // =========================================================================
-    // AEROGUARD MODAL SUBMIT HANDLER (CHANNEL TICKET CREATION)
-    // =========================================================================
+    // MODAL SUBMIT: Roblox Account Verification via Real API
+    if (interaction.isModalSubmit() && interaction.customId.startsWith('modal_rbx_link_')) {
+        await interaction.deferReply({ ephemeral: true });
+        const parts = interaction.customId.split('_');
+        const catId = parts[3];
+        const guildId = parts[4];
+        const rbxInput = interaction.fields.getTextInputValue('rbx_username_input');
+
+        const rbxData = await resolveRobloxUser(rbxInput);
+        if (!rbxData) {
+            return interaction.editReply({
+                content: `❌ **Roblox-User nicht gefunden:** Der Account \`${rbxInput}\` existiert nicht auf Roblox. Bitte überprüfe die Schreibweise und versuche es erneut.`
+            });
+        }
+
+        if (!cloudStorage.verifiedRobloxUsers) cloudStorage.verifiedRobloxUsers = {};
+        cloudStorage.verifiedRobloxUsers[interaction.user.id] = rbxData;
+        saveCloudVaultToDisk();
+
+        const successEmbed = new EmbedBuilder()
+            .setTitle('✅ Roblox-Account erfolgreich verknüpft!')
+            .setDescription(`Dein Discord-Account ist jetzt dauerhaft mit **${rbxData.displayName} (@${rbxData.username})** verknüpft.\n\nDu kannst jetzt dein Ticket öffnen!`)
+            .addFields(
+                { name: 'Roblox ID', value: '`' + rbxData.id + '`', inline: true },
+                { name: 'Offizielles Profil', value: `[Profil öffnen](${rbxData.profileUrl})`, inline: true }
+            )
+            .setThumbnail(rbxData.avatarUrl)
+            .setColor(0x00f5d4);
+
+        const continueRow = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId('server_panel_trigger_' + catId + '_' + guildId)
+                .setLabel('🎫 Jetzt Ticket öffnen')
+                .setStyle(ButtonStyle.Success)
+        );
+
+        return interaction.editReply({ embeds: [successEmbed], components: [continueRow] });
+    }
+
     if (interaction.isModalSubmit() && interaction.customId.startsWith('ticket_modal_')) {
         await interaction.deferReply({ ephemeral: true });
 
@@ -1064,7 +1279,11 @@ client.on('interactionCreate', async interaction => {
         const reason = interaction.fields.getTextInputValue('ticket_reason');
         const ign = interaction.fields.getTextInputValue('ticket_ign') || 'Nicht angegeben';
 
-        const selectedCat = ticketSystemConfig.categories.find(c => c.id === catId);
+        const gSettings = getGuildSettings(interaction.guild.id);
+        const categories = (gSettings.ticketCategories && gSettings.ticketCategories.length > 0)
+            ? gSettings.ticketCategories
+            : ticketSystemConfig.categories;
+        const selectedCat = categories.find(c => c.id === catId);
         const catLabel = selectedCat ? selectedCat.label : 'Support';
 
         cloudStorage.systemSettings.ticketCounter = (cloudStorage.systemSettings.ticketCounter || 0) + 1;
@@ -1075,7 +1294,10 @@ client.on('interactionCreate', async interaction => {
 
         // Category resolution
         let parentCategory = null;
-        if (cloudStorage.systemSettings.ticketCategoryId) {
+        if (gSettings.ticketCategoryId) {
+            parentCategory = interaction.guild.channels.cache.get(gSettings.ticketCategoryId);
+        }
+        if (!parentCategory && cloudStorage.systemSettings.ticketCategoryId) {
             parentCategory = interaction.guild.channels.cache.get(cloudStorage.systemSettings.ticketCategoryId);
         }
         if (!parentCategory) {
@@ -1087,7 +1309,7 @@ client.on('interactionCreate', async interaction => {
                     name: '📁 SUPPORT-TICKETS',
                     type: ChannelType.GuildCategory
                 });
-                cloudStorage.systemSettings.ticketCategoryId = parentCategory.id;
+                gSettings.ticketCategoryId = parentCategory.id;
                 saveCloudVaultToDisk();
             } catch(e) {}
         }
@@ -1121,32 +1343,18 @@ client.on('interactionCreate', async interaction => {
             }
         ];
 
-        if (cloudStorage.systemSettings.supportRoleId) {
+        // Support-Rolle perms
+        if (gSettings.supportRoleId) {
             permissionOverwrites.push({
-                id: cloudStorage.systemSettings.supportRoleId,
+                id: gSettings.supportRoleId,
                 allow: [
                     PermissionFlagsBits.ViewChannel,
                     PermissionFlagsBits.SendMessages,
                     PermissionFlagsBits.AttachFiles,
+                    PermissionFlagsBits.EmbedLinks,
                     PermissionFlagsBits.ManageMessages,
                     PermissionFlagsBits.ReadMessageHistory
                 ]
-            });
-        }
-
-        if (cloudStorage.systemSettings.authorizedSupporters) {
-            cloudStorage.systemSettings.authorizedSupporters.forEach(suppId => {
-                if (suppId && suppId !== interaction.guild.id) {
-                    permissionOverwrites.push({
-                        id: suppId,
-                        allow: [
-                            PermissionFlagsBits.ViewChannel,
-                            PermissionFlagsBits.SendMessages,
-                            PermissionFlagsBits.AttachFiles,
-                            PermissionFlagsBits.ManageMessages
-                        ]
-                    });
-                }
             });
         }
 
@@ -1163,22 +1371,33 @@ client.on('interactionCreate', async interaction => {
             return await interaction.editReply({ content: '❌ **Fehler beim Erstellen des Kanals:** ' + e.message + '\nBitte prüfe, ob der Bot die Berechtigung Manage Channels besitzt.' });
         }
 
+        const rbxUser = cloudStorage.verifiedRobloxUsers ? cloudStorage.verifiedRobloxUsers[interaction.user.id] : null;
+
         // Save Ticket Data
         cloudStorage.activeTickets[ticketChannel.id] = {
             ticketNum: ticketNum,
             channelId: ticketChannel.id,
             guildId: interaction.guild.id,
+            guildName: interaction.guild.name,
             userId: interaction.user.id,
             username: interaction.user.tag,
             category: catLabel,
             categoryId: catId,
             reason: reason,
-            ign: ign,
+            ign: rbxUser ? (rbxUser.displayName + ' (@' + rbxUser.username + ')') : ign,
+            robloxData: rbxUser || null,
             createdAt: Date.now(),
             claimedBy: null,
             status: 'OPEN'
         };
         saveCloudVaultToDisk();
+
+        let rbxDisplay = 'Nicht verknüpft';
+        if (rbxUser) {
+            rbxDisplay = `[${rbxUser.displayName} (@${rbxUser.username})](${rbxUser.profileUrl}) \`[ID: ${rbxUser.id}]\` ✅ *Offiziell verifiziert*`;
+        } else if (ign && ign !== 'Nicht angegeben') {
+            rbxDisplay = `\`${ign}\` ⚠️ *(Nicht verifiziert — nutze /verify)*`;
+        }
 
         // Control Panel inside the Ticket Channel
         const ticketEmbed = new EmbedBuilder()
@@ -1187,13 +1406,13 @@ client.on('interactionCreate', async interaction => {
             .addFields(
                 { name: '👤 Ersteller', value: interaction.user.toString() + ' (' + interaction.user.tag + ')', inline: true },
                 { name: '📁 Kategorie', value: catLabel, inline: true },
-                { name: '🎮 Roblox / IGN', value: ign, inline: true },
+                { name: '🎮 Roblox-Account', value: rbxDisplay, inline: true },
                 { name: '📝 Anliegen / Problem', value: reason },
                 { name: '⚡ Status', value: '🟢 **Offen (Warte auf Support)**', inline: true },
                 { name: '👤 Zuständig', value: '*Noch nicht zugewiesen*', inline: true }
             )
             .setColor(0x00f3ff)
-            .setThumbnail(interaction.user.displayAvatarURL({ dynamic: true }))
+            .setThumbnail(rbxUser ? rbxUser.avatarUrl : interaction.user.displayAvatarURL({ dynamic: true }))
             .setFooter({ text: 'AeroGuard High-Tech Support Matrix • Buttons unten zur Steuerung nutzen' })
             .setTimestamp();
 
@@ -1204,8 +1423,8 @@ client.on('interactionCreate', async interaction => {
             new ButtonBuilder().setCustomId('ticket_ch_ai_' + ticketChannel.id).setLabel('KI-Analyse').setEmoji('🤖').setStyle(ButtonStyle.Primary)
         );
 
-        const pingRole = cloudStorage.systemSettings.supportRoleId 
-            ? '<@&' + cloudStorage.systemSettings.supportRoleId + '> ' + interaction.user.toString() 
+        const pingRole = gSettings.supportRoleId 
+            ? '<@&' + gSettings.supportRoleId + '> ' + interaction.user.toString() 
             : interaction.user.toString();
 
         const controlMsg = await ticketChannel.send({ content: pingRole, embeds: [ticketEmbed], components: [controlRow] });
@@ -1215,15 +1434,17 @@ client.on('interactionCreate', async interaction => {
         logTicketMessage(ticketChannel.id, 'System', 'Ticket eröffnet: ' + reason, false);
 
         // Optional Log to logChannel
-        if (cloudStorage.systemSettings.ticketLogChannelId) {
+        const logChannelId = gSettings.ticketLogChannelId || cloudStorage.systemSettings.ticketLogChannelId;
+        if (logChannelId) {
             try {
-                const logCh = interaction.guild.channels.cache.get(cloudStorage.systemSettings.ticketLogChannelId);
+                const logCh = interaction.guild.channels.cache.get(logChannelId);
                 if (logCh) {
                     const logEmb = new EmbedBuilder()
                         .setTitle('🎫 Neues Ticket #' + numStr + ' erstellt')
                         .addFields(
                             { name: 'Kanal', value: ticketChannel.toString(), inline: true },
                             { name: 'Ersteller', value: interaction.user.toString() + ' (' + interaction.user.tag + ')', inline: true },
+                            { name: 'Roblox', value: rbxUser ? rbxUser.username : ign, inline: true },
                             { name: 'Kategorie', value: catLabel, inline: true },
                             { name: 'Grund', value: reason.slice(0, 200) }
                         )
@@ -1234,13 +1455,9 @@ client.on('interactionCreate', async interaction => {
             } catch(e) {}
         }
 
-        saveCloudVaultToDisk();
-        return await interaction.editReply({ content: '✅ **Ticket erfolgreich erstellt!** Wechsle zu deinem Kanal: ' + ticketChannel.toString() });
+        return await interaction.editReply({ content: '✅ **Ticket erfolgreich erstellt:** ' + ticketChannel.toString() });
     }
 
-    // =========================================================================
-    // AEROGUARD TICKET CHANNEL BUTTON HANDLERS
-    // =========================================================================
     if (interaction.isButton() && interaction.customId.startsWith('ticket_ch_close_')) {
         if (interaction.guild) {
             const gSettings = getGuildSettings(interaction.guild.id);
@@ -1272,34 +1489,80 @@ client.on('interactionCreate', async interaction => {
         ticket.status = 'CLOSED';
         ticket.closedBy = interaction.user.tag;
         ticket.closedAt = Date.now();
+        ticket.guildName = interaction.guild ? interaction.guild.name : (ticket.guildName || 'Discord Server');
 
-        const htmlContent = generateHtmlTranscript(chId, ticket);
+        const transcriptKey = 'TR-' + String(ticket.ticketNum).padStart(4, '0') + '-' + Date.now().toString(36);
+        const rbxUser = ticket.robloxData || (cloudStorage.verifiedRobloxUsers ? cloudStorage.verifiedRobloxUsers[ticket.userId] : null);
+        ticket.robloxData = rbxUser;
+
+        const htmlContent = generateHtmlTranscript(chId, ticket, transcriptKey);
         const transcriptBuffer = Buffer.from(htmlContent, 'utf-8');
         const fileName = 'transcript_ticket_' + ticket.ticketNum + '.html';
 
-        // DM to user
+        // Permanent Cloud Storage for Web Viewer
+        cloudStorage.savedTranscripts = cloudStorage.savedTranscripts || {};
+        cloudStorage.savedTranscripts[transcriptKey] = {
+            id: transcriptKey,
+            ticketNum: ticket.ticketNum,
+            guildId: interaction.guild ? interaction.guild.id : ticket.guildId,
+            guildName: ticket.guildName,
+            userId: ticket.userId,
+            username: ticket.username,
+            category: ticket.category,
+            reason: ticket.reason,
+            ign: ticket.ign,
+            robloxData: rbxUser,
+            claimedBy: ticket.claimedBy,
+            closedBy: interaction.user.tag,
+            createdAt: ticket.createdAt,
+            closedAt: ticket.closedAt,
+            messages: cloudStorage.ticketMessageLogs[chId] || [],
+            html: htmlContent
+        };
+        saveCloudVaultToDisk();
+
+        const websiteBaseUrl = process.env.BASE_URL || 'https://roblox-discord-g44u.onrender.com';
+        const transcriptUrl = `${websiteBaseUrl}/transcript/${transcriptKey}`;
+
+        // DM to user with Web Link Button
         try {
             const creator = await client.users.fetch(ticket.userId);
             if (creator) {
                 const dmEmbed = new EmbedBuilder()
-                    .setTitle('🔒 Dein Ticket #' + ticket.ticketNum + ' wurde geschlossen')
-                    .setDescription('Vielen Dank für deine Kontaktaufnahme mit **AeroGuard Support**!\n\n**Server:** ' + interaction.guild.name + '\n**Geschlossen von:** ' + interaction.user.tag + '\n**Kategorie:** ' + ticket.category)
-                    .setColor(0xff0055)
+                    .setTitle('🔒 Dein Ticket #' + ticket.ticketNum + ' wurde archiviert')
+                    .setDescription('Vielen Dank für deine Kontaktaufnahme mit **AeroGuard Support**!\n\nDein Transkript wurde dauerhaft auf unserer **AeroGuard-Webseite** gespeichert und kann online eingesehen werden.')
+                    .addFields(
+                        { name: 'Server', value: interaction.guild ? interaction.guild.name : 'Discord Server', inline: true },
+                        { name: 'Kategorie', value: ticket.category, inline: true },
+                        { name: 'Geschlossen von', value: interaction.user.tag, inline: true },
+                        { name: 'Web-Transkript ID', value: '`' + transcriptKey + '`', inline: true }
+                    )
+                    .setColor(0x00f3ff)
                     .setTimestamp();
-                await creator.send({ embeds: [dmEmbed], files: [{ attachment: transcriptBuffer, name: fileName }] });
+
+                const dmRow = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder()
+                        .setLabel('🌐 Transkript online ansehen')
+                        .setStyle(ButtonStyle.Link)
+                        .setURL(transcriptUrl)
+                );
+                await creator.send({ embeds: [dmEmbed], components: [dmRow], files: [{ attachment: transcriptBuffer, name: fileName }] });
             }
         } catch(e) {}
 
-        // Send to Log channel
-        if (cloudStorage.systemSettings.ticketLogChannelId) {
+        // Send to Log channel with Web Link Button
+        const gSettings = getGuildSettings(interaction.guild ? interaction.guild.id : ticket.guildId);
+        const logChannelId = gSettings.ticketLogChannelId || cloudStorage.systemSettings.ticketLogChannelId;
+        if (logChannelId) {
             try {
-                const logCh = interaction.guild.channels.cache.get(cloudStorage.systemSettings.ticketLogChannelId);
+                const logCh = interaction.guild.channels.cache.get(logChannelId);
                 if (logCh) {
                     const durationMin = Math.max(1, Math.round((Date.now() - ticket.createdAt) / 60000));
                     const archiveEmbed = new EmbedBuilder()
                         .setTitle('📦 Ticket #' + ticket.ticketNum + ' Archiviert')
                         .addFields(
                             { name: 'Ersteller', value: '<@' + ticket.userId + '> (' + ticket.username + ')', inline: true },
+                            { name: 'Roblox-Account', value: rbxUser ? `[${rbxUser.displayName} (@${rbxUser.username})](${rbxUser.profileUrl})` : (ticket.ign || 'Keine Angabe'), inline: true },
                             { name: 'Geschlossen von', value: interaction.user.toString() + ' (' + interaction.user.tag + ')', inline: true },
                             { name: 'Kategorie', value: ticket.category, inline: true },
                             { name: 'Dauer', value: durationMin + ' Min.', inline: true },
@@ -1307,7 +1570,14 @@ client.on('interactionCreate', async interaction => {
                         )
                         .setColor(0x9d4edd)
                         .setTimestamp();
-                    await logCh.send({ embeds: [archiveEmbed], files: [{ attachment: transcriptBuffer, name: fileName }] });
+
+                    const logRow = new ActionRowBuilder().addComponents(
+                        new ButtonBuilder()
+                            .setLabel('🌐 Online-Transkript öffnen')
+                            .setStyle(ButtonStyle.Link)
+                            .setURL(transcriptUrl)
+                    );
+                    await logCh.send({ embeds: [archiveEmbed], components: [logRow], files: [{ attachment: transcriptBuffer, name: fileName }] });
                 }
             } catch(e) {}
         }
@@ -1316,7 +1586,7 @@ client.on('interactionCreate', async interaction => {
         if (!cloudStorage.supporterKPIs[interaction.user.id]) cloudStorage.supporterKPIs[interaction.user.id] = { claimed: 0, closed: 0 };
         cloudStorage.supporterKPIs[interaction.user.id].closed += 1;
 
-        await interaction.channel.send('⏳ **Ticket erfolgreich geschlossen.** Der Kanal wird in **5 Sekunden** gelöscht...');
+        await interaction.channel.send('⏳ **Ticket erfolgreich geschlossen.** Transkript wurde auf der Webseite gespeichert. Der Kanal wird in **5 Sekunden** gelöscht...');
         setTimeout(async () => {
             delete cloudStorage.activeTickets[chId];
             saveCloudVaultToDisk();
@@ -1665,10 +1935,27 @@ client.on('interactionCreate', async interaction => {
         }
 
         if (commandName === 'verify') {
+            await interaction.deferReply({ ephemeral: true });
             const rbxUsername = interaction.options.getString('roblox_name');
-            cloudStorage.verifiedRobloxUsers[userId] = rbxUsername;
+            const rbxData = await resolveRobloxUser(rbxUsername);
+            if (!rbxData) {
+                return interaction.editReply(`❌ **Roblox-User nicht gefunden:** Der Account \`${rbxUsername}\` existiert nicht auf Roblox. Bitte überprüfe die Schreibweise.`);
+            }
+            if (!cloudStorage.verifiedRobloxUsers) cloudStorage.verifiedRobloxUsers = {};
+            cloudStorage.verifiedRobloxUsers[userId] = rbxData;
             saveCloudVaultToDisk();
-            return interaction.reply({ content: `✅ Erfolgreich verifiziert! Dein Discord-Account ist nun mit dem Roblox-User **${rbxUsername}** verknüpft in der Datenbank hinterlegt.`, ephemeral: true });
+
+            const verifyEmbed = new EmbedBuilder()
+                .setTitle('✅ Roblox-Account erfolgreich verknüpft!')
+                .setDescription(`Dein Discord-Account ist nun offiziell mit **${rbxData.displayName} (@${rbxData.username})** verknüpft.`)
+                .addFields(
+                    { name: 'Roblox ID', value: '`' + rbxData.id + '`', inline: true },
+                    { name: 'Offizielles Profil', value: `[Profil ansehen](${rbxData.profileUrl})`, inline: true }
+                )
+                .setThumbnail(rbxData.avatarUrl)
+                .setColor(0x00f5d4);
+
+            return interaction.editReply({ embeds: [verifyEmbed] });
         }
 
         if (commandName === 'setup-modlog') {
@@ -2428,6 +2715,7 @@ app.post('/api/guild/:guildId/settings', async (req, res) => {
     if (req.body.ticketCategoryId !== undefined) gSettings.ticketCategoryId = req.body.ticketCategoryId || null;
     if (req.body.supportRoleId !== undefined) gSettings.supportRoleId = req.body.supportRoleId || null;
     if (req.body.ticketLogChannelId !== undefined) gSettings.ticketLogChannelId = req.body.ticketLogChannelId || null;
+    if (Array.isArray(req.body.ticketCategories)) gSettings.ticketCategories = req.body.ticketCategories;
 
     saveCloudVaultToDisk();
     addLog('info', `Dashboard: Einstellungen für Server "${guild.name}" von ${req.session.user.username} (${perm.roleLabel}) gespeichert.`);
@@ -2451,16 +2739,7 @@ app.post('/api/guild/:guildId/deploy-panel', async (req, res) => {
     if (!targetChannel) return res.status(400).json({ error: 'Ungültiger Textkanal' });
 
     try {
-        const row = new ActionRowBuilder(); 
-        ticketSystemConfig.categories.forEach(cat => { 
-            row.addComponents(
-                new ButtonBuilder()
-                    .setCustomId('server_panel_trigger_' + cat.id + '_' + guild.id)
-                    .setLabel(cat.label)
-                    .setStyle(cat.color)
-            ); 
-        });
-        
+        const panelRows = buildTicketPanelActionRows(guild.id);
         const panelEmbed = new EmbedBuilder()
             .setTitle('🛡️ AeroGuard Core Support Hub')
             .setDescription(ticketSystemConfig.welcomeMessage)
@@ -2469,7 +2748,7 @@ app.post('/api/guild/:guildId/deploy-panel', async (req, res) => {
             .setFooter({ text: 'Klicke auf eine Kategorie, um ein privates Ticket mit dem Team zu eröffnen.' })
             .setTimestamp();
 
-        await targetChannel.send({ embeds: [panelEmbed], components: [row] });
+        await targetChannel.send({ embeds: [panelEmbed], components: panelRows });
         addLog('info', `Dashboard: Support-Panel in #${targetChannel.name} auf ${guild.name} bereitgestellt.`);
         return res.json({ success: true, channelName: targetChannel.name });
     } catch(e) {
@@ -2480,12 +2759,48 @@ app.post('/api/guild/:guildId/deploy-panel', async (req, res) => {
 // Route: HTML Transcript Viewer
 app.get('/transcript/:ticketId', (req, res) => {
     const tId = req.params.ticketId;
-    let ticket = cloudStorage.activeTickets[tId];
-    if (!ticket) {
-        ticket = { ticketNum: tId, username: 'Archivierter Nutzer', category: 'Support', reason: 'Archiviertes Ticket', ign: 'N/A' };
+    
+    // 1. Check permanent saved transcripts
+    if (cloudStorage.savedTranscripts && cloudStorage.savedTranscripts[tId]) {
+        const saved = cloudStorage.savedTranscripts[tId];
+        return res.send(saved.html || generateHtmlTranscript(tId, saved, tId));
     }
-    const html = generateHtmlTranscript(tId, ticket);
-    res.send(html);
+
+    // 2. Search savedTranscripts by ticketNum or channelId
+    if (cloudStorage.savedTranscripts) {
+        const matched = Object.values(cloudStorage.savedTranscripts).find(t => 
+            String(t.ticketNum) === String(tId) || t.channelId === tId || t.id === tId
+        );
+        if (matched) {
+            return res.send(matched.html || generateHtmlTranscript(matched.channelId || tId, matched, matched.id));
+        }
+    }
+
+    // 3. Check active live tickets
+    if (cloudStorage.activeTickets && cloudStorage.activeTickets[tId]) {
+        const live = cloudStorage.activeTickets[tId];
+        return res.send(generateHtmlTranscript(tId, live, tId));
+    }
+
+    // 4. Not found 404
+    return res.status(404).send(`<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>AeroGuard — Transkript nicht gefunden</title>
+    <style>
+        body { background:#07080f; color:#fff; font-family:sans-serif; text-align:center; padding:100px 20px; }
+        h1 { color:#ef4444; font-size:2rem; }
+        p { color:#94a3b8; margin-top:14px; font-size:1.1rem; }
+        a { display:inline-block; margin-top:24px; color:#00f3ff; text-decoration:none; font-weight:700; border:1px solid #00f3ff; padding:10px 24px; border-radius:8px; }
+    </style>
+</head>
+<body>
+    <h1>⚠️ Transkript nicht gefunden</h1>
+    <p>Das angeforderte Ticket-Transkript konnte in der Cloud-Datenbank nicht gefunden werden.</p>
+    <a href="/">← Zurück zur Startseite</a>
+</body>
+</html>`);
 });
 
 // =========================================================================
@@ -2808,6 +3123,19 @@ app.get('/dashboard', async (req, res) => {
 </html>`);
     }
 
+    const savedTranscriptsList = Object.values(cloudStorage.savedTranscripts || {}).map(t => ({
+        id: t.id,
+        ticketNum: t.ticketNum,
+        guildId: t.guildId,
+        username: t.username,
+        category: t.category,
+        ign: t.ign,
+        robloxData: t.robloxData,
+        closedBy: t.closedBy,
+        closedAt: t.closedAt
+    })).sort((a, b) => (b.closedAt || 0) - (a.closedAt || 0));
+
+    const savedTranscriptsJson = JSON.stringify(savedTranscriptsList).replace(/</g, '\\u003c');
     const activeList = Object.keys(cloudStorage.activeTickets).map(chId => ({
         channelId: chId,
         ...cloudStorage.activeTickets[chId]
@@ -3204,6 +3532,20 @@ app.get('/dashboard', async (req, res) => {
                 </div>
             </div>
 
+            
+            <div style="margin-top:24px; padding-top:20px; border-top:1px solid var(--border);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
+                    <div>
+                        <div style="font-weight:700; font-size:1.05rem; color:#fff;">🎨 Ticket-Kategorien & Gründe anpassen</div>
+                        <div style="font-size:0.8rem; color:var(--text-dim); margin-top:2px;">Gründe für Ticket-Eröffnungen definieren und Roblox-Verknüpfungspflicht festlegen.</div>
+                    </div>
+                    <button type="button" class="btn-action btn-secondary" onclick="addCategoryRow()" style="padding:6px 14px; font-size:0.82rem;">
+                        + Neue Kategorie hinzufügen
+                    </button>
+                </div>
+                <div id="category-rows-container" style="display:flex; flex-direction:column; gap:10px;"></div>
+            </div>
+
             <div class="actions-bar">
                 <button class="btn-action btn-secondary" onclick="deployPanelToChannel()">
                     🚀 Support-Panel in Kanal posten
@@ -3244,12 +3586,41 @@ app.get('/dashboard', async (req, res) => {
                 </tbody>
             </table>
         </div>
+
+        <div class="control-panel" style="margin-top:30px;">
+            <div class="ticket-controls">
+                <div class="section-title">
+                    <span>📜 Gespeicherte Web-Transkripte</span>
+                </div>
+                <div style="display:flex;gap:12px;flex-wrap:wrap;">
+                    <input type="text" class="search-input" id="transcripts-search" placeholder="🔍 Transkript-ID, Ersteller oder Roblox suchen..." oninput="filterTranscripts()">
+                </div>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Transkript-ID</th>
+                        <th>Ticket #</th>
+                        <th>Ersteller</th>
+                        <th>Roblox-Account</th>
+                        <th>Kategorie</th>
+                        <th>Geschlossen von</th>
+                        <th>Aktion</th>
+                    </tr>
+                </thead>
+                <tbody id="transcripts-tbody">
+                </tbody>
+            </table>
+        </div>
     </div>
 
     <div id="toast">✅ Einstellungen erfolgreich gespeichert!</div>
 
     <script>
         const guilds = ${guildsDataJson};
+        const allSavedTranscripts = ${savedTranscriptsJson};
+        let activeCategories = [];
+
         let activeGuildId = guilds.length > 0 ? guilds[0].id : null;
         let currentStatusFilter = 'ALL';
 
@@ -3295,6 +3666,20 @@ app.get('/dashboard', async (req, res) => {
             document.getElementById('active-server-desc').innerText = 'Server ID: ' + guild.id + ' • ' + guild.memberCount + ' Mitglieder';
             document.getElementById('active-server-role-badge').innerHTML = '<span>' + (guild.userRoleLabel || 'Berechtigt') + '</span>';
             document.getElementById('header-user-role').innerText = guild.userRoleLabel || 'Berechtigt';
+
+            activeCategories = JSON.parse(JSON.stringify(guild.settings.ticketCategories || []));
+            if (activeCategories.length === 0) {
+                activeCategories = [
+                    { id: "support", label: "🔮 Allgemeiner Support", color: "Success", requireRoblox: false },
+                    { id: "bug", label: "🐛 Bug/Fehler melden", color: "Danger", requireRoblox: true },
+                    { id: "player_report", label: "🚨 Spieler-Report", color: "Danger", requireRoblox: true },
+                    { id: "team", label: "📝 Team-Bewerbung", color: "Primary", requireRoblox: false },
+                    { id: "partner", label: "🤝 Partnerschaft", color: "Secondary", requireRoblox: false }
+                ];
+            }
+            renderCategoryEditor();
+            renderTranscriptsTable();
+
 
             const modules = guild.settings.modules || {};
             document.getElementById('mod-tickets').checked = modules.tickets !== false;
@@ -3349,7 +3734,8 @@ app.get('/dashboard', async (req, res) => {
                 },
                 ticketCategoryId: document.getElementById('select-category').value || null,
                 supportRoleId: document.getElementById('select-role').value || null,
-                ticketLogChannelId: document.getElementById('select-logchannel').value || null
+                ticketLogChannelId: document.getElementById('select-logchannel').value || null,
+                ticketCategories: activeCategories
             };
 
             try {
@@ -3425,6 +3811,113 @@ app.get('/dashboard', async (req, res) => {
                     row.style.display = 'none';
                 }
             });
+        }
+
+
+        function renderCategoryEditor() {
+            const container = document.getElementById('category-rows-container');
+            if (!container) return;
+            container.innerHTML = '';
+
+            activeCategories.forEach((cat, index) => {
+                const row = document.createElement('div');
+                row.style = 'display:flex; align-items:center; gap:12px; background:rgba(255,255,255,0.03); border:1px solid var(--border); padding:10px 14px; border-radius:10px; flex-wrap:wrap;';
+                
+                const isSuccess = cat.color === 'Success' ? 'selected' : '';
+                const isPrimary = cat.color === 'Primary' ? 'selected' : '';
+                const isDanger = cat.color === 'Danger' ? 'selected' : '';
+                const isSecondary = cat.color === 'Secondary' ? 'selected' : '';
+                const isChecked = cat.requireRoblox ? 'checked' : '';
+
+                row.innerHTML = 
+                    '<div style="flex:2; min-width:180px;">' +
+                        '<input type="text" class="search-input" style="width:100%; padding:8px 12px; font-size:0.85rem;" value="' + (cat.label || '').replace(/"/g, '&quot;') + '" placeholder="Kategorie Name (z. B. Support)" onchange="updateCatProp(' + index + ', \'label\', this.value)">' +
+                    '</div>' +
+                    '<div style="flex:1; min-width:130px;">' +
+                        '<select style="width:100%; background:#161c33; border:1px solid var(--border); color:#fff; padding:8px; border-radius:8px; font-size:0.85rem;" onchange="updateCatProp(' + index + ', \'color\', this.value)">' +
+                            '<option value="Success" ' + isSuccess + '>🟢 Grün (Success)</option>' +
+                            '<option value="Primary" ' + isPrimary + '>🔵 Blau (Primary)</option>' +
+                            '<option value="Danger" ' + isDanger + '>🔴 Rot (Danger)</option>' +
+                            '<option value="Secondary" ' + isSecondary + '>⚪ Grau (Secondary)</option>' +
+                        '</select>' +
+                    '</div>' +
+                    '<label style="display:flex; align-items:center; gap:6px; font-size:0.82rem; color:var(--cyan); cursor:pointer; min-width:140px; margin:0;">' +
+                        '<input type="checkbox" ' + isChecked + ' onchange="updateCatProp(' + index + ', \'requireRoblox\', this.checked)">' +
+                        '<span>🎮 Roblox-Pflicht</span>' +
+                    '</label>' +
+                    '<button type="button" onclick="deleteCategoryRow(' + index + ')" style="background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.4); color:#fca5a5; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:0.85rem;">' +
+                        '🗑️' +
+                    '</button>';
+                container.appendChild(row);
+            });
+        }
+
+        function updateCatProp(index, prop, val) {
+            if (activeCategories[index]) {
+                activeCategories[index][prop] = val;
+            }
+        }
+
+        function addCategoryRow() {
+            const newId = 'cat_' + Date.now().toString(36);
+            activeCategories.push({
+                id: newId,
+                label: '✨ Neuer Grund',
+                color: 'Primary',
+                requireRoblox: false
+            });
+            renderCategoryEditor();
+        }
+
+        function deleteCategoryRow(index) {
+            if (activeCategories.length <= 1) {
+                return alert('Mindestens eine Ticket-Kategorie muss bestehen bleiben.');
+            }
+            activeCategories.splice(index, 1);
+            renderCategoryEditor();
+        }
+
+        function renderTranscriptsTable(searchQuery = '') {
+            const tbody = document.getElementById('transcripts-tbody');
+            if (!tbody) return;
+
+            const filtered = allSavedTranscripts.filter(t => {
+                const matchGuild = !activeGuildId || t.guildId === activeGuildId;
+                if (!matchGuild) return false;
+                if (!searchQuery) return true;
+                const q = searchQuery.toLowerCase();
+                const str = ((t.id || '') + ' ' + (t.username || '') + ' ' + (t.ign || '') + ' ' + (t.category || '')).toLowerCase();
+                return str.includes(q);
+            });
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:25px; color:#64748b;">Keine archivierten Transkripte für diesen Server gefunden.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(t => {
+                const rbx = t.robloxData;
+                const rbxDisplay = rbx ? rbx.displayName + ' (@' + rbx.username + ')' : (t.ign || 'N/A');
+                return '<tr>' +
+                    '<td><code style="color:var(--cyan); font-size:0.8rem;">' + (t.id || 'N/A') + '</code></td>' +
+                    '<td><span class="badge-ticket">#' + String(t.ticketNum || 0).padStart(4, '0') + '</span></td>' +
+                    '<td><strong>' + (t.username || 'Unbekannt') + '</strong></td>' +
+                    '<td>' +
+                        '<div style="display:flex; align-items:center; gap:6px;">' +
+                            (rbx && rbx.avatarUrl ? '<img src="' + rbx.avatarUrl + '" style="width:20px;height:20px;border-radius:4px;" alt="">' : '🎮') +
+                            '<span>' + rbxDisplay + '</span>' +
+                        '</div>' +
+                    '</td>' +
+                    '<td><span class="badge-cat">' + (t.category || 'Support') + '</span></td>' +
+                    '<td><span style="color:#94a3b8; font-size:0.85rem;">' + (t.closedBy || 'System') + '</span></td>' +
+                    '<td><a href="/transcript/' + t.id + '" target="_blank" class="action-btn">🌐 Transkript aufrufen</a></td>' +
+                '</tr>';
+            }).join('');
+        }
+
+        function filterTranscripts() {
+            const q = document.getElementById('transcripts-search').value;
+            renderTranscriptsTable(q);
         }
 
         function showToast(msg) {
