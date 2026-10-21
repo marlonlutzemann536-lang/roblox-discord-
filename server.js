@@ -883,19 +883,22 @@ client.on('interactionCreate', async interaction => {
         });
     }
 
-    if (interaction.isButton() && interaction.customId === 'dm_apply_btn') {
-        cloudStorage.activeApplications[interaction.user.id] = { step: 0, answers: [] };
-        saveCloudVaultToDisk();
-        const startEmbed = new EmbedBuilder()
-            .setTitle('📋 AeroGuard Teambewerbung')
-            .setDescription(`Vielen Dank für dein Interesse an unserem Team!\n\n**Frage 1:**\n${APPLICATION_QUESTIONS[0]}`)
-            .setColor(0x00f5d4);
-        return await interaction.reply({ embeds: [startEmbed], ephemeral: true }).catch(async () => {
-            await interaction.user.send({ embeds: [startEmbed] }).catch(() => {});
+        if (interaction.isButton() && interaction.customId === 'dm_apply_btn') {
+        const noDmAppEmbed = new EmbedBuilder()
+            .setTitle('🌐 Keine Bewerbungen über private DMs')
+            .setDescription('Bewerbungen und Support werden aus Sicherheitsgründen **nicht über private Direktnachrichten** abgewickelt.\n\n👉 **So bewirbst du dich:**\n1. Besuche unsere offizielle Webseite über den Button unten.\n2. Oder nutze auf unserem Discord-Server im Support-Kanal den Button **📝 Team-Bewerbung**.')
+            .setColor(0x9d4edd);
+        const webRow = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setLabel('🌐 Offizielle Webseite')
+                .setStyle(ButtonStyle.Link)
+                .setURL('https://roblox-discord-g44u.onrender.com/')
+        );
+        return await interaction.reply({ embeds: [noDmAppEmbed], components: [webRow], ephemeral: true }).catch(async () => {
+            await interaction.user.send({ embeds: [noDmAppEmbed], components: [webRow] }).catch(() => {});
         });
     }
 
-    
     // [REMOVED OLD DM TICKET BUTTONS]
     if (interaction.isButton() && (interaction.customId === 'live_poll_btn_a' || interaction.customId === 'live_poll_btn_b')) {
         const poll = cloudStorage.livePollsDatabase[interaction.message.id]; 
@@ -2098,59 +2101,24 @@ client.on('messageCreate', async message => {
     if (message.author.bot) return;
 
     if (!message.guild) {
-        // Fall 1: Aktive Teambewerbung in DM
-        if (cloudStorage.activeApplications[message.author.id]) {
-            const userId = message.author.id; 
-            const appState = cloudStorage.activeApplications[userId];
-            
-            appState.answers.push(message.content); 
-            appState.step += 1;
-            saveCloudVaultToDisk();
-
-            if (appState.step < APPLICATION_QUESTIONS.length) { 
-                return await message.author.send(APPLICATION_QUESTIONS[appState.step]); 
-            } else {
-                delete cloudStorage.activeApplications[userId]; 
-                saveCloudVaultToDisk();
-                await message.author.send("✅ **Protokoll beendet!** Deine Bewerbung wurde sicher in die administrative Cloud hochgeladen.");
-                
-                try {
-                    const ownerUser = await client.users.fetch(OWNER_ID);
-                    if (ownerUser) {
-                        const appEmbed = new EmbedBuilder()
-                            .setTitle('📋 Neue Sektor-Team-Bewerbung!')
-                            .setDescription('Bewerber-Identifikation: ' + message.author.toString() + ' (`' + message.author.tag + '`)')
-                            .setColor(0x00f5d4)
-                            .setTimestamp();
-                            
-                        for(let i=0; i<APPLICATION_QUESTIONS.length; i++) {
-                            appEmbed.addFields({ name: APPLICATION_QUESTIONS[i], value: appState.answers[i] || 'Keine Antwort' });
-                        }
-                        await ownerUser.send({ embeds: [appEmbed] });
-                    }
-                } catch(e){}
-                return;
-            }
-        }
-
-        // Fall 2: Normale Direktnachricht (z. B. "hi", "help") - Hochmodernes AeroGuard Support-Terminal
+        // Direktnachrichten: Keine DMs für Support oder Bewerbungen
         const dmHelpEmbed = new EmbedBuilder()
             .setTitle('🔮 AeroGuard Cloud-Core • Zentrales Hilfe-Terminal')
-            .setDescription('Willkommen beim offiziellen Support-Terminal von **AeroGuard Core**.\n\n🛡️ **Wichtiger Sicherheitshinweis:**\nAus Datenschutz- und Sicherheitsgründen führen wir **keine Support-Tickets über private DMs**. Dein gesamtes Support-Erlebnis findet sicher und transparent direkt auf unserem Discord-Server statt!')
+            .setDescription('Willkommen beim offiziellen Support-Terminal von **AeroGuard Core**.\n\n🛡️ **Wichtiger Sicherheitshinweis:**\nAus Datenschutz- und Sicherheitsgründen führen wir **keine Bewerbungen und keine Support-Tickets über private DMs**.\n\nDein gesamtes Support-Erlebnis und alle Teambewerbungen laufen transparent direkt auf unserem Discord-Server sowie über unsere offizielle Webseite!')
             .setColor(0x9d4edd)
             .setThumbnail(client.user ? client.user.displayAvatarURL() : null)
             .addFields(
                 { 
-                    name: '🎫 Wie erstelle ich ein Support-Ticket?', 
-                    value: '1️⃣ Gehe in den **Support-Kanal** auf dem Server (z. B. `#support` oder `#tickets`).\n2️⃣ Klicke im **AeroGuard Panel** auf die passende Kategorie (*Allgemeiner Support*, *Bug melden* etc.).\n3️⃣ Trage dein Anliegen in das Pop-up ein – dein privater Kanal (**#ticket-XXXX**) wird sofort erstellt!' 
+                    name: '🎫 Wie erstelle ich ein Support-Ticket oder eine Bewerbung?', 
+                    value: '1️⃣ Gehe in den **Support-Kanal** auf dem Server (z. B. `#support` oder `#tickets`).\n2️⃣ Klicke im **AeroGuard Panel** auf die passende Kategorie (*Allgemeiner Support*, *Bug melden* oder *📝 Team-Bewerbung*).\n3️⃣ Dein privater Ticket-Kanal (**#ticket-XXXX**) wird automatisch für dich erstellt!' 
                 },
                 { 
                     name: '⚡ Schnellbefehle auf dem Server', 
                     value: '• `!setup` oder `!panel` – *Support-Panel im Kanal aufstellen (Admins)*\n• `!close` – *Ticket mit Bestätigung & Transkript schließen*\n• `!claim` – *Ticket als Supporter übernehmen*\n• `!transcript` – *HTML-Chat-Transkript exportieren*' 
                 },
                 { 
-                    name: '🌐 Web-Dashboard & Multi-Server-Steuerung', 
-                    value: 'Als Server-Besitzer kannst du alle Einstellungen, Module und Tickets online verwalten unter: `http://localhost:3000`' 
+                    name: '🌐 Offizielle Webseite & Dashboard', 
+                    value: 'Besuche unsere offizielle Plattform für alle System-Features, Bot-Einladung und Multi-Server-Steuerung:\n👉 [https://roblox-discord-g44u.onrender.com/](https://roblox-discord-g44u.onrender.com/)' 
                 }
             )
             .setFooter({ text: 'AeroGuard Enterprise • Next-Gen Ticket & Server Suite' })
@@ -2158,17 +2126,17 @@ client.on('messageCreate', async message => {
 
         const dmRow = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
-                .setLabel('🌐 Web-Dashboard')
+                .setLabel('🌐 Offizielle Webseite')
                 .setStyle(ButtonStyle.Link)
-                .setURL(process.env.DASHBOARD_URL || 'http://localhost:3000'),
+                .setURL('https://roblox-discord-g44u.onrender.com/'),
+            new ButtonBuilder()
+                .setLabel('📊 Web-Dashboard')
+                .setStyle(ButtonStyle.Link)
+                .setURL(process.env.DASHBOARD_URL || 'https://roblox-discord-g44u.onrender.com/dashboard'),
             new ButtonBuilder()
                 .setCustomId('dm_faq_btn')
                 .setLabel('❓ Häufige Fragen (FAQ)')
-                .setStyle(ButtonStyle.Primary),
-            new ButtonBuilder()
-                .setCustomId('dm_apply_btn')
-                .setLabel('📋 Bewerbung starten')
-                .setStyle(ButtonStyle.Success)
+                .setStyle(ButtonStyle.Primary)
         );
 
         return await message.author.send({ embeds: [dmHelpEmbed], components: [dmRow] }).catch(() => {});
