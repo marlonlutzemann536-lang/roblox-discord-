@@ -591,6 +591,33 @@
                         <button type="button" class="btn-configure">✨ Jetzt Ausführen</button>
                     </div>
                 </div>
+                <!-- MODULE 10: SERVER-VORLAGEN & PRESETS -->
+                <div class="feature-card" onclick="openModuleModal('templates')">
+                    <div class="feature-card-header">
+                        <div class="feature-icon-wrapper" style="color:#f59e0b;">🏛️</div>
+                        <span id="badge-mod-templates" class="feature-badge-active badge-on">● 3 Presets</span>
+                    </div>
+                    <div class="feature-title">Server-Vorlagen & Setup Presets</div>
+                    <div class="feature-desc">Vollständige Server-Infrastrukturen per Knopfdruck aufbauen: Gaming-Community, Roblox Studio Dev oder die exklusive offizielle AeroGuard Support-Server Vorlage.</div>
+                    <div class="feature-card-footer">
+                        <span class="feature-subtext">Automatischer Kanalaufbau</span>
+                        <button type="button" class="btn-configure">🏛️ Vorlagen ansehen</button>
+                    </div>
+                </div>
+
+                <!-- MODULE 11: BOT-LIFECYCLE & STATUS MONITOR -->
+                <div class="feature-card" onclick="openModuleModal('status_monitor')">
+                    <div class="feature-card-header">
+                        <div class="feature-icon-wrapper" style="color:#10b981;">📡</div>
+                        <span id="badge-mod-status" class="feature-badge-active badge-on">● Live Überwacht</span>
+                    </div>
+                    <div class="feature-title">Bot-Lifecycle & Status Monitor</div>
+                    <div class="feature-desc">Echtzeit-Meldungen bei Online-Start und vor dem Herunterfahren (Wartungsmodus/Shutdown) direkt in deinen Discord-Statuskanal.</div>
+                    <div class="feature-card-footer">
+                        <span class="feature-subtext">Online & Shutdown Alerts</span>
+                        <button type="button" class="btn-configure">⚙️ Konfigurieren</button>
+                    </div>
+                </div>
 
         </div>
 
@@ -693,6 +720,7 @@
 
     <!-- CLIENT SCRIPT -->
     <script>
+        const currentUser = {{CURRENT_USER_JSON}};
         const guilds = {{GUILDS_JSON}};
         const allTranscripts = {{TRANSCRIPTS_JSON}};
         const activeTicketsList = {{ACTIVE_TICKETS_JSON}};
@@ -861,6 +889,18 @@
                 subtitleEl.innerText = '100% Kanal-Abdeckung • Cyberpunk-Stil • Text, Voice & Kategorien';
                 toggleEl.checked = true;
                 bodyEl.innerHTML = buildStylizerModalHtml(guild);
+            } else if (moduleId === 'templates') {
+                iconEl.innerText = '🏛️';
+                titleEl.innerText = 'Server-Vorlagen & Setup Presets';
+                subtitleEl.innerText = 'Fertige Server-Strukturen per Knopfdruck anlegen (Gaming, Roblox Dev, AeroGuard Official)';
+                toggleEl.checked = true;
+                bodyEl.innerHTML = buildTemplatesModalHtml(guild);
+            } else if (moduleId === 'status_monitor') {
+                iconEl.innerText = '📡';
+                titleEl.innerText = 'Bot-Lifecycle & Status Monitor';
+                subtitleEl.innerText = 'Automatische Online- und Vorher-Shutdown-Broadcasts in deinen Discord-Kanal';
+                toggleEl.checked = (guild.settings.statusUpdates ? guild.settings.statusUpdates.enabled !== false : true);
+                bodyEl.innerHTML = buildStatusMonitorModalHtml(guild);
             }
         }
 
@@ -1160,6 +1200,12 @@
 
             if (currentOpenModule === 'stylizer') {
                 payload.modules.stylizer = isModuleActive;
+            } else if (currentOpenModule === 'status_monitor') {
+                const selCh = document.getElementById('cfg-status-channel');
+                payload.statusUpdates = {
+                    enabled: isModuleActive,
+                    channelId: selCh ? selCh.value : null
+                };
             } else if (currentOpenModule === 'tickets') {
                 payload.modules.tickets = isModuleActive;
                 payload.ticketCategoryId = document.getElementById('cfg-ticket-category').value || null;
@@ -1589,7 +1635,339 @@
             '</div>';
         }
 
-        async function executeChannelStyling() {
+        
+        // =========================================================================
+        // TEMPLATES & LIFECYCLE CLIENT MODULES (v3.3)
+        // =========================================================================
+        function buildTemplatesModalHtml(guild) {
+            const isBotOwner = Boolean(currentUser && currentUser.isOwner);
+
+            let ownerCardHtml = '';
+            if (isBotOwner) {
+                ownerCardHtml = '<div style="background:rgba(245,158,11,0.06); border:1px solid rgba(245,158,11,0.45); border-radius:14px; padding:20px; box-shadow:0 0 25px rgba(245,158,11,0.1);">' +
+                    '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">' +
+                        '<div style="display:flex; align-items:center; gap:8px;">' +
+                            '<span style="font-size:1.6rem;">👑</span>' +
+                            '<strong style="color:#fbbf24; font-size:1.15rem;">Offizieller AeroGuard Support-Server</strong>' +
+                        '</div>' +
+                        '<span style="background:rgba(245,158,11,0.2); color:#fbbf24; border:1px solid rgba(245,158,11,0.5); padding:3px 12px; border-radius:20px; font-size:0.75rem; font-weight:800;">👑 BOT-BESITZER EXKLUSIV</span>' +
+                    '</div>' +
+                    '<div style="background:rgba(245,158,11,0.12); border:1px solid rgba(245,158,11,0.3); border-radius:10px; padding:10px 14px; font-size:0.83rem; color:#fde68a; margin-bottom:12px;">' +
+                        '✅ <strong>Verifizierter Bot-Besitzer:</strong> Du bist berechtigt, die offizielle AeroGuard Support-Server Infrastruktur auf <em>' + guild.name + '</em> aufzubauen.' +
+                    '</div>' +
+                    '<p style="color:#cbd5e1; font-size:0.88rem; line-height:1.5; margin-bottom:14px;">' +
+                        'Erstellt die exklusive Hauptserver-Struktur mit <strong>6 Kategorien & 21 Kanälen</strong>: AeroGuard Zentrale (inkl. Bot-Status Monitor), Support-Suite (Ticket-Panel & Feedback), Community Hub, Events & Staff-Management.' +
+                    '</p>' +
+                    '<div style="background:rgba(0,0,0,0.3); border-radius:10px; padding:12px 16px; margin-bottom:16px; font-size:0.8rem; color:#94a3b8; font-family:\'JetBrains Mono\', monospace;">' +
+                        '📌 ┃ AEROGUARD ZENTRALE (#📜・regeln, #📢・announcements, #🤖・bot-status, #❓・bot-faq)<br>' +
+                        '🎫 ┃ SUPPORT & FEEDBACK (#🎫・ticket-erstellen, #💡・vorschläge, #🐛・bugs)<br>' +
+                        '💬 ┃ COMMUNITY HUB (#💬・allgemein, #📸・showcases, #🤖・bot-commands)<br>' +
+                        '🔊 ┃ SPRACH-LOUNGE (Warteraum, Talks, Musik, AFK) & 🛡️ Staff-Management' +
+                    '</div>' +
+                    '<button type="button" class="btn-primary" style="background:linear-gradient(135deg, #f59e0b, #d97706); border:none; color:#000; font-weight:800; padding:10px 22px; width:100%; justify-content:center;" onclick="executeApplyTemplate(\'aeroguard_official\')">' +
+                        '👑 Offizielle AeroGuard Vorlage jetzt anwenden' +
+                    '</button>' +
+                '</div>';
+            } else {
+                ownerCardHtml = '<div style="background:rgba(239,68,68,0.04); border:1px solid rgba(239,68,68,0.3); border-radius:14px; padding:20px; opacity:0.8;">' +
+                    '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">' +
+                        '<div style="display:flex; align-items:center; gap:8px;">' +
+                            '<span style="font-size:1.6rem;">🔒</span>' +
+                            '<strong style="color:#ef4444; font-size:1.15rem;">Offizieller AeroGuard Support-Server</strong>' +
+                        '</div>' +
+                        '<span style="background:rgba(239,68,68,0.15); color:#ef4444; border:1px solid rgba(239,68,68,0.35); padding:3px 12px; border-radius:20px; font-size:0.75rem; font-weight:800;">🔒 NUR FÜR BOT-BESITZER</span>' +
+                    '</div>' +
+                    '<div style="background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.25); border-radius:10px; padding:10px 14px; font-size:0.83rem; color:#fca5a5; margin-bottom:12px;">' +
+                        '⛔ <strong>Zugriff geschützt:</strong> Diese Vorlage baut den offiziellen AeroGuard Hauptserver auf und kann laut Sicherheitsrichtlinie ausschließlich vom verifizierten Bot-Besitzer (Root Owner) angewendet werden!' +
+                    '</div>' +
+                    '<p style="color:#94a3b8; font-size:0.86rem; line-height:1.5; margin-bottom:14px;">' +
+                        'Beinhaltet geschützte Konfigurationen für Bot-Status-Monitoring, Entwickler-Schnittstellen und Team-Leitstellen.' +
+                    '</p>' +
+                    '<button type="button" class="btn-secondary" style="width:100%; justify-content:center; opacity:0.5; cursor:not-allowed;" disabled>' +
+                        '🔒 Nur für Bot-Besitzer freigeschaltet' +
+                    '</button>' +
+                '</div>';
+            }
+
+            return '<div style="display:flex; flex-direction:column; gap:20px;">' +
+                // INTRO BOX
+                '<div style="background:rgba(0,243,255,0.04); border:1px solid rgba(0,243,255,0.25); border-radius:14px; padding:18px;">' +
+                    '<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">' +
+                        '<div style="display:flex; align-items:center; gap:8px;">' +
+                            '<span style="font-size:1.4rem;">🏛️</span>' +
+                            '<strong style="color:#fff; font-size:1.05rem;">Server-Vorlagen & Struktur-Generator</strong>' +
+                        '</div>' +
+                        '<span style="background:rgba(0,243,255,0.15); color:var(--cyan); padding:3px 10px; border-radius:20px; font-size:0.75rem; font-weight:800;">3 PRESETS VERFÜGBAR</span>' +
+                    '</div>' +
+                    '<p style="color:#94a3b8; font-size:0.88rem; line-height:1.5; margin:0;">' +
+                        'Wähle ein Preset, um Kategorien, Textkanäle und Sprachräume vollautomatisch auf <strong>' + guild.name + '</strong> zu generieren. Alle Kanäle werden direkt mit Cyberpunk-Emojis und Themen ausgestattet!' +
+                    '</p>' +
+                '</div>' +
+
+                // STATUS / NOTICE BOX
+                '<div id="template-status-box" style="display:none; padding:14px 18px; border-radius:12px; font-size:0.88rem; line-height:1.5;"></div>' +
+
+                // TEMPLATE 1: GAMING
+                '<div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.1); border-radius:14px; padding:20px;">' +
+                    '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">' +
+                        '<div style="display:flex; align-items:center; gap:8px;">' +
+                            '<span style="font-size:1.6rem;">🎮</span>' +
+                            '<strong style="color:#fff; font-size:1.15rem;">Gaming & Community Hub</strong>' +
+                        '</div>' +
+                        '<span style="background:rgba(56,189,248,0.15); color:#38bdf8; border:1px solid rgba(56,189,248,0.3); padding:3px 12px; border-radius:20px; font-size:0.75rem; font-weight:800;">COMMUNITY & ESPORTS</span>' +
+                    '</div>' +
+                    '<p style="color:#94a3b8; font-size:0.88rem; line-height:1.5; margin-bottom:14px;">' +
+                        'Perfekt für Gamer-Gruppen, Clans und Streamer. Beinhaltet Regeln, Ankündigungen, Meme-Ecken, Media-Showcases, Vorschläge, Giveaways, Ticket-Support und Gaming-Voice-Rooms.' +
+                    '</p>' +
+                    '<div style="background:rgba(0,0,0,0.3); border-radius:10px; padding:12px 16px; margin-bottom:16px; font-size:0.8rem; color:#94a3b8; font-family:\'JetBrains Mono\', monospace;">' +
+                        '📌 ┃ INFOS (Regeln, News, Updates) • 💬 ┃ LOUNGE (Chat, Clips, Memes)<br>' +
+                        '🎉 ┃ EVENTS (Vorschläge, Giveaways, Umfragen) • 🎫 ┃ SUPPORT (Tickets, FAQ)<br>' +
+                        '🔊 ┃ VOICE (Lounge 1/2, Duo, Squad, Musik, AFK) • 🛡️ ┃ TEAM BEREICH' +
+                    '</div>' +
+                    '<button type="button" class="btn-primary" style="width:100%; justify-content:center; padding:10px 20px;" onclick="executeApplyTemplate(\'gaming\')">' +
+                        '✨ Gaming-Vorlage jetzt auf ' + guild.name + ' anwenden' +
+                    '</button>' +
+                '</div>' +
+
+                // TEMPLATE 2: ROBLOX DEV
+                '<div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.1); border-radius:14px; padding:20px;">' +
+                    '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">' +
+                        '<div style="display:flex; align-items:center; gap:8px;">' +
+                            '<span style="font-size:1.6rem;">🚀</span>' +
+                            '<strong style="color:#fff; font-size:1.15rem;">Roblox Studio & Game-Dev Hub</strong>' +
+                        '</div>' +
+                        '<span style="background:rgba(168,85,247,0.15); color:#c084fc; border:1px solid rgba(168,85,247,0.3); padding:3px 12px; border-radius:20px; font-size:0.75rem; font-weight:800;">STUDIO & DEVELOPER</span>' +
+                    '</div>' +
+                    '<p style="color:#94a3b8; font-size:0.88rem; line-height:1.5; margin-bottom:14px;">' +
+                        'Maßgeschneidert für Roblox-Entwickler, Modellierer und Studios. Mit Entwickler-Logs, Asset-Showcases, Feature-Wünschen, Bug-Reports und Scripter-Talks.' +
+                    '</p>' +
+                    '<div style="background:rgba(0,0,0,0.3); border-radius:10px; padding:12px 16px; margin-bottom:16px; font-size:0.8rem; color:#94a3b8; font-family:\'JetBrains Mono\', monospace;">' +
+                        '📌 ┃ STUDIO INFOS (Regeln, Announcements, Patchnotes, Spiel-Links)<br>' +
+                        '💻 ┃ ENTWICKLUNG (Dev-Logs, Showcase-Art, Feature-Ideen, Bug-Reports)<br>' +
+                        '💬 ┃ COMMUNITY HUB (Chat, Offtopic, Bot-Spam) • 🎫 ┃ SUPPORT • 🔊 DEV TALKS' +
+                    '</div>' +
+                    '<button type="button" class="btn-primary" style="width:100%; justify-content:center; padding:10px 20px;" onclick="executeApplyTemplate(\'roblox_dev\')">' +
+                        '✨ Roblox Dev-Vorlage jetzt auf ' + guild.name + ' anwenden' +
+                    '</button>' +
+                '</div>' +
+
+                // TEMPLATE 3: AEROGUARD OFFICIAL (OWNER EXCLUSIVE)
+                ownerCardHtml +
+            '</div>';
+        }
+
+        async function executeApplyTemplate(templateId) {
+            if (!activeGuildId) return;
+            const statusBox = document.getElementById('template-status-box');
+            if (statusBox) {
+                statusBox.style.display = 'block';
+                statusBox.style.background = 'rgba(0,243,255,0.08)';
+                statusBox.style.border = '1px solid rgba(0,243,255,0.3)';
+                statusBox.style.color = '#e2e8f0';
+                statusBox.innerHTML = '<span class="spinner" style="display:inline-block; width:14px; height:14px; border:2px solid #fff; border-top-color:transparent; border-radius:50%; animation:spin 0.8s linear infinite; margin-right:8px; vertical-align:middle;"></span> ⏳ <strong>Vorlage wird erstellt:</strong> Kategorien und Kanäle werden auf Discord generiert. Bitte warten...';
+            }
+
+            try {
+                const res = await fetch('/api/guild/' + activeGuildId + '/apply-template', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ templateId: templateId })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    if (statusBox) {
+                        statusBox.style.background = 'rgba(16,185,129,0.12)';
+                        statusBox.style.border = '1px solid rgba(16,185,129,0.35)';
+                        statusBox.style.color = '#10b981';
+                        statusBox.innerHTML = '✅ <strong>Erfolgreich erstellt:</strong> Vorlage <em>' + data.templateName + '</em> wurde angewendet! (' + data.createdCategories + ' Kategorien, ' + data.createdChannels + ' Kanäle)';
+                    }
+                    showToast('🏛️ Vorlage erfolgreich auf Discord aufgesetzt!');
+                } else {
+                    throw new Error(data.error || 'Fehler beim Anwenden der Vorlage');
+                }
+            } catch(err) {
+                if (statusBox) {
+                    statusBox.style.background = 'rgba(239,68,68,0.12)';
+                    statusBox.style.border = '1px solid rgba(239,68,68,0.35)';
+                    statusBox.style.color = '#ef4444';
+                    statusBox.innerHTML = '❌ <strong>Fehler:</strong> ' + err.message;
+                }
+                showToast('❌ ' + err.message, 'error');
+            }
+        }
+
+        function buildStatusMonitorModalHtml(guild) {
+            const isBotOwner = Boolean(currentUser && currentUser.isOwner);
+            const textChs = guild.textChannels || [];
+            const curStatusChId = (guild.settings.statusUpdates && guild.settings.statusUpdates.channelId) || '';
+
+            let chOpts = '<option value="">-- Automatische Erkennung (#bot-status) --</option>';
+            textChs.forEach(ch => {
+                const isSel = (ch.id === curStatusChId) ? ' selected' : '';
+                chOpts += '<option value="' + ch.id + '"' + isSel + '>#' + ch.name + '</option>';
+            });
+
+            let ownerControlsHtml = '';
+            if (isBotOwner) {
+                ownerControlsHtml = '<div style="background:rgba(239,68,68,0.06); border:1px solid rgba(239,68,68,0.35); border-radius:14px; padding:18px; margin-top:10px;">' +
+                    '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">' +
+                        '<div style="display:flex; align-items:center; gap:8px;">' +
+                            '<span style="font-size:1.3rem;">👑</span>' +
+                            '<strong style="color:#ef4444; font-size:1rem;">Bot-Besitzer Root Lifecycle Steuerung</strong>' +
+                        '</div>' +
+                        '<span style="background:rgba(239,68,68,0.2); color:#ef4444; border:1px solid rgba(239,68,68,0.4); padding:2px 10px; border-radius:20px; font-size:0.72rem; font-weight:800;">ROOT OWNER</span>' +
+                    '</div>' +
+                    '<p style="color:#94a3b8; font-size:0.84rem; line-height:1.5; margin-bottom:12px;">' +
+                        'Führe einen kontrollierten Shutdown durch. Der Bot sendet <strong>vor dem Herunterfahren</strong> eine offizielle Wartungsmeldung an alle konfigurierten Statuskanäle und trennt sich sauber von Discord.' +
+                    '</p>' +
+                    '<div class="form-group" style="margin-bottom:12px;">' +
+                        '<label>Grund für das Herunterfahren / Wartung</label>' +
+                        '<input type="text" id="owner-shutdown-reason" class="form-control" value="Wartungsarbeiten & Next-Gen Upgrade (v3.3)" placeholder="Grund eingeben...">' +
+                    '</div>' +
+                    '<div style="display:flex; gap:10px;">' +
+                        '<button type="button" class="btn-primary" style="flex:1; justify-content:center; background:#ef4444; border-color:#dc2626;" onclick="executeOwnerShutdown()">' +
+                            '🔴 Geplanten Shutdown ausführen' +
+                        '</button>' +
+                        '<button type="button" class="btn-secondary" style="flex:1; justify-content:center;" onclick="executeOwnerBroadcast()">' +
+                            '📢 Online-Status erneut broadcasten' +
+                        '</button>' +
+                    '</div>' +
+                '</div>';
+            }
+
+            return '<div style="display:flex; flex-direction:column; gap:18px;">' +
+                // INFO BOX
+                '<div style="background:rgba(16,185,129,0.06); border:1px solid rgba(16,185,129,0.25); border-radius:14px; padding:18px;">' +
+                    '<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">' +
+                        '<div style="display:flex; align-items:center; gap:8px;">' +
+                            '<span style="font-size:1.4rem;">🟢</span>' +
+                            '<strong style="color:#fff; font-size:1.05rem;">Echtzeit Lifecycle & Status Monitor</strong>' +
+                        '</div>' +
+                        '<span style="background:rgba(16,185,129,0.15); color:#10b981; padding:3px 10px; border-radius:20px; font-size:0.75rem; font-weight:800;">SYSTEM ONLINE</span>' +
+                    '</div>' +
+                    '<p style="color:#94a3b8; font-size:0.88rem; line-height:1.5; margin:0 0 10px 0;">' +
+                        'Der Bot überwacht seinen eigenen Lebenszyklus. Bei jedem Start und <strong>unmittelbar vor jedem Shutdown</strong> (z.B. Wartungsarbeiten, System-Neustart) sendet er automatisch ein detailliertes Status-Embed in deinen Statuskanal.' +
+                    '</p>' +
+                    '<div style="display:flex; gap:12px; font-size:0.82rem; color:#cbd5e1;">' +
+                        '<span style="background:rgba(255,255,255,0.05); padding:4px 10px; border-radius:8px;">⚡ Online-Broadcasts: <strong>Aktiv</strong></span>' +
+                        '<span style="background:rgba(255,255,255,0.05); padding:4px 10px; border-radius:8px;">🛑 Pre-Shutdown Alerts: <strong>Aktiv</strong></span>' +
+                    '</div>' +
+                '</div>' +
+
+                // STATUS / NOTICE BOX
+                '<div id="monitor-status-box" style="display:none; padding:14px 18px; border-radius:12px; font-size:0.88rem; line-height:1.5;"></div>' +
+
+                // CHANNEL CONFIG
+                '<div class="form-group">' +
+                    '<label>Status-Kanal für Lifecycle-Meldungen</label>' +
+                    '<select id="cfg-status-channel" class="form-control">' +
+                        chOpts +
+                    '</select>' +
+                    '<small style="color:#64748b; margin-top:4px;">In diesen Kanal werden automatische Start- und Shutdown-Meldungen gepostet.</small>' +
+                '</div>' +
+
+                '<div style="display:flex; justify-content:space-between; align-items:center; background:#141a2e; border:1px solid var(--border); border-radius:12px; padding:14px 18px;">' +
+                    '<div>' +
+                        '<strong style="color:#fff; font-size:0.95rem;">Test-Ping auslösen</strong>' +
+                        '<p style="color:#94a3b8; font-size:0.82rem; margin:2px 0 0 0;">Sendet sofort ein Test-Status-Embed in den gewählten Kanal.</p>' +
+                    '</div>' +
+                    '<button type="button" class="btn-primary" onclick="executeTestStatusPing()">' +
+                        '📡 Test-Signal senden' +
+                    '</button>' +
+                '</div>' +
+
+                ownerControlsHtml +
+            '</div>';
+        }
+
+        async function executeTestStatusPing() {
+            if (!activeGuildId) return;
+            const sel = document.getElementById('cfg-status-channel');
+            const statusBox = document.getElementById('monitor-status-box');
+
+            try {
+                const res = await fetch('/api/guild/' + activeGuildId + '/test-status', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ channelId: sel ? sel.value : null })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    if (statusBox) {
+                        statusBox.style.display = 'block';
+                        statusBox.style.background = 'rgba(16,185,129,0.12)';
+                        statusBox.style.border = '1px solid rgba(16,185,129,0.35)';
+                        statusBox.style.color = '#10b981';
+                        statusBox.innerHTML = '✅ <strong>Test erfolgreich:</strong> Signal wurde an #' + data.channelName + ' übertragen!';
+                    }
+                    showToast('📡 Status-Test-Signal erfolgreich gesendet!');
+                } else {
+                    throw new Error(data.error || 'Fehler beim Senden des Test-Signals');
+                }
+            } catch(e) {
+                if (statusBox) {
+                    statusBox.style.display = 'block';
+                    statusBox.style.background = 'rgba(239,68,68,0.12)';
+                    statusBox.style.border = '1px solid rgba(239,68,68,0.35)';
+                    statusBox.style.color = '#ef4444';
+                    statusBox.innerHTML = '❌ <strong>Fehler:</strong> ' + e.message;
+                }
+                showToast('❌ ' + e.message, 'error');
+            }
+        }
+
+        async function executeOwnerShutdown() {
+            const reasonInput = document.getElementById('owner-shutdown-reason');
+            const reason = reasonInput ? reasonInput.value : 'System-Wartung';
+            if (!confirm('Achtung: Möchtest du den Bot wirklich herunterfahren?\nEr wird zuvor ein offizielles Shutdown-Embed in alle konfigurierten Status-Kanäle senden.')) {
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/admin/bot/shutdown', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ reason: reason })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('🔴 Shutdown-Broadcast eingeleitet! Bot fährt herunter...');
+                    const statusBox = document.getElementById('monitor-status-box');
+                    if (statusBox) {
+                        statusBox.style.display = 'block';
+                        statusBox.style.background = 'rgba(239,68,68,0.15)';
+                        statusBox.style.border = '1px solid rgba(239,68,68,0.4)';
+                        statusBox.style.color = '#ef4444';
+                        statusBox.innerHTML = '🛑 <strong>Shutdown eingeleitet:</strong> Broadcast gesendet. Server wird in wenigen Sekunden getrennt.';
+                    }
+                } else {
+                    throw new Error(data.error || 'Fehler beim Shutdown');
+                }
+            } catch(e) {
+                showToast('❌ ' + e.message, 'error');
+            }
+        }
+
+        async function executeOwnerBroadcast() {
+            try {
+                const res = await fetch('/api/admin/bot/broadcast-status', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ type: 'online' })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('📢 Online-Status erfolgreich an ' + data.count + ' Kanäle gebroadcastet!');
+                } else {
+                    throw new Error(data.error || 'Fehler beim Broadcast');
+                }
+            } catch(e) {
+                showToast('❌ ' + e.message, 'error');
+            }
+        }
+
+async function executeChannelStyling() {
             if (!activeGuildId) return;
             const btn = document.getElementById('btn-execute-stylizer');
             const statusBox = document.getElementById('stylizer-status-box');

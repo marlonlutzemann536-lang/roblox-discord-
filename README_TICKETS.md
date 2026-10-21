@@ -1,6 +1,32 @@
-# 🚀 AeroGuard Core — Enterprise Discord & Roblox Suite (v3.2)
+# 🚀 AeroGuard Core — Enterprise Discord & Roblox Suite (v3.3)
 
-Willkommen bei **AeroGuard Core v3.2**! Das System wurde mit einem **100% universellen Kanal-Emoji Stylizer**, einer **Vorher/Nachher Live-Vorschau**, dem neuen **Starter-Dashboard Feature-Hub** und der prominenten Präsentation aller Bot-Funktionen auf der Startseite erweitert.
+Willkommen bei **AeroGuard Core v3.3**! Das System wurde mit einem **vollautomatischen Bot-Lifecycle & Status-Monitoring (Online- & Shutdown-Broadcasts)** und der neuen **Server-Vorlagen Engine (inkl. exklusiver AeroGuard Support-Server Vorlage nur für den Bot-Besitzer)** auf ein neues Level gehoben.
+
+---
+
+## 🌟 Neu in Version 3.3
+
+### 📡 1. Bot-Lifecycle & Status Monitor (Online & Pre-Shutdown Alerts)
+* **Pre-Shutdown Broadcasts:** Fährt der Bot aus irgendeinem Grund herunter (geplante Wartungsarbeiten, Host-Neustart, `SIGINT`/`SIGTERM` oder manueller Shutdown), sendet er **unmittelbar vor dem eigentlichen Herunterfahren** eine offizielle Statusmeldung mit Grund und Zeitstempel an die konfigurierten Status-Kanäle aller Server.
+* **Online-Startmeldung:** Sobald der Bot nach einem Neustart online ist und alle Slash-Commands geladen sind, sendet er automatisch ein `🟢 System Online`-Embed mit Latenz, Serveranzahl und Version.
+* **Kanal-Konfiguration:** Server können im Dashboard ihren Status-Kanal (z.B. `# 🤖・bot-status`) festlegen oder die automatische Erkennung nutzen.
+* **Test-Signal Button:** Im Dashboard kann jederzeit per 1-Klick ein Test-Signal an den gewählten Statuskanal gesendet werden.
+* **Root Owner Lifecycle-Steuerung:** Der verifizierte Bot-Besitzer kann über das Dashboard geplante Shutdowns mit individuellem Grund auslösen oder globale Online-Broadcasts triggern.
+
+### 🏛️ 2. Server-Vorlagen Engine (Templates & Presets)
+* **Vollautomatischer Struktur-Aufbau:** Erstellt auf Knopfdruck vollständige Server-Architekturen mit Kategorien, Textkanälen, Sprachräumen und Cyberpunk-Emoji-Präfixen:
+  1. 🎮 **Gaming & Community Hub (Für alle Server):** 6 Kategorien & 20 Kanäle (Infos, Regeln, Chat, Memes, Medien, Giveaways, Vorschläge, Support, Gaming-Talks & Team-Bereich).
+  2. 🚀 **Roblox Studio & Game-Dev Hub (Für alle Server):** 5 Kategorien & 16 Kanäle (Studio-Infos, Dev-Logs, Showcases, Feature-Wünsche, Bug-Reports, Scripter-Talks).
+  3. 👑 **Offizieller AeroGuard Support-Server (EXKLUSIV NUR FÜR DEN BOT-BESITZER!):**
+     * **Sicherheits-Schutz:** Streng gesichert im Backend und Frontend – kann **ausschließlich vom verifizierten Bot-Besitzer** (`OWNER_ID`) ausgewählt und angewendet werden! Nicht-Besitzer sehen eine geschützte, gesperrte Ansicht.
+     * **Komplett-Struktur:** Baut den offiziellen AeroGuard Hauptserver mit 6 Kategorien & 21 Kanälen auf:
+       * 📌 `AEROGUARD ZENTRALE` (`#📜・regeln`, `#📢・announcements`, `#🚀・changelogs`, `#🤖・bot-status`, `#❓・bot-faq`)
+       * 🎫 `SUPPORT & FEEDBACK` (`#🎫・ticket-erstellen`, `#💡・vorschläge`, `#🐛・bugs`, `#🤝・partner`)
+       * 💬 `COMMUNITY HUB` (`#💬・allgemein`, `#📸・showcases`, `#🤖・bot-commands`)
+       * 🎉 `EVENTS & VERLOSUNGEN` (`#🎉・giveaways`, `#🏆・leaderboard`)
+       * 🔊 `SPRACH-LOUNGE` (Warteraum, Community Talks, Musik, AFK)
+       * 🛡️ `AEROGUARD MANAGEMENT` (Leitung Intern, Audit-Logs, Management Talk)
+     * **Auto-Integrationen:** Richtet automatisch den `#🤖・bot-status` Kanal ein, initialisiert das Support-Ticket-Panel und schaltet das Vorschläge-System scharf.
 
 ---
 

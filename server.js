@@ -3454,6 +3454,372 @@ client.on('guildCreate', async guild => {
     } catch(e) {}
 });
 
+
+// =========================================================================
+// HELPER: BOT LIFECYCLE MONITOR (Online & Pre-Shutdown Broadcasts)
+// =========================================================================
+let isShuttingDown = false;
+
+async function broadcastBotStatus(type, details = {}) {
+    const isOnline = type === 'online';
+    const embedColor = isOnline ? 0x10b981 : 0xef4444;
+    const embedTitle = isOnline ? '🟢 AeroGuard Core — System Online' : '🔴 AeroGuard Core — Geplanter System-Shutdown';
+    const statusDesc = isOnline
+        ? '🚀 **AeroGuard Core v3.3** wurde erfolgreich hochgefahren und alle Subsysteme sind betriebsbereit.'
+        : `⚠️ **AeroGuard Core** fährt jetzt ordnungsgemäß herunter und begibt sich in den Wartungsmodus.\n\n**Grund:** ${details.reason || 'Geplante Wartungsarbeiten & System-Update'}`;
+
+    const embed = new EmbedBuilder()
+        .setTitle(embedTitle)
+        .setDescription(statusDesc)
+        .setColor(embedColor)
+        .addFields(
+            { name: '⚡ Latenz', value: `${client.ws.ping || 5} ms`, inline: true },
+            { name: '🌐 Verbundene Server', value: `${client.guilds.cache.size}`, inline: true },
+            { name: '🏷️ Version', value: 'v3.3 Next-Gen', inline: true },
+            { name: '🕒 Zeitpunkt', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true },
+            { name: '🛡️ Status', value: isOnline ? 'Betriebsbereit & Aktiv' : 'Offline / Wartungsmodus', inline: true }
+        )
+        .setFooter({ text: 'AeroGuard Core Lifecycle Engine • Echtzeit-Überwachung' })
+        .setTimestamp();
+
+    let sentCount = 0;
+    for (const guild of client.guilds.cache.values()) {
+        try {
+            const gSettings = getGuildSettings(guild.id);
+            let targetChannel = null;
+
+            // 1. Explicit configured channel in settings
+            if (gSettings.statusUpdates && gSettings.statusUpdates.enabled !== false && gSettings.statusUpdates.channelId) {
+                targetChannel = guild.channels.cache.get(gSettings.statusUpdates.channelId);
+            }
+            // 2. Auto-discovery of status channel
+            if (!targetChannel) {
+                targetChannel = guild.channels.cache.find(c => 
+                    (c.type === ChannelType.GuildText || c.type === ChannelType.GuildAnnouncement) &&
+                    (c.name.includes('bot-status') || c.name.includes('status-live') || c.name === 'status' || c.name.includes('system-status'))
+                );
+            }
+
+            if (targetChannel) {
+                await targetChannel.send({ embeds: [embed] });
+                sentCount++;
+            }
+        } catch(err) {
+            console.error(`[LIFECYCLE] Fehler beim Senden an ${guild.name}:`, err.message);
+        }
+    }
+    addLog(isOnline ? 'info' : 'warn', `Lifecycle: Status-Update (${type}) an ${sentCount} Server-Kanäle gesendet.`, 'Lifecycle');
+    return sentCount;
+}
+
+async function handleGracefulShutdown(reason = 'System-Wartung') {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+    console.log(`[LIFECYCLE] Executing graceful shutdown: ${reason}`);
+    addLog('warn', `Bot fährt herunter: ${reason}`, 'Lifecycle');
+
+    try {
+        await broadcastBotStatus('shutdown', { reason });
+        // Allow Discord API 2 seconds to deliver all WebSocket and REST payloads
+        await new Promise(r => setTimeout(r, 2000));
+    } catch(e) {
+        console.error('[LIFECYCLE] Fehler beim Shutdown-Broadcast:', e);
+    }
+
+    try {
+        client.destroy();
+    } catch(e) {}
+    process.exit(0);
+}
+
+process.on('SIGINT', () => handleGracefulShutdown('Server-Prozess beendet (SIGINT)'));
+process.on('SIGTERM', () => handleGracefulShutdown('Server-Prozess beendet (SIGTERM / Render Neustart)'));
+
+// =========================================================================
+// HELPER: SERVER-VORLAGEN (Server Templates Engine)
+// =========================================================================
+const serverTemplates = {
+    gaming: {
+        id: 'gaming',
+        name: '🎮 Gaming & Community Hub',
+        badge: 'COMMUNITY & ESPORTS',
+        isOwnerExclusive: false,
+        description: 'Vollständige Serverstruktur für Gaming-Communities, Clans und Content-Creator mit Voice-Lounges, Memes, Medien, Events, Giveaways und Ticket-Support.',
+        categories: [
+            {
+                name: '📌 ┃ INFORMATIONEN',
+                channels: [
+                    { name: '📜・regeln', type: ChannelType.GuildText, topic: 'Community-Richtlinien & Verhaltensregeln' },
+                    { name: '📢・ankündigungen', type: ChannelType.GuildText, topic: 'Offizielle Server-Neuigkeiten und Events' },
+                    { name: '👋・willkommen', type: ChannelType.GuildText, topic: 'Begrüßung neuer Mitglieder' },
+                    { name: '🚀・server-updates', type: ChannelType.GuildText, topic: 'Neuerungen und Patchnotes' }
+                ]
+            },
+            {
+                name: '💬 ┃ COMMUNITY LOUNGE',
+                channels: [
+                    { name: '💬・allgemein', type: ChannelType.GuildText, topic: 'Hauptchat für alle Gespräche' },
+                    { name: '📸・medien-clips', type: ChannelType.GuildText, topic: 'Screenshots, Artworks und Highlights' },
+                    { name: '🤣・memes', type: ChannelType.GuildText, topic: 'Beste Memes & Witze' },
+                    { name: '💭・offtopic', type: ChannelType.GuildText, topic: 'Alles abseits vom Gaming' },
+                    { name: '🤖・bot-befehle', type: ChannelType.GuildText, topic: 'Bot-Commands und Minigames' }
+                ]
+            },
+            {
+                name: '🎉 ┃ EVENTS & FEEDBACK',
+                channels: [
+                    { name: '💡・vorschläge', type: ChannelType.GuildText, topic: 'Community-Ideen und Feedback' },
+                    { name: '🎉・giveaways', type: ChannelType.GuildText, topic: 'Laufende Verlosungen & Preise' },
+                    { name: '📊・umfragen', type: ChannelType.GuildText, topic: 'Community-Votings' }
+                ]
+            },
+            {
+                name: '🎫 ┃ SUPPORT ZENTRALE',
+                channels: [
+                    { name: '🎫・tickets', type: ChannelType.GuildText, topic: 'Ticket-Erstellung bei Problemen' },
+                    { name: '❓・faq', type: ChannelType.GuildText, topic: 'Häufig gestellte Fragen' }
+                ]
+            },
+            {
+                name: '🔊 ┃ SPRACHKANÄLE',
+                channels: [
+                    { name: '🔊・Lounge 1 (Chill)', type: ChannelType.GuildVoice },
+                    { name: '🔊・Lounge 2 (Chill)', type: ChannelType.GuildVoice },
+                    { name: '🎮・Duo Gaming', type: ChannelType.GuildVoice },
+                    { name: '🎮・Squad Gaming', type: ChannelType.GuildVoice },
+                    { name: '🎵・Musik Room', type: ChannelType.GuildVoice },
+                    { name: '💤・AFK Lounge', type: ChannelType.GuildVoice }
+                ]
+            },
+            {
+                name: '🛡️ ┃ TEAM BEREICH',
+                channels: [
+                    { name: '🛡️・team-chat', type: ChannelType.GuildText, topic: 'Interner Staff-Chat' },
+                    { name: '📜・audit-logs', type: ChannelType.GuildText, topic: 'Moderations- und Systemprotokolle' },
+                    { name: '🎙️・Team Besprechung', type: ChannelType.GuildVoice }
+                ]
+            }
+        ]
+    },
+    roblox_dev: {
+        id: 'roblox_dev',
+        name: '🚀 Roblox Studio & Game-Dev Hub',
+        badge: 'STUDIO & DEVELOPER',
+        isOwnerExclusive: false,
+        description: 'Professionelle Infrastruktur für Roblox-Studios, Spiele-Entwickler, 3D-Artists und Scripter mit Entwickler-Logs und Bug-Tracking.',
+        categories: [
+            {
+                name: '📌 ┃ STUDIO INFOS',
+                channels: [
+                    { name: '📜・studio-regeln', type: ChannelType.GuildText, topic: 'Entwickler-Richtlinien' },
+                    { name: '📢・dev-announcements', type: ChannelType.GuildText, topic: 'Offizielle Studio-Mitteilungen' },
+                    { name: '🚀・patchnotes', type: ChannelType.GuildText, topic: 'Game-Updates und Changelogs' },
+                    { name: '🔗・spiel-links', type: ChannelType.GuildText, topic: 'Roblox Experience & Group Links' }
+                ]
+            },
+            {
+                name: '💻 ┃ ENTWICKLUNG & SHOWCASE',
+                channels: [
+                    { name: '💻・dev-logs', type: ChannelType.GuildText, topic: 'Work in Progress Updates' },
+                    { name: '📸・showcases-art', type: ChannelType.GuildText, topic: 'Modelle, Animationen und UI-Showcases' },
+                    { name: '💡・feature-ideen', type: ChannelType.GuildText, topic: 'Vorschläge für neue Gameplay-Features' },
+                    { name: '🐛・bug-reports', type: ChannelType.GuildText, topic: 'Fehlermeldungen aus dem Spiel' }
+                ]
+            },
+            {
+                name: '💬 ┃ COMMUNITY HUB',
+                channels: [
+                    { name: '💬・hauptchat', type: ChannelType.GuildText, topic: 'Allgemeiner Spieler- und Community-Chat' },
+                    { name: '💭・offtopic', type: ChannelType.GuildText, topic: 'Plauderecke für alles Mögliche' },
+                    { name: '🤖・bot-spam', type: ChannelType.GuildText, topic: 'Bot-Interaktionen' }
+                ]
+            },
+            {
+                name: '🎫 ┃ KUNDENSERVICE',
+                channels: [
+                    { name: '🎫・ticket-erstellen', type: ChannelType.GuildText, topic: 'Supportanfragen & Bug-Support' },
+                    { name: '❓・hilfe-faq', type: ChannelType.GuildText, topic: 'Hilfestellungen zum Spiel' }
+                ]
+            },
+            {
+                name: '🔊 ┃ DEV TALKS',
+                channels: [
+                    { name: '💻・Coding Lounge', type: ChannelType.GuildVoice },
+                    { name: '🎙️・Scrum Meeting', type: ChannelType.GuildVoice },
+                    { name: '🎮・Playtesting Voice', type: ChannelType.GuildVoice }
+                ]
+            }
+        ]
+    },
+    aeroguard_official: {
+        id: 'aeroguard_official',
+        name: '👑 Offizieller AeroGuard Support-Server',
+        badge: '👑 BOT-BESITZER EXKLUSIV',
+        isOwnerExclusive: true,
+        description: 'Exklusive offizielle Serverstruktur des offiziellen AeroGuard Hauptservers. Beinhaltet Status-Monitor, Ticket-Zentrale, Suggestions und Management. Exklusiv für den Bot-Besitzer!',
+        categories: [
+            {
+                name: '📌 ┃ AEROGUARD ZENTRALE',
+                channels: [
+                    { name: '📜・aeroguard-regeln', type: ChannelType.GuildText, topic: 'Offizielle Nutzungs- & Verhaltensrichtlinien' },
+                    { name: '📢・announcements', type: ChannelType.GuildText, topic: 'Wichtige Neuigkeiten & Releases von AeroGuard' },
+                    { name: '🚀・version-changelogs', type: ChannelType.GuildText, topic: 'Detaillierte Versions-Patchnotes' },
+                    { name: '🤖・bot-status', type: ChannelType.GuildText, topic: 'Echtzeit-Bot Lifecycle & Online Status Monitoring' },
+                    { name: '❓・bot-faq', type: ChannelType.GuildText, topic: 'Anleitungen, Slash-Commands & Setup-Hilfe' }
+                ]
+            },
+            {
+                name: '🎫 ┃ SUPPORT & FEEDBACK',
+                channels: [
+                    { name: '🎫・ticket-erstellen', type: ChannelType.GuildText, topic: 'Eröffne ein offizielles AeroGuard Support-Ticket' },
+                    { name: '💡・community-vorschläge', type: ChannelType.GuildText, topic: 'Reiche neue Ideen für zukünftige Versionen ein' },
+                    { name: '🐛・bug-meldungen', type: ChannelType.GuildText, topic: 'Melde technische Probleme an das Entwicklerteam' },
+                    { name: '🤝・partnerschaften', type: ChannelType.GuildText, topic: 'Server-Kooperationen & Partnerschaftsanfragen' }
+                ]
+            },
+            {
+                name: '💬 ┃ COMMUNITY HUB',
+                channels: [
+                    { name: '💬・allgemeiner-chat', type: ChannelType.GuildText, topic: 'Austausch rund um AeroGuard, Discord & Roblox' },
+                    { name: '📸・server-showcases', type: ChannelType.GuildText, topic: 'Zeige deinen Discord-Server im AeroGuard Design' },
+                    { name: '🤖・bot-commands', type: ChannelType.GuildText, topic: 'Teste Bot-Befehle und Funktionen' }
+                ]
+            },
+            {
+                name: '🎉 ┃ EVENTS & VERLOSUNGEN',
+                channels: [
+                    { name: '🎉・giveaways', type: ChannelType.GuildText, topic: 'Offizielle AeroGuard Verlosungen' },
+                    { name: '🏆・leaderboard', type: ChannelType.GuildText, topic: 'Aktivitäts-Ränge und Community-Erfolge' }
+                ]
+            },
+            {
+                name: '🔊 ┃ SPRACH-LOUNGE',
+                channels: [
+                    { name: '🚨・Support Warteraum', type: ChannelType.GuildVoice },
+                    { name: '🔊・Community Talk 1', type: ChannelType.GuildVoice },
+                    { name: '🔊・Community Talk 2', type: ChannelType.GuildVoice },
+                    { name: '🎵・Musik & Chill', type: ChannelType.GuildVoice },
+                    { name: '💤・AFK Lounge', type: ChannelType.GuildVoice }
+                ]
+            },
+            {
+                name: '🛡️ ┃ AEROGUARD MANAGEMENT',
+                channels: [
+                    { name: '🛡️・leitung-intern', type: ChannelType.GuildText, topic: 'Internes Management-Protokoll' },
+                    { name: '📜・server-audit-logs', type: ChannelType.GuildText, topic: 'System- und Moderationsprotokolle' },
+                    { name: '🎙️・Management Besprechung', type: ChannelType.GuildVoice }
+                ]
+            }
+        ]
+    }
+};
+
+async function applyServerTemplate(guild, templateId) {
+    const tpl = serverTemplates[templateId];
+    if (!tpl) throw new Error('Unbekannte Servervorlage');
+
+    let createdCategoriesCount = 0;
+    let createdChannelsCount = 0;
+    let statusChannelCreated = null;
+    let ticketChannelCreated = null;
+    let suggestionChannelCreated = null;
+
+    for (const catData of tpl.categories) {
+        const cat = await guild.channels.create({
+            name: catData.name,
+            type: ChannelType.GuildCategory
+        });
+        createdCategoriesCount++;
+        await new Promise(r => setTimeout(r, 380));
+
+        for (const chData of catData.channels) {
+            const ch = await guild.channels.create({
+                name: chData.name,
+                type: chData.type,
+                parent: cat.id,
+                topic: chData.topic || undefined
+            });
+            createdChannelsCount++;
+
+            if (chData.name.includes('bot-status')) {
+                statusChannelCreated = ch.id;
+            }
+            if (chData.name.includes('ticket-erstellen') || chData.name === 'tickets') {
+                ticketChannelCreated = ch.id;
+            }
+            if (chData.name.includes('vorschläge') || chData.name.includes('vorschlaege')) {
+                suggestionChannelCreated = ch.id;
+            }
+
+            await new Promise(r => setTimeout(r, 380));
+        }
+    }
+
+    // Auto-Configure integrations for this guild
+    const gSettings = getGuildSettings(guild.id);
+    if (statusChannelCreated) {
+        gSettings.statusUpdates = {
+            enabled: true,
+            channelId: statusChannelCreated
+        };
+        try {
+            const stCh = guild.channels.cache.get(statusChannelCreated);
+            if (stCh) {
+                const setupEmbed = new EmbedBuilder()
+                    .setTitle('🟢 AeroGuard Core — Lifecycle Status Monitor Aktiviert')
+                    .setColor(0x10b981)
+                    .setDescription(`🚀 Dieser Kanal wurde erfolgreich als **offizieller Bot-Status Monitor** für **${guild.name}** konfiguriert.\n\nAlle zukünftigen **Online-Startmeldungen**, **Wartungs-Shutdowns** und **System-Updates** werden ab sofort hier in Echtzeit protokolliert.`)
+                    .addFields(
+                        { name: '⚡ Latenz', value: `${client.ws.ping || 5} ms`, inline: true },
+                        { name: '🏛️ Vorlage', value: `${tpl.name}`, inline: true },
+                        { name: '🛡️ Status', value: 'Betriebsbereit & Überwacht', inline: true }
+                    )
+                    .setFooter({ text: 'AeroGuard Core • Lifecycle Monitoring Engine' })
+                    .setTimestamp();
+                await stCh.send({ embeds: [setupEmbed] });
+            }
+        } catch(e) {
+            console.error('Error sending initial status embed:', e);
+        }
+    }
+
+    if (ticketChannelCreated) {
+        try {
+            const tCh = guild.channels.cache.get(ticketChannelCreated);
+            if (tCh) {
+                const panelRows = buildTicketPanelActionRows(guild.id);
+                const panelEmbed = new EmbedBuilder()
+                    .setTitle('🛡️ AeroGuard Core Support Hub')
+                    .setDescription(gSettings.ticketWelcomeMessage || "Willkommen in der AeroGuard Support-Zentrale!")
+                    .setColor(0x9d4edd)
+                    .setThumbnail(guild.iconURL() || (client.user ? client.user.displayAvatarURL() : null))
+                    .setFooter({ text: 'Klicke auf eine Kategorie, um ein privates Ticket mit dem Team zu eröffnen.' })
+                    .setTimestamp();
+                await tCh.send({ embeds: [panelEmbed], components: panelRows });
+            }
+        } catch(e) {
+            console.error('Error deploying ticket panel in template:', e);
+        }
+    }
+
+    if (suggestionChannelCreated) {
+        if (!gSettings.suggestions) gSettings.suggestions = {};
+        gSettings.suggestions.enabled = true;
+        gSettings.suggestions.channelId = suggestionChannelCreated;
+    }
+
+    saveCloudVaultToDisk();
+    addLog('info', `Vorlage '${tpl.name}' auf Server ${guild.name} angewendet (${createdCategoriesCount} Kategorien, ${createdChannelsCount} Kanäle).`, 'Templates');
+
+    return {
+        success: true,
+        templateName: tpl.name,
+        createdCategories: createdCategoriesCount,
+        createdChannels: createdChannelsCount,
+        statusChannelId: statusChannelCreated
+    };
+}
+
 client.once('ready', async () => {
     addLog('info', 'AeroGuard Cloud Engine Online als: ' + client.user.tag);
     
@@ -3470,6 +3836,14 @@ client.once('ready', async () => {
     if (process.env.GUILD_ID) {
         await deployExtendedCommands(process.env.GUILD_ID);
     }
+    // Auto-Broadcast: Bot ist ONLINE gegangen
+    setTimeout(async () => {
+        try {
+            await broadcastBotStatus('online');
+        } catch(e) {
+            console.error('[LIFECYCLE] Fehler beim Online-Broadcast:', e);
+        }
+    }, 2500);
 });
 
 // =========================================================================
@@ -4726,11 +5100,143 @@ app.get('/dashboard', async (req, res) => {
     template = template.replace(/\{\{TRANSCRIPTS_COUNT\}\}/g, String(savedTranscriptsList.length));
     template = template.replace(/\{\{PING\}\}/g, String(ping));
     template = template.replace(/\{\{UPTIME\}\}/g, uptimeStr);
+    template = template.replace(/\{\{CURRENT_USER_JSON\}\}/g, JSON.stringify({
+        id: currentUser.id,
+        username: currentUser.username,
+        tag: currentUser.tag || currentUser.username,
+        isOwner: (currentUser.id === OWNER_ID)
+    }));
     template = template.replace(/\{\{GUILDS_JSON\}\}/g, JSON.stringify(authorizedGuilds).replace(/</g, '\\u003c'));
     template = template.replace(/\{\{TRANSCRIPTS_JSON\}\}/g, JSON.stringify(savedTranscriptsList).replace(/</g, '\\u003c'));
     template = template.replace(/\{\{ACTIVE_TICKETS_JSON\}\}/g, JSON.stringify(activeList).replace(/</g, '\\u003c'));
 
     res.send(template);
+});
+
+
+// =========================================================================
+// API: SERVER TEMPLATES & BOT LIFECYCLE CONTROLS (v3.3)
+// =========================================================================
+app.get('/api/templates', (req, res) => {
+    if (!req.session.user) return res.status(401).json({ error: 'Nicht angemeldet' });
+    const isBotOwner = (req.session.user.id === OWNER_ID);
+
+    const list = Object.values(serverTemplates).map(t => ({
+        id: t.id,
+        name: t.name,
+        badge: t.badge,
+        description: t.description,
+        isOwnerExclusive: t.isOwnerExclusive,
+        canApply: !t.isOwnerExclusive || isBotOwner,
+        categoryCount: t.categories.length,
+        channelCount: t.categories.reduce((acc, c) => acc + c.channels.length, 0),
+        categories: t.categories.map(c => ({
+            name: c.name,
+            channels: c.channels.map(ch => ({ name: ch.name, type: ch.type, topic: ch.topic }))
+        }))
+    }));
+
+    res.json({ templates: list, isBotOwner });
+});
+
+app.post('/api/guild/:guildId/apply-template', async (req, res) => {
+    if (!req.session.user) return res.status(401).json({ error: 'Nicht angemeldet' });
+
+    const perm = await getUserGuildPermission(req.session.user.id, req.params.guildId);
+    if (!perm.authorized) {
+        return res.status(403).json({ error: 'Zugriff verweigert.' });
+    }
+
+    const { templateId } = req.body;
+    if (!templateId || !serverTemplates[templateId]) {
+        return res.status(400).json({ error: 'Ungültige Vorlage ausgewählt.' });
+    }
+
+    // STRICT OWNER CHECK: Official AeroGuard Support Server template
+    if (templateId === 'aeroguard_official') {
+        const isBotOwner = (req.session.user.id === OWNER_ID);
+        if (!isBotOwner) {
+            return res.status(403).json({
+                error: '⛔ Zugriff verweigert: Die offizielle AeroGuard Support-Server Vorlage kann ausschließlich vom verifizierten Bot-Besitzer (Root Owner) angewendet werden!'
+            });
+        }
+    }
+
+    const guild = client.guilds.cache.get(req.params.guildId);
+    if (!guild) return res.status(404).json({ error: 'Server nicht gefunden' });
+
+    try {
+        const result = await applyServerTemplate(guild, templateId);
+        res.json({ success: true, ...result });
+    } catch(err) {
+        console.error('Template apply error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/guild/:guildId/test-status', async (req, res) => {
+    if (!req.session.user) return res.status(401).json({ error: 'Nicht angemeldet' });
+    const perm = await getUserGuildPermission(req.session.user.id, req.params.guildId);
+    if (!perm.authorized) return res.status(403).json({ error: 'Zugriff verweigert.' });
+
+    const guild = client.guilds.cache.get(req.params.guildId);
+    if (!guild) return res.status(404).json({ error: 'Server nicht gefunden' });
+
+    const gSettings = getGuildSettings(guild.id);
+    const targetChannelId = req.body.channelId || gSettings.statusUpdates?.channelId;
+    const targetChannel = guild.channels.cache.get(targetChannelId);
+
+    if (!targetChannel) {
+        return res.status(400).json({ error: 'Kein gültiger Status-Kanal gefunden.' });
+    }
+
+    try {
+        const testEmbed = new EmbedBuilder()
+            .setTitle('📡 AeroGuard Core — Lifecycle Monitor Test-Ping')
+            .setColor(0x00f3ff)
+            .setDescription('✅ Dieser Test bestätigt, dass dein Server **' + guild.name + '** erfolgreich mit dem AeroGuard Status-Monitor verbunden ist!')
+            .addFields(
+                { name: '⚡ Latenz', value: (client.ws.ping || 5) + ' ms', inline: true },
+                { name: '🕒 Test-Zeitpunkt', value: '<t:' + Math.floor(Date.now() / 1000) + ':R>', inline: true },
+                { name: '🛡️ Kanal', value: '#' + targetChannel.name, inline: true }
+            )
+            .setFooter({ text: 'AeroGuard Core • Test-Signal empfangen' })
+            .setTimestamp();
+
+        await targetChannel.send({ embeds: [testEmbed] });
+        res.json({ success: true, channelName: targetChannel.name });
+    } catch(err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/admin/bot/shutdown', async (req, res) => {
+    if (!req.session.user || req.session.user.id !== OWNER_ID) {
+        return res.status(403).json({ error: '⛔ Nur der verifizierte Bot-Besitzer darf den Bot herunterfahren.' });
+    }
+
+    const reason = req.body.reason || 'Geplanter Shutdown via Dashboard';
+    res.json({ success: true, message: 'Shutdown eingeleitet' });
+
+    setTimeout(() => {
+        handleGracefulShutdown(reason);
+    }, 500);
+});
+
+app.post('/api/admin/bot/broadcast-status', async (req, res) => {
+    if (!req.session.user || req.session.user.id !== OWNER_ID) {
+        return res.status(403).json({ error: '⛔ Nur der verifizierte Bot-Besitzer darf Status-Broadcasts auslösen.' });
+    }
+
+    const type = req.body.type || 'online';
+    const reason = req.body.reason || 'Manueller Admin-Broadcast';
+
+    try {
+        const count = await broadcastBotStatus(type, { reason });
+        res.json({ success: true, count });
+    } catch(err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 app.post('/api/webhook/stripe', (req, res) => {
