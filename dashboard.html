@@ -773,8 +773,8 @@
                     </div>
 
                     <div style="display:flex; align-items:center; gap:10px;">
-                        <button type="button" class="btn btn-primary" onclick="openJobPostingModal()" style="background:linear-gradient(135deg, var(--amber), #d97706); color:#000; font-weight:800; display:inline-flex; align-items:center; gap:8px;">
-                            <span>➕</span> Neue Stelle ausschreiben
+                        <button type="button" onclick="openJobPostingModal()" style="background: linear-gradient(135deg, #f59e0b, #d97706) !important; color: #000 !important; font-weight: 800; font-size: 0.95rem; padding: 12px 24px; border-radius: 12px; border: none; cursor: pointer; box-shadow: 0 0 25px rgba(245,158,11,0.5); display: inline-flex; align-items: center; gap: 10px; transition: all 0.25s ease;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 0 35px rgba(245,158,11,0.7)';" onmouseout="this.style.transform='none'; this.style.boxShadow='0 0 25px rgba(245,158,11,0.5)';">
+                            <span style="font-size:1.1rem;">➕</span> Neue Stelle ausschreiben
                         </button>
                     </div>
                 </div>
@@ -1123,14 +1123,20 @@
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
 
-            btn.classList.add('active');
+            if (btn) btn.classList.add('active');
             const target = document.getElementById('tab-' + tabName);
             if (target) target.style.display = 'block';
 
             if (tabName === 'tickets') renderLiveTickets();
             if (tabName === 'transcripts') renderWebTranscripts();
-            if (tabName === 'applications') renderApplications();
-            if (tabName === 'jobpostings') renderJobPostings();
+            if (tabName === 'applications') {
+                renderApplications();
+                refreshApplicationsFromServer();
+            }
+            if (tabName === 'jobpostings') {
+                renderJobPostings();
+                refreshJobPostingsFromServer();
+            }
         }
 
         // =========================================================================
@@ -2876,6 +2882,384 @@ function buildGiveawaysModalHtml(guild) {
             setTimeout(() => toast.classList.remove('show'), 3500);
         }
 
+
+        // =========================================================================
+        // RECRUITMENT & BEWERBUNGS-SYSTEM (v3.5)
+        // =========================================================================
+        async function refreshApplicationsFromServer() {
+            try {
+                const res = await fetch('/api/applications');
+                const data = await res.json();
+                if (data && data.success && Array.isArray(data.applications)) {
+                    allApplications = data.applications;
+                    renderApplications();
+                }
+            } catch(e) {
+                console.error('Error refreshing applications:', e);
+            }
+        }
+
+        async function refreshJobPostingsFromServer() {
+            try {
+                const res = await fetch('/api/job-postings');
+                const data = await res.json();
+                if (data && data.success && Array.isArray(data.jobPostings)) {
+                    allJobPostings = data.jobPostings;
+                    renderJobPostings();
+                }
+            } catch(e) {
+                console.error('Error refreshing job postings:', e);
+            }
+        }
+
+        function filterApplications(filter, btn) {
+            currentAppFilter = filter;
+            document.querySelectorAll('.btn-filter').forEach(b => {
+                b.classList.remove('active');
+                b.style.background = 'transparent';
+                b.style.color = '#cbd5e1';
+            });
+            if (btn) {
+                btn.classList.add('active');
+                btn.style.background = 'rgba(0, 243, 255, 0.15)';
+                btn.style.color = 'var(--cyan)';
+            }
+            renderApplications();
+        }
+
+        function renderApplications() {
+            const grid = document.getElementById('applications-cards-grid');
+            if (!grid) return;
+
+            const apps = Array.isArray(allApplications) ? allApplications : [];
+
+            // Update counters
+            const cntAll = apps.length;
+            const cntPending = apps.filter(a => a.status === 'pending').length;
+            const cntInReview = apps.filter(a => a.status === 'in_review').length;
+            const cntAccepted = apps.filter(a => a.status === 'accepted').length;
+            const cntRejected = apps.filter(a => a.status === 'rejected').length;
+
+            if (document.getElementById('cnt-app-all')) document.getElementById('cnt-app-all').innerText = cntAll;
+            if (document.getElementById('cnt-app-pending')) document.getElementById('cnt-app-pending').innerText = cntPending;
+            if (document.getElementById('cnt-app-in_review')) document.getElementById('cnt-app-in_review').innerText = cntInReview;
+            if (document.getElementById('cnt-app-accepted')) document.getElementById('cnt-app-accepted').innerText = cntAccepted;
+            if (document.getElementById('cnt-app-rejected')) document.getElementById('cnt-app-rejected').innerText = cntRejected;
+            if (document.getElementById('count-applications')) document.getElementById('count-applications').innerText = cntPending;
+
+            let filtered = apps;
+            if (currentAppFilter !== 'all') {
+                filtered = apps.filter(a => a.status === currentAppFilter);
+            }
+
+            if (filtered.length === 0) {
+                grid.innerHTML = `
+                    <div style="grid-column: 1 / -1; text-align: center; padding: 48px 20px; background: rgba(0,0,0,0.25); border: 1px dashed rgba(0,243,255,0.25); border-radius: 16px;">
+                        <div style="font-size: 2.2rem; margin-bottom: 12px;">📝</div>
+                        <div style="font-size: 1.15rem; font-weight: 800; margin-bottom: 6px; color:#fff;">Keine Bewerbungen in dieser Kategorie</div>
+                        <p style="color: var(--text-dim); font-size: 0.9rem; max-width: 460px; margin: 0 auto 18px auto; line-height:1.5;">
+                            Aktuell liegen keine Bewerbungen mit diesem Filter vor. Bewerber können das offizielle Bewerbungs-Portal unter `/apply` nutzen.
+                        </p>
+                        <div style="display:flex; justify-content:center; gap:12px; flex-wrap:wrap;">
+                            <a href="/apply" target="_blank" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 8px; text-decoration: none; background: linear-gradient(135deg, var(--cyan), #0284c7); color: #000; font-weight:800;">
+                                <span>🔗</span> Bewerber-Portal öffnen
+                            </a>
+                            <button type="button" class="btn btn-secondary" onclick="refreshApplicationsFromServer()" style="display: inline-flex; align-items: center; gap: 6px;">
+                                <span>🔄</span> Aktualisieren
+                            </button>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+
+            grid.innerHTML = filtered.map(app => {
+                let badgeHtml = '';
+                if (app.status === 'pending') badgeHtml = '<span class="feature-badge-active badge-on" style="background:rgba(245,158,11,0.18); border-color:rgba(245,158,11,0.5); color:var(--amber);">🟡 Offen</span>';
+                else if (app.status === 'in_review') badgeHtml = '<span class="feature-badge-active badge-on" style="background:rgba(0,243,255,0.18); border-color:rgba(0,243,255,0.5); color:var(--cyan);">🔵 In Prüfung</span>';
+                else if (app.status === 'accepted') badgeHtml = '<span class="feature-badge-active badge-on" style="background:rgba(16,185,129,0.18); border-color:rgba(16,185,129,0.5); color:var(--green);">🟢 Angenommen</span>';
+                else if (app.status === 'rejected') badgeHtml = '<span class="feature-badge-active badge-off">🔴 Abgelehnt</span>';
+
+                const timeStr = app.submittedAt ? new Date(app.submittedAt).toLocaleDateString([], { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Unbekannt';
+                const msgCount = (app.messages || []).length;
+
+                return `
+                    <div style="background: rgba(14, 18, 36, 0.88); border: 1px solid rgba(255,255,255,0.1); border-radius: 18px; padding: 22px; display: flex; flex-direction: column; transition: all 0.25s ease;" onmouseover="this.style.borderColor='rgba(0,243,255,0.45)'; this.style.transform='translateY(-3px)';" onmouseout="this.style.borderColor='rgba(255,255,255,0.1)'; this.style.transform='none';">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px;">
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <div style="width: 46px; height: 46px; border-radius: 14px; background: linear-gradient(135deg, var(--cyan), var(--purple)); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1.15rem; color: #000; box-shadow:0 0 15px rgba(0,243,255,0.3);">
+                                    ${escapeHtml((app.applicantTag || 'AG').substring(0, 2).toUpperCase())}
+                                </div>
+                                <div>
+                                    <div style="font-weight: 800; font-size: 1.02rem; color:#fff;">${escapeHtml(app.applicantTag || 'Bewerber')}</div>
+                                    <div style="font-size: 0.74rem; color: var(--text-dim); font-family: 'JetBrains Mono', monospace;">${escapeHtml(app.id)}</div>
+                                </div>
+                            </div>
+                            ${badgeHtml}
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.82rem; margin-bottom: 14px; background: rgba(0,0,0,0.3); border-radius: 10px; padding: 10px 12px; border:1px solid rgba(255,255,255,0.05);">
+                            <div><span style="color:var(--text-dim);">Alter:</span> <strong style="color:var(--cyan);">${app.age ? app.age + ' Jahre' : '--'}</strong></div>
+                            <div><span style="color:var(--text-dim);">Headset:</span> <strong>${app.hasMicrophone ? '🎙️ Ja' : '🔇 Nein'}</strong></div>
+                            <div><span style="color:var(--text-dim);">Roblox:</span> <strong>${escapeHtml(app.robloxUsername || 'Keine')}</strong></div>
+                            <div><span style="color:var(--text-dim);">Chat:</span> <strong style="color:var(--cyan);">${msgCount} Nachrichten</strong></div>
+                        </div>
+
+                        <div style="font-size: 0.84rem; color: #cbd5e1; margin-bottom: 18px; line-height: 1.45; flex: 1; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+                            "${escapeHtml(app.motivation || 'Keine Angabe')}"
+                        </div>
+
+                        <div style="display: flex; align-items: center; justify-content: space-between; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 14px; margin-top: auto;">
+                            <span style="font-size: 0.75rem; color: var(--text-dim);">🕒 ${timeStr}</span>
+                            <button type="button" class="btn btn-secondary" onclick="openApplicationDetailModal('${app.id}')" style="font-size: 0.84rem; padding: 7px 16px; border-color: rgba(0,243,255,0.5); color: var(--cyan); font-weight: 700; background:rgba(0,243,255,0.08); cursor:pointer;">
+                                <span>🔍</span> Öffnen & Chatten
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function openApplicationDetailModal(appId) {
+            activeModalAppId = appId;
+            const app = (allApplications || []).find(a => a.id === appId);
+            if (!app) return;
+
+            document.getElementById('app-modal-sub').innerText = 'ID: ' + app.id + ' • Eingereicht am ' + new Date(app.submittedAt || Date.now()).toLocaleDateString();
+            document.getElementById('app-detail-tag').innerText = app.applicantTag || 'Bewerber';
+            document.getElementById('app-detail-id').innerText = 'Discord-ID: ' + (app.applicantId || 'Nicht verknüpft');
+            document.getElementById('app-detail-age').innerText = (app.age || '--') + ' Jahre';
+            document.getElementById('app-detail-roblox').innerText = app.robloxUsername || 'Keine Angabe';
+            document.getElementById('app-detail-mic').innerText = app.hasMicrophone ? '✅ Vorhanden' : '❌ Nicht vorhanden';
+            document.getElementById('app-detail-avail').innerText = app.availability || '--';
+            document.getElementById('app-detail-exp').innerText = app.experience || 'Keine Angabe';
+            document.getElementById('app-detail-mot').innerText = app.motivation || 'Keine Angabe';
+            document.getElementById('app-detail-str').innerText = app.strengths || 'Keine besonderen Stärken angegeben.';
+
+            const pill = document.getElementById('app-detail-status-pill');
+            const claimBtn = document.getElementById('btn-app-claim');
+
+            if (app.status === 'pending') {
+                pill.className = 'feature-badge-active badge-on';
+                pill.style.background = 'rgba(245,158,11,0.2)';
+                pill.style.color = 'var(--amber)';
+                pill.innerText = '🟡 Offen';
+                claimBtn.style.display = 'flex';
+                claimBtn.innerText = '🙋‍♂️ Bewerbung übernehmen (In Bearbeitung)';
+                claimBtn.disabled = false;
+            } else if (app.status === 'in_review') {
+                pill.className = 'feature-badge-active badge-on';
+                pill.style.background = 'rgba(0,243,255,0.2)';
+                pill.style.color = 'var(--cyan)';
+                pill.innerText = '🔵 In Prüfung (Übernommen)';
+                claimBtn.style.display = 'flex';
+                claimBtn.innerText = '✓ Bereits übernommen ' + (app.claimedBy ? '(' + app.claimedBy.tag + ')' : '');
+                claimBtn.disabled = true;
+            } else if (app.status === 'accepted') {
+                pill.className = 'feature-badge-active badge-on';
+                pill.style.background = 'rgba(16,185,129,0.2)';
+                pill.style.color = 'var(--green)';
+                pill.innerText = '🟢 Angenommen';
+                claimBtn.style.display = 'none';
+            } else if (app.status === 'rejected') {
+                pill.className = 'feature-badge-active badge-off';
+                pill.innerText = '🔴 Abgelehnt';
+                claimBtn.style.display = 'none';
+            }
+
+            renderModalChatMessages(app.messages || []);
+            document.getElementById('app-modal-overlay').style.display = 'flex';
+
+            if (appChatPollInterval) clearInterval(appChatPollInterval);
+            appChatPollInterval = setInterval(pollActiveApplicationChat, 4000);
+        }
+
+        function closeApplicationDetailModal() {
+            if (appChatPollInterval) { clearInterval(appChatPollInterval); appChatPollInterval = null; }
+            activeModalAppId = null;
+            document.getElementById('app-modal-overlay').style.display = 'none';
+        }
+
+        function handleAppModalBackdrop(e) {
+            if (e.target.id === 'app-modal-overlay') closeApplicationDetailModal();
+        }
+
+        function renderModalChatMessages(messages) {
+            const container = document.getElementById('app-modal-chat-messages');
+            if (!container) return;
+
+            const isScrolledToBottom = container.scrollHeight - container.clientHeight <= container.scrollTop + 50;
+
+            container.innerHTML = (messages || []).map(m => {
+                const isStaff = m.senderType === 'staff';
+                const isBot = m.senderType === 'bot';
+                const bg = isStaff ? 'rgba(157,78,221,0.18)' : (isBot ? 'rgba(0,243,255,0.12)' : 'rgba(16,185,129,0.15)');
+                const border = isStaff ? 'rgba(157,78,221,0.45)' : (isBot ? 'rgba(0,243,255,0.4)' : 'rgba(16,185,129,0.4)');
+                const align = isStaff ? 'flex-end' : 'flex-start';
+                const badge = isStaff ? '🛡️ Leitung' : (isBot ? '🤖 System' : '👤 Bewerber');
+                const timeStr = m.timestamp ? new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+
+                return `
+                    <div style="align-self:${align}; max-width:85%; background:${bg}; border:1px solid ${border}; border-radius:14px; padding:10px 14px; font-size:0.86rem; line-height:1.45;">
+                        <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px; font-size:0.72rem; color:var(--text-dim);">
+                            <span style="font-weight:800; text-transform:uppercase;">${badge}</span>
+                            <strong>${escapeHtml(m.senderName || '')}</strong>
+                            <span>•</span>
+                            <span>${timeStr}</span>
+                        </div>
+                        <div style="color:#f1f5f9;">${escapeHtml(m.text || '')}</div>
+                    </div>
+                `;
+            }).join('');
+
+            if (isScrolledToBottom) {
+                container.scrollTop = container.scrollHeight;
+            }
+        }
+
+        async function pollActiveApplicationChat() {
+            if (!activeModalAppId) return;
+            try {
+                const res = await fetch('/api/applications');
+                const data = await res.json();
+                if (data && Array.isArray(data.applications)) {
+                    allApplications = data.applications;
+                    const updated = allApplications.find(a => a.id === activeModalAppId);
+                    if (updated) {
+                        renderModalChatMessages(updated.messages || []);
+                    }
+                }
+            } catch(e) {}
+        }
+
+        function insertQuickPromptText(text) {
+            const input = document.getElementById('app-modal-chat-input');
+            if (input) {
+                input.value = text;
+                input.focus();
+            }
+        }
+
+        async function handleSendAppModalChat(e) {
+            e.preventDefault();
+            if (!activeModalAppId) return;
+            const input = document.getElementById('app-modal-chat-input');
+            const text = input.value.trim();
+            if (!text) return;
+
+            input.value = '';
+            try {
+                const res = await fetch('/api/apply/' + encodeURIComponent(activeModalAppId) + '/message', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: text })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    const app = allApplications.find(a => a.id === activeModalAppId);
+                    if (app) {
+                        if (!app.messages) app.messages = [];
+                        app.messages.push(data.message);
+                        renderModalChatMessages(app.messages);
+                    }
+                } else {
+                    showToast('❌ ' + (data.error || 'Fehler beim Senden'));
+                }
+            } catch(err) {
+                showToast('❌ Verbindungsfehler: ' + err.message);
+            }
+        }
+
+        async function executeClaimApplication() {
+            if (!activeModalAppId) return;
+            const btn = document.getElementById('btn-app-claim');
+            btn.disabled = true;
+            btn.innerHTML = '<span>⏳</span> Wird übernommen...';
+
+            try {
+                const res = await fetch('/api/applications/' + encodeURIComponent(activeModalAppId) + '/claim', { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('✅ ' + data.message);
+                    const app = allApplications.find(a => a.id === activeModalAppId);
+                    if (app) {
+                        app.status = 'in_review';
+                    }
+                    openApplicationDetailModal(activeModalAppId);
+                    renderApplications();
+                } else {
+                    showToast('❌ ' + (data.error || 'Fehler beim Übernehmen'));
+                    btn.disabled = false;
+                }
+            } catch (err) {
+                showToast('❌ Verbindungsfehler: ' + err.message);
+                btn.disabled = false;
+            }
+        }
+
+        async function executeAcceptApplication() {
+            if (!activeModalAppId) return;
+            if (!confirm('Möchtest du diese Bewerbung wirklich annehmen? Dem Nutzer wird automatisch die offizielle Supporter-Rolle auf Discord zugewiesen!')) return;
+
+            const btn = document.getElementById('btn-app-accept');
+            btn.disabled = true;
+            btn.innerHTML = '<span>⏳</span> Supporter-Rolle wird vergeben...';
+
+            try {
+                const res = await fetch('/api/applications/' + encodeURIComponent(activeModalAppId) + '/accept', { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('🎉 ' + data.message);
+                    const app = allApplications.find(a => a.id === activeModalAppId);
+                    if (app) app.status = 'accepted';
+                    openApplicationDetailModal(activeModalAppId);
+                    renderApplications();
+                } else {
+                    showToast('❌ ' + (data.error || 'Fehler beim Annehmen'));
+                    btn.disabled = false;
+                    btn.innerHTML = '<span>🟢</span> Annehmen & Supporter-Rolle';
+                }
+            } catch (err) {
+                showToast('❌ Verbindungsfehler: ' + err.message);
+                btn.disabled = false;
+                btn.innerHTML = '<span>🟢</span> Annehmen & Supporter-Rolle';
+            }
+        }
+
+        async function executeRejectApplication() {
+            if (!activeModalAppId) return;
+            const reason = prompt('Begründung für die Ablehnung (wird dem Bewerber übermittelt):', 'Die Mindestanforderungen wurden leider derzeit nicht erfüllt.');
+            if (reason === null) return;
+
+            const btn = document.getElementById('btn-app-reject');
+            btn.disabled = true;
+            btn.innerHTML = '<span>⏳</span> Wird abgelehnt...';
+
+            try {
+                const res = await fetch('/api/applications/' + encodeURIComponent(activeModalAppId) + '/reject', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ reason: reason })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('ℹ️ ' + data.message);
+                    const app = allApplications.find(a => a.id === activeModalAppId);
+                    if (app) app.status = 'rejected';
+                    openApplicationDetailModal(activeModalAppId);
+                    renderApplications();
+                } else {
+                    showToast('❌ ' + (data.error || 'Fehler beim Ablehnen'));
+                    btn.disabled = false;
+                    btn.innerHTML = '<span>🔴</span> Ablehnen';
+                }
+            } catch (err) {
+                showToast('❌ Verbindungsfehler: ' + err.message);
+                btn.disabled = false;
+                btn.innerHTML = '<span>🔴</span> Ablehnen';
+            }
+        }
+
         // =========================================================================
         // STELLENAUSSCHREIBUNGEN & KI-GENERATOR (v3.5)
         // =========================================================================
@@ -2950,7 +3334,7 @@ function buildGiveawaysModalHtml(guild) {
             document.getElementById('ai-job-prompt').value = '';
             document.getElementById('job-title').value = '';
             document.getElementById('job-category').value = 'Support';
-            document.getElementById('job-targetRole' || 'job-target-role').value = '🎫 AeroGuard Support-Team';
+            const targetRoleEl = document.getElementById('job-target-role'); if (targetRoleEl) targetRoleEl.value = '🎫 AeroGuard Support-Team';
             document.getElementById('job-description').value = '';
             document.getElementById('job-requirements').value = '';
             document.getElementById('job-tasks').value = '';
@@ -3080,6 +3464,12 @@ function buildGiveawaysModalHtml(guild) {
             }
         }
 
+
+        // Auto-render tabs on start
+        window.addEventListener('DOMContentLoaded', () => {
+            renderApplications();
+            renderJobPostings();
+        });
     </script>
 
     <!-- ========================================================================= -->
