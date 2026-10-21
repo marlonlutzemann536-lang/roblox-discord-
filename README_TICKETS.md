@@ -30,6 +30,21 @@ Willkommen bei **AeroGuard Core v3.3**! Das System wurde mit einem **vollautomat
 
 ---
 
+### 👑 3. Exklusive Root-Funktion: „Support-Server AeroGuard erstellen“
+* **1-Klick Komplett-Setup durch den Bot-Besitzer (`OWNER_ID = 1075845857875873852`):**
+  * Der Bot-Besitzer kann den Bot auf seinen neuen Support-Server einladen und den gesamten Server vollautomatisch mit einem Klick aufbauen lassen!
+  * **Ausführungsmöglichkeiten:**
+    1. **Im Webpanel:** Direkt oben im Starter-Dashboard leuchtet für den Besitzer der goldene Button **`👑 Support-Server AeroGuard erstellen`**.
+    2. **Im Discord Chat:** Der Slash-Befehl **`/setup-support-server`** (nur für den Besitzer ausführbar).
+  * **Was der Bot dabei alles selbstständig macht:**
+    * 👑 **Rollen & Berechtigungen:** Erstellt `👑 AeroGuard Leitung (Owner)` (wird dem Besitzer direkt zugewiesen), `🛡️ AeroGuard Staff`, `🎫 AeroGuard Support-Team`, `✨ Server Booster / VIP` und `🎮 Verifiziert (Roblox)`.
+    * 📌 **6 Kategorien & 21 Kanäle:** Strukturiert und vergibt Berechtigungen (Staff-Bereich privat, Info-Hub read-only für @everyone).
+    * 📜 **Pre-Filled Embeds:** Postet sofort alle Embeds (Regelwerk, Willkommen, Patchnotes, Live Bot-Status Monitor, FAQ-Leitfaden, Suggestions-Anleitung, Bug-Report-Format).
+    * 🎫 **Support Hub:** Stellt das vollwertige interaktive Support-Panel mit Kategorie-Buttons bereit.
+    * ⚙️ **Cloud-Vault Verknüpfung:** Speichert alle IDs für Tickets, Moderations-Logs, Suggestions und Status-Monitor automatisch ab.
+
+---
+
 ## 🌟 Neu in Version 3.2
 
 ### 🎨 1. Intelligenter Kanal-Emoji Stylizer (100% Universal-Abdeckung)

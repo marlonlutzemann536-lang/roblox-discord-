@@ -255,7 +255,7 @@ function getGuildSettings(guildId) {
 // =========================================================================
 // GALAXY CORE CONFIGURATION & PERSISTENT CLOUD VAULT MATRIX
 // =========================================================================
-const OWNER_ID = '1075845857875873852'; 
+const OWNER_ID = process.env.OWNER_ID || '1075845857875873852'; 
 const CLOUD_VAULT_PATH = path.join(__dirname, 'aeroguard_cloud_vault.json');
 
 // Dein offizieller Google API Key für Premium Neural2 Text-to-Speech
@@ -2068,7 +2068,7 @@ client.on('interactionCreate', async interaction => {
         const userId = interaction.user.id;
         const isWhitelisted = cloudStorage.systemSettings.whitelistedUsers.includes(userId);
 
-        const adminCmds = ['status', 'restart', 'clear', 'warn', 'ticket', 'setup-ticketpanel', 'setup-infohub', 'poll', 'rbx-shout', 'rbx-serverlogs', 'rbx-shutdown', 'clan-war', 'rbx-savedata', 'rbx-cleardata', 'nuke', 'lockdown', 'unlockdown', 'slowmode', 'addrole', 'removerole', 'set-placeid', 'mute', 'unmute', 'warnlist', 'clearwarns', 'lockchannel', 'unlockchannel', 'dm', 'whitelist', 'supporter', 'setup-modlog', 'backup-server', 'give-premium', 'setup-welcome', 'setup-livestatus', 'setup-autorole', 'blacklist', 'style-channels', 'suggest-setup', 'giveaway'];
+        const adminCmds = ['setup-support-server', 'status', 'restart', 'clear', 'warn', 'ticket', 'setup-ticketpanel', 'setup-infohub', 'poll', 'rbx-shout', 'rbx-serverlogs', 'rbx-shutdown', 'clan-war', 'rbx-savedata', 'rbx-cleardata', 'nuke', 'lockdown', 'unlockdown', 'slowmode', 'addrole', 'removerole', 'set-placeid', 'mute', 'unmute', 'warnlist', 'clearwarns', 'lockchannel', 'unlockchannel', 'dm', 'whitelist', 'supporter', 'setup-modlog', 'backup-server', 'give-premium', 'setup-welcome', 'setup-livestatus', 'setup-autorole', 'blacklist', 'style-channels', 'suggest-setup', 'giveaway'];
         
         if (adminCmds.includes(commandName) && !isWhitelisted) {
             return interaction.reply({ content: '🔒 **Zugriff verweigert:** Dein Benutzerkonto verfügt nicht über die erforderlichen administrativen Schlüssel.', ephemeral: true });
@@ -2082,6 +2082,33 @@ client.on('interactionCreate', async interaction => {
         // =========================================================================
         // NEU: VORSCHLÄGE SLASH-COMMANDS (/suggest & /vorschlag & /suggest-setup)
         // =========================================================================
+        if (commandName === 'setup-support-server') {
+            if (interaction.user.id !== OWNER_ID) {
+                return interaction.reply({ content: '⛔ **Zugriff verweigert:** Dieser Befehl kann ausschließlich vom verifizierten Bot-Besitzer ausgeführt werden.', ephemeral: true });
+            }
+            await interaction.deferReply({ ephemeral: true });
+            try {
+                const res = await setupOfficialAeroGuardSupportServer(interaction.guild, interaction.user.id);
+                const succEmbed = new EmbedBuilder()
+                    .setTitle('👑 Offizieller AeroGuard Support-Server Erfolgreich Eingerichtet!')
+                    .setColor(0xfbbf24)
+                    .setDescription(`🚀 **Der Server wurde vollautomatisch komplett aufgesetzt!**\n\n` +
+                        `• **Rollen:** ${res.rolesCreated} Rollen erstellt (inkl. AeroGuard Leitung, Staff, Support-Team)\n` +
+                        `• **Kategorien:** ${res.categoriesCreated} Kategorien strukturiert\n` +
+                        `• **Kanäle:** ${res.channelsCreated} Kanäle angelegt & mit Cyberpunk-Emojis formatiert\n` +
+                        `• **Regelwerk:** Komplettes Regelwerk in <#${res.rulesChannelId}> gepostet\n` +
+                        `• **Support Hub:** Ticket-Panel in <#${res.ticketChannelId}> bereitgestellt\n` +
+                        `• **Vorschläge:** System in <#${res.suggestionChannelId}> aktiviert\n` +
+                        `• **Bot Status:** Live-Lifecycle-Monitor in <#${res.statusChannelId}> verknüpft`)
+                    .setFooter({ text: 'AeroGuard Core • Offizielles Support-Setup' })
+                    .setTimestamp();
+                await interaction.editReply({ embeds: [succEmbed] });
+            } catch(err) {
+                await interaction.editReply({ content: '❌ Fehler: ' + err.message });
+            }
+            return;
+        }
+
         if (commandName === 'help') {
             const dashUrl = process.env.DASHBOARD_URL || 'https://roblox-discord-g44u.onrender.com/dashboard';
             const helpEmbed = new EmbedBuilder()
@@ -3342,6 +3369,7 @@ setInterval(async () => {
 // EXPANDED REGISTER COMMAND DEFINITIONS MATRIX
 // =========================================================================
 const extendedCommandDefinitions = [
+    new SlashCommandBuilder().setName('setup-support-server').setDescription('👑 [Owner-Exklusiv] Richtet den offiziellen AeroGuard Support-Server vollautomatisch komplett ein'),
     new SlashCommandBuilder().setName('help').setDescription('Zeigt alle Funktionen und Befehle von AeroGuard Core im Überblick'),
     new SlashCommandBuilder().setName('status').setDescription('AeroGuard Live-Status, Telemetrie & RAM-Auslastung'),
     new SlashCommandBuilder().setName('cloud-inspect').setDescription('Prüft den persistenten Speicherzustand der Cloud-Datenbank'),
@@ -3817,6 +3845,455 @@ async function applyServerTemplate(guild, templateId) {
         createdCategories: createdCategoriesCount,
         createdChannels: createdChannelsCount,
         statusChannelId: statusChannelCreated
+    };
+}
+
+
+// =========================================================================
+// 👑 ROOT OWNER: OFFIZIELLER AEROGUARD SUPPORT-SERVER VOLL-AUTOMATISIERT (v3.3)
+// =========================================================================
+async function setupOfficialAeroGuardSupportServer(guild, requestingUserId) {
+    if (requestingUserId !== OWNER_ID) {
+        throw new Error('⛔ Zugriff verweigert: Nur der verifizierte Bot-Besitzer (Root Owner) darf den offiziellen AeroGuard Support-Server erstellen!');
+    }
+
+    addLog('info', `Initialisiere offiziellen AeroGuard Support-Server auf ${guild.name} (${guild.id}) durch Owner ${requestingUserId}...`, 'SupportSetup');
+
+    // 1. ROLLEN ERSTELLEN ODER FINDEN
+    let ownerRole = guild.roles.cache.find(r => r.name.includes('AeroGuard Leitung') || r.name.includes('AeroGuard Owner'));
+    if (!ownerRole) {
+        ownerRole = await guild.roles.create({
+            name: '👑 AeroGuard Leitung (Owner)',
+            color: 0xfbbf24,
+            hoist: true,
+            permissions: [PermissionFlagsBits.Administrator],
+            reason: 'Offizielles AeroGuard Support-Server Setup'
+        });
+        await new Promise(r => setTimeout(r, 300));
+    }
+
+    let staffRole = guild.roles.cache.find(r => r.name.includes('AeroGuard Staff'));
+    if (!staffRole) {
+        staffRole = await guild.roles.create({
+            name: '🛡️ AeroGuard Staff',
+            color: 0x00f3ff,
+            hoist: true,
+            permissions: [
+                PermissionFlagsBits.ManageMessages,
+                PermissionFlagsBits.KickMembers,
+                PermissionFlagsBits.BanMembers,
+                PermissionFlagsBits.ModerateMembers,
+                PermissionFlagsBits.ManageChannels
+            ],
+            reason: 'Offizielles AeroGuard Support-Server Setup'
+        });
+        await new Promise(r => setTimeout(r, 300));
+    }
+
+    let supportRole = guild.roles.cache.find(r => r.name.includes('Support-Team'));
+    if (!supportRole) {
+        supportRole = await guild.roles.create({
+            name: '🎫 AeroGuard Support-Team',
+            color: 0x9d4edd,
+            hoist: true,
+            permissions: [
+                PermissionFlagsBits.ManageMessages,
+                PermissionFlagsBits.ModerateMembers
+            ],
+            reason: 'Offizielles AeroGuard Support-Server Setup'
+        });
+        await new Promise(r => setTimeout(r, 300));
+    }
+
+    let vipRole = guild.roles.cache.find(r => r.name.includes('VIP') || r.name.includes('Booster'));
+    if (!vipRole) {
+        vipRole = await guild.roles.create({
+            name: '✨ Server Booster / VIP',
+            color: 0xec4899,
+            hoist: true,
+            reason: 'Offizielles AeroGuard Support-Server Setup'
+        });
+        await new Promise(r => setTimeout(r, 300));
+    }
+
+    let verifiedRole = guild.roles.cache.find(r => r.name.includes('Verifiziert (Roblox)'));
+    if (!verifiedRole) {
+        verifiedRole = await guild.roles.create({
+            name: '🎮 Verifiziert (Roblox)',
+            color: 0x38bdf8,
+            hoist: false,
+            reason: 'Offizielles AeroGuard Support-Server Setup'
+        });
+        await new Promise(r => setTimeout(r, 300));
+    }
+
+    // Owner-Rolle zuweisen, falls der Owner Mitglied auf dem Server ist
+    try {
+        const ownerMember = await guild.members.fetch(OWNER_ID);
+        if (ownerMember && ownerRole) {
+            await ownerMember.roles.add(ownerRole);
+        }
+    } catch(e) {}
+
+    let rolesCreatedCount = 5;
+    let categoriesCreatedCount = 0;
+    let channelsCreatedCount = 0;
+
+    // 2. KATEGORIE 1: 📌 ┃ AEROGUARD ZENTRALE (Info-Hub)
+    const catZentrale = await guild.channels.create({
+        name: '📌 ┃ AEROGUARD ZENTRALE',
+        type: ChannelType.GuildCategory,
+        permissionOverwrites: [
+            { id: guild.roles.everyone.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory], deny: [PermissionFlagsBits.SendMessages, PermissionFlagsBits.CreatePublicThreads, PermissionFlagsBits.CreatePrivateThreads] },
+            { id: staffRole.id, allow: [PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageMessages] }
+        ]
+    });
+    categoriesCreatedCount++;
+    await new Promise(r => setTimeout(r, 350));
+
+    // # 📜・aeroguard-regeln
+    const chRules = await guild.channels.create({
+        name: '📜・aeroguard-regeln',
+        type: ChannelType.GuildText,
+        parent: catZentrale.id,
+        topic: 'Offizielles Regelwerk & Community-Richtlinien von AeroGuard'
+    });
+    channelsCreatedCount++;
+    const rulesEmbed = new EmbedBuilder()
+        .setTitle('📜 Offizielles AeroGuard Regelwerk & Richtlinien')
+        .setColor(0x00f3ff)
+        .setDescription('Herzlich willkommen auf dem **offiziellen AeroGuard Support- und Community-Server**!\nUm eine sichere, produktive und respektvolle Umgebung zu gewährleisten, gelten folgende Regeln:')
+        .addFields(
+            { name: '1️⃣ Respekt & Umgangston', value: 'Behandle jedes Community-Mitglied, Moderatoren und Entwickler mit Respekt. Beleidigungen, Diskriminierung, toxisches Verhalten und Belästigung sind strengstens untersagt.' },
+            { name: '2️⃣ Kein Spam & Keine Eigenwerbung', value: 'Spam, unnötige Pings (@everyone, Staff-Pings) und unaufgeforderte Werbung per Chat oder DM führen zu einem sofortigen Ausschluss.' },
+            { name: '3️⃣ Ordnungsgemäßer Support', value: 'Support-Anfragen gehören ausschließlich in die **Support-Tickets** (<#ticket-erstellen>) oder den Hilfe-Kanal. Bitte frage Supporter nicht per privater Direktnachricht.' },
+            { name: '4️⃣ Bug-Reports & Security', value: 'Das Ausnutzen von Sicherheitslücken, Exploits oder System-Bugs ist verboten. Bitte melde gefundene Schwachstellen sofort vertraulich im Bug-Kanal.' },
+            { name: '5️⃣ Discord & Roblox ToS', value: 'Die offiziellen Discord Community-Richtlinien sowie die Roblox Nutzungsbedingungen sind ausnahmslos einzuhalten.' }
+        )
+        .setFooter({ text: 'AeroGuard Core • Durchsetzung durch Auto-Mod & Leitung' })
+        .setTimestamp();
+    await chRules.send({ embeds: [rulesEmbed] });
+    await new Promise(r => setTimeout(r, 350));
+
+    // # 📢・announcements
+    const chAnnounce = await guild.channels.create({
+        name: '📢・announcements',
+        type: ChannelType.GuildText,
+        parent: catZentrale.id,
+        topic: 'Wichtige Neuigkeiten & offizielle Mitteilungen'
+    });
+    channelsCreatedCount++;
+    const welcomeEmbed = new EmbedBuilder()
+        .setTitle('📢 Willkommen im offiziellen AeroGuard Headquarter!')
+        .setColor(0x9d4edd)
+        .setDescription('Hier findest du alle wichtigen Neuigkeiten, Bot-Updates, System-Statusmeldungen und direkten Support für dein Discord- & Roblox-Netzwerk.')
+        .addFields(
+            { name: '🚀 Unsere Mission', value: 'AeroGuard Core bietet das fortschrittlichste All-in-One Bot- & Webpanel-Ökosystem mit Roblox-Synchronisation, Enterprise-Tickets, intelligentem Emoji-Stylizer und Event-Suites.' },
+            { name: '🌐 Web-Dashboard', value: 'Konfiguriere deinen eigenen Server in Echtzeit über unser Webpanel: [AeroGuard Web Suite](https://roblox-discord-g44u.onrender.com/)' },
+            { name: '🎫 Schneller Support', value: 'Benötigst du Hilfe oder möchtest deinen Bot verifizieren? Eröffne jederzeit ein Ticket im Support-Bereich!' }
+        )
+        .setFooter({ text: 'AeroGuard Core • The Future of Server Management' })
+        .setTimestamp();
+    await chAnnounce.send({ embeds: [welcomeEmbed] });
+    await new Promise(r => setTimeout(r, 350));
+
+    // # 🚀・version-changelogs
+    const chLogs = await guild.channels.create({
+        name: '🚀・version-changelogs',
+        type: ChannelType.GuildText,
+        parent: catZentrale.id,
+        topic: 'AeroGuard Core Versions-Patchnotes'
+    });
+    channelsCreatedCount++;
+    const changelogEmbed = new EmbedBuilder()
+        .setTitle('🚀 AeroGuard Core — Version 3.3 Next-Gen Suite')
+        .setColor(0x10b981)
+        .setDescription('Das offizielle Versions-Update ist live! Folgende Systeme sind im Einsatz:')
+        .addFields(
+            { name: '🎨 100% Kanal-Emoji Stylizer', value: 'Vollautomatisches Styling für ausnahmslos jeden Kanal (Text, Voice, Bühnen & Kategorien) mit Cyberpunk-Emojis und Vorher/Nachher Live-Vorschau.' },
+            { name: '📡 Bot-Lifecycle & Status Monitor', value: 'Automatische Benachrichtigungen bei Bot-Online-Start und unmittelbar vor jedem geplanten Herunterfahren (Wartungsmodus/Shutdown).' },
+            { name: '🏛️ Server-Vorlagen & Setup Presets', value: '1-Klick Struktur-Generator für Gaming, Roblox Studios und den offiziellen AeroGuard Support Server.' },
+            { name: '💡 Vorschläge & Diskussions-Threads', value: 'Voting-Embeds mit Live-Stimmen, automatischer Thread-Erstellung und Team-Review.' },
+            { name: '🎉 Web-Exklusive Giveaway Suite', value: 'Manipulationssichere Verlosungen mit Discord-Countdown-Timer und optionaler Roblox-Pflicht.' }
+        )
+        .setFooter({ text: 'AeroGuard Core • Release Notes' })
+        .setTimestamp();
+    await chLogs.send({ embeds: [changelogEmbed] });
+    await new Promise(r => setTimeout(r, 350));
+
+    // # 🤖・bot-status
+    const chStatus = await guild.channels.create({
+        name: '🤖・bot-status',
+        type: ChannelType.GuildText,
+        parent: catZentrale.id,
+        topic: 'Live Bot-Lifecycle & Echtzeit Telemetrie'
+    });
+    channelsCreatedCount++;
+    const initialStatusEmbed = new EmbedBuilder()
+        .setTitle('🟢 AeroGuard Core — Live Status Monitor Aktiviert')
+        .setColor(0x10b981)
+        .setDescription('📡 **Dieser Kanal empfängt ab sofort alle automatischen Lifecycle-Broadcasts von AeroGuard Core.**\n\nDu erhältst hier sofortige Benachrichtigungen, sobald der Bot online geht oder ein Wartungs-Shutdown eingeleitet wird.')
+        .addFields(
+            { name: '⚡ Latenz', value: `${client.ws.ping || 5} ms`, inline: true },
+            { name: '🌐 Verbundene Server', value: `${client.guilds.cache.size}`, inline: true },
+            { name: '🛡️ Status', value: 'Online & Einsatzbereit', inline: true }
+        )
+        .setFooter({ text: 'AeroGuard Core • Offizieller Status Monitor' })
+        .setTimestamp();
+    await chStatus.send({ embeds: [initialStatusEmbed] });
+    await new Promise(r => setTimeout(r, 350));
+
+    // # ❓・bot-faq
+    const chFaq = await guild.channels.create({
+        name: '❓・bot-faq',
+        type: ChannelType.GuildText,
+        parent: catZentrale.id,
+        topic: 'Häufig gestellte Fragen & Setup-Hilfe'
+    });
+    channelsCreatedCount++;
+    const faqEmbed = new EmbedBuilder()
+        .setTitle('❓ Häufige Fragen (FAQ) & Erste Schritte')
+        .setColor(0x38bdf8)
+        .setDescription('Hier findest du Antworten auf die häufigsten Fragen rund um AeroGuard Core:')
+        .addFields(
+            { name: '🔹 Wie lade ich den Bot auf meinen Server ein?', value: 'Nutze den offiziellen Einladungslink auf unserer Website oder frage im Support nach.' },
+            { name: '🔹 Wie melde ich mich im Dashboard an?', value: 'Besuche unsere Website, klicke auf **„Webpanel öffnen“** und autorisiere dich sicher über Discord OAuth2. Du benötigst Serverbesitzer- oder Support-Rechte auf deinem Server.' },
+            { name: '🔹 Wie funktioniert die Roblox-Verifizierung?', value: 'Führe `/verify` aus oder verlinke deinen Roblox-Account im Webpanel. Du erhältst automatisch die Verifiziert-Rolle und Nickname-Synchronisation.' },
+            { name: '🔹 Welche Slash-Befehle gibt es?', value: 'Nutze `/help` für die vollständige Befehlsliste, `/suggest` für Vorschläge, `/rank` für deine Aktivitäts-Stats oder `/status` für Bot-Details.' }
+        )
+        .setFooter({ text: 'AeroGuard Core • Wissensdatenbank' })
+        .setTimestamp();
+    await chFaq.send({ embeds: [faqEmbed] });
+    await new Promise(r => setTimeout(r, 350));
+
+    // 3. KATEGORIE 2: 🎫 ┃ SUPPORT & FEEDBACK
+    const catSupport = await guild.channels.create({
+        name: '🎫 ┃ SUPPORT & FEEDBACK',
+        type: ChannelType.GuildCategory
+    });
+    categoriesCreatedCount++;
+    await new Promise(r => setTimeout(r, 350));
+
+    // # 🎫・ticket-erstellen
+    const chTickets = await guild.channels.create({
+        name: '🎫・ticket-erstellen',
+        type: ChannelType.GuildText,
+        parent: catSupport.id,
+        topic: 'Eröffne ein privates Support-Ticket bei unserem Team'
+    });
+    channelsCreatedCount++;
+    const panelRows = buildTicketPanelActionRows(guild.id);
+    const panelEmbed = new EmbedBuilder()
+        .setTitle('🛡️ AeroGuard Support Hub — Ticket Erstellen')
+        .setDescription('Herzlich willkommen im offiziellen Support-Zentrum!\nWähle unten die passende Kategorie aus, um ein privates Support-Ticket mit unserem Team zu eröffnen:\n\n' +
+            '• **🔮 Allgemeiner Support:** Fragen zum Bot, Einstellungen & Einladungen\n' +
+            '• **🐛 Bug melden:** Technische Fehler oder Fehlverhalten melden\n' +
+            '• **🚨 Spieler-Report:** Verstoß gegen Server-Richtlinien melden\n' +
+            '• **📝 Team-Bewerbung:** Werde Teil des AeroGuard Support-Teams\n' +
+            '• **🤝 Partnerschaft:** Kooperations- & Partnerschaftsanfragen')
+        .setColor(0x9d4edd)
+        .setThumbnail(client.user ? client.user.displayAvatarURL() : null)
+        .setFooter({ text: 'Ein privater Kanal wird nach Klick sofort für dich erstellt.' })
+        .setTimestamp();
+    await chTickets.send({ embeds: [panelEmbed], components: panelRows });
+    await new Promise(r => setTimeout(r, 350));
+
+    // # 💡・community-vorschläge
+    const chSuggestions = await guild.channels.create({
+        name: '💡・community-vorschläge',
+        type: ChannelType.GuildText,
+        parent: catSupport.id,
+        topic: 'Reiche Ideen für AeroGuard ein oder vote über Vorschläge ab'
+    });
+    channelsCreatedCount++;
+    const suggestInfoEmbed = new EmbedBuilder()
+        .setTitle('💡 Community Vorschläge & Feedback')
+        .setColor(0xfbbf24)
+        .setDescription('Deine Ideen formen die Zukunft von AeroGuard!\n\n' +
+            'Schreibe deinen Vorschlag einfach direkt in diesen Chat oder nutze den Befehl `/suggest <Idee>`.\n' +
+            'Der Bot verwandelt deine Idee automatisch in ein professionelles Abstimmungs-Embed mit Live Up/Downvotes und eröffnet einen Diskussions-Thread!')
+        .setFooter({ text: 'AeroGuard Core • Suggestions Engine' })
+        .setTimestamp();
+    await chSuggestions.send({ embeds: [suggestInfoEmbed] });
+    await new Promise(r => setTimeout(r, 350));
+
+    // # 🐛・bug-meldungen
+    const chBugs = await guild.channels.create({
+        name: '🐛・bug-meldungen',
+        type: ChannelType.GuildText,
+        parent: catSupport.id,
+        topic: 'Fehlermeldungen und technische Probleme'
+    });
+    channelsCreatedCount++;
+    const bugsEmbed = new EmbedBuilder()
+        .setTitle('🐛 Bug Reporting Leitfaden')
+        .setColor(0xef4444)
+        .setDescription('Hast du einen Fehler entdeckt? Hilf uns, AeroGuard noch stabiler zu machen!\n\n' +
+            '**Bitte gib folgende Informationen an:**\n' +
+            '1. Was genau ist passiert?\n' +
+            '2. Welche Schritte führen zu dem Fehler?\n' +
+            '3. Screenshots oder Fehlermeldungen (falls vorhanden)\n\n' +
+            'Für sicherheitsrelevante Schwachstellen erstelle bitte ein privates Ticket unter <#' + chTickets.id + '>!')
+        .setFooter({ text: 'AeroGuard Core • Bug Tracking' });
+    await chBugs.send({ embeds: [bugsEmbed] });
+    await new Promise(r => setTimeout(r, 350));
+
+    // # 🤝・partnerschaften
+    await guild.channels.create({
+        name: '🤝・partnerschaften',
+        type: ChannelType.GuildText,
+        parent: catSupport.id,
+        topic: 'Informationen zu Server-Kooperationen'
+    });
+    channelsCreatedCount++;
+    await new Promise(r => setTimeout(r, 350));
+
+    // 4. KATEGORIE 3: 💬 ┃ COMMUNITY HUB
+    const catCommunity = await guild.channels.create({
+        name: '💬 ┃ COMMUNITY HUB',
+        type: ChannelType.GuildCategory
+    });
+    categoriesCreatedCount++;
+    await new Promise(r => setTimeout(r, 350));
+
+    const chChat = await guild.channels.create({
+        name: '💬・allgemeiner-chat',
+        type: ChannelType.GuildText,
+        parent: catCommunity.id,
+        topic: 'Der Hauptchat für alle Unterhaltungen'
+    });
+    channelsCreatedCount++;
+    await chChat.send('👋 **Willkommen im allgemeinen Chat!** Tausche dich hier mit anderen Serverbesitzern, Entwicklern und Spielern aus.');
+
+    await guild.channels.create({
+        name: '📸・server-showcases',
+        type: ChannelType.GuildText,
+        parent: catCommunity.id,
+        topic: 'Zeige deinen Discord-Server im AeroGuard Design'
+    });
+    channelsCreatedCount++;
+
+    await guild.channels.create({
+        name: '🤖・bot-commands',
+        type: ChannelType.GuildText,
+        parent: catCommunity.id,
+        topic: 'Teste Befehle wie /rank, /leaderboard oder /profile'
+    });
+    channelsCreatedCount++;
+
+    // 5. KATEGORIE 4: 🎉 ┃ EVENTS & VERLOSUNGEN
+    const catEvents = await guild.channels.create({
+        name: '🎉 ┃ EVENTS & VERLOSUNGEN',
+        type: ChannelType.GuildCategory
+    });
+    categoriesCreatedCount++;
+    await new Promise(r => setTimeout(r, 350));
+
+    await guild.channels.create({
+        name: '🎉・giveaways',
+        type: ChannelType.GuildText,
+        parent: catEvents.id,
+        topic: 'Offizielle Verlosungen von VIP-Rollen, Nitro & Belohnungen'
+    });
+    channelsCreatedCount++;
+
+    await guild.channels.create({
+        name: '🏆・leaderboard',
+        type: ChannelType.GuildText,
+        parent: catEvents.id,
+        topic: 'Die aktivsten Community-Mitglieder'
+    });
+    channelsCreatedCount++;
+
+    // 6. KATEGORIE 5: 🔊 ┃ SPRACH-LOUNGE
+    const catVoice = await guild.channels.create({
+        name: '🔊 ┃ SPRACH-LOUNGE',
+        type: ChannelType.GuildCategory
+    });
+    categoriesCreatedCount++;
+    await new Promise(r => setTimeout(r, 350));
+
+    const voiceRooms = ['🚨・Support Warteraum', '🔊・Community Talk 1', '🔊・Community Talk 2', '🎵・Musik & Chill', '💤・AFK Lounge'];
+    for (const vr of voiceRooms) {
+        await guild.channels.create({
+            name: vr,
+            type: ChannelType.GuildVoice,
+            parent: catVoice.id
+        });
+        channelsCreatedCount++;
+        await new Promise(r => setTimeout(r, 300));
+    }
+
+    // 7. KATEGORIE 6: 🛡️ ┃ AEROGUARD MANAGEMENT (Streng Staff-Only)
+    const catStaff = await guild.channels.create({
+        name: '🛡️ ┃ AEROGUARD MANAGEMENT',
+        type: ChannelType.GuildCategory,
+        permissionOverwrites: [
+            { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
+            { id: staffRole.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
+            { id: ownerRole.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.Administrator] }
+        ]
+    });
+    categoriesCreatedCount++;
+    await new Promise(r => setTimeout(r, 350));
+
+    await guild.channels.create({
+        name: '🛡️・leitung-intern',
+        type: ChannelType.GuildText,
+        parent: catStaff.id,
+        topic: 'Interner Chat für Leitung & Staff'
+    });
+    channelsCreatedCount++;
+
+    const chAuditLogs = await guild.channels.create({
+        name: '📜・server-audit-logs',
+        type: ChannelType.GuildText,
+        parent: catStaff.id,
+        topic: 'Automatisierte Moderations-, Ticket- und Systemprotokolle'
+    });
+    channelsCreatedCount++;
+
+    await guild.channels.create({
+        name: '🎙️・Management Besprechung',
+        type: ChannelType.GuildVoice,
+        parent: catStaff.id
+    });
+    channelsCreatedCount++;
+
+    // 8. BOT-EINSTELLUNGEN FÜR DIESEN SERVER IM CLOUD-VAULT SPEICHERN
+    const gSettings = getGuildSettings(guild.id);
+    gSettings.ticketCategoryId = catSupport.id;
+    gSettings.supportRoleId = supportRole.id;
+    gSettings.ticketLogChannelId = chAuditLogs.id;
+    gSettings.statusUpdates = {
+        enabled: true,
+        channelId: chStatus.id
+    };
+    if (!gSettings.suggestions) gSettings.suggestions = {};
+    gSettings.suggestions.enabled = true;
+    gSettings.suggestions.channelId = chSuggestions.id;
+
+    if (!gSettings.logging) gSettings.logging = {};
+    gSettings.logging.modLogChannelId = chAuditLogs.id;
+    gSettings.logging.welcomeChannelId = chAnnounce.id;
+
+    if (!gSettings.roblox) gSettings.roblox = {};
+    gSettings.roblox.verifiedRoleId = verifiedRole.id;
+
+    saveCloudVaultToDisk();
+    addLog('info', `Offizieller AeroGuard Support-Server erfolgreich auf ${guild.name} aufgesetzt!`, 'SupportSetup');
+
+    return {
+        success: true,
+        rolesCreated: rolesCreatedCount,
+        categoriesCreated: categoriesCreatedCount,
+        channelsCreated: channelsCreatedCount,
+        rulesChannelId: chRules.id,
+        announcementsChannelId: chAnnounce.id,
+        statusChannelId: chStatus.id,
+        ticketChannelId: chTickets.id,
+        suggestionChannelId: chSuggestions.id,
+        auditLogsChannelId: chAuditLogs.id
     };
 }
 
@@ -5137,6 +5614,23 @@ app.get('/api/templates', (req, res) => {
     }));
 
     res.json({ templates: list, isBotOwner });
+});
+
+app.post('/api/guild/:guildId/setup-support-server', async (req, res) => {
+    if (!req.session.user || req.session.user.id !== OWNER_ID) {
+        return res.status(403).json({ error: '⛔ Zugriff verweigert: Diese Funktion darf ausschließlich vom verifizierten Bot-Besitzer (Root Owner) ausgeführt werden!' });
+    }
+
+    const guild = client.guilds.cache.get(req.params.guildId);
+    if (!guild) return res.status(404).json({ error: 'Server nicht gefunden' });
+
+    try {
+        const result = await setupOfficialAeroGuardSupportServer(guild, req.session.user.id);
+        res.json({ success: true, ...result });
+    } catch(err) {
+        console.error('Setup support server error:', err);
+        res.status(500).json({ error: err.message });
+    }
 });
 
 app.post('/api/guild/:guildId/apply-template', async (req, res) => {

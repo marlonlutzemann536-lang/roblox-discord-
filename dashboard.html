@@ -383,6 +383,34 @@
         <!-- TAB 1: MODUL-ZENTRALE (CLICKABLE CONFIGURABLE MODULES) -->
         <div id="tab-modules" class="tab-content">
             <!-- ============================================================= -->
+            <!-- 👑 BOT-BESITZER EXKLUSIV: SUPPORT-SERVER AEROGUARD ERSTELLEN -->
+            <!-- ============================================================= -->
+            <div id="owner-support-setup-banner" style="display:none; background: linear-gradient(135deg, rgba(245, 158, 11, 0.12), rgba(20, 26, 48, 0.98)); border: 2px solid rgba(245, 158, 11, 0.55); border-radius: 18px; padding: 24px 28px; margin-bottom: 24px; box-shadow: 0 0 35px rgba(245, 158, 11, 0.15); position: relative; overflow: hidden;">
+                <div style="position: absolute; top: -30px; right: -30px; width: 140px; height: 140px; background: radial-gradient(circle, rgba(245,158,11,0.25), transparent 70%); border-radius: 50%; pointer-events: none;"></div>
+                
+                <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 14px;">
+                    <div style="max-width: 820px;">
+                        <div style="display: inline-flex; align-items: center; gap: 8px; background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.5); padding: 4px 14px; border-radius: 20px; font-size: 0.75rem; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 8px;">
+                            <span>👑 BOT-BESITZER ROOT FUNKTION</span>
+                            <span>•</span>
+                            <span>OFFIZIELLES SETUP</span>
+                        </div>
+                        <h2 style="font-size: 1.45rem; font-weight: 800; color: #fff; margin: 0 0 8px 0; letter-spacing: -0.02em;">
+                            Support-Server AeroGuard erstellen
+                        </h2>
+                        <p style="color: #cbd5e1; font-size: 0.9rem; line-height: 1.5; margin: 0;">
+                            Richtet den aktuell ausgewählten Server vollautomatisch als <strong>offiziellen AeroGuard Support-Server</strong> ein. Der Bot erstellt alle 5 Rollen, 6 Kategorien, 21 Kanäle, postet alle Regelwerke & Anleitungen, schaltet das Ticket-Panel scharf und verknüpft den Live Bot-Status Monitor.
+                        </p>
+                    </div>
+                    <div>
+                        <button type="button" class="btn-primary" style="background: linear-gradient(135deg, #f59e0b, #d97706); border: none; color: #000; font-weight: 800; padding: 12px 26px; font-size: 0.95rem; box-shadow: 0 0 25px rgba(245, 158, 11, 0.35); cursor: pointer;" onclick="openDedicatedSupportSetupModal()">
+                            👑 Support-Server AeroGuard erstellen
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================= -->
             <!-- 🌟 V3.2 FEATURE-SPOTLIGHT & STARTER-DASHBOARD ERKLÄRUNG -->
             <!-- ============================================================= -->
             <div style="background: linear-gradient(135deg, rgba(13, 20, 38, 0.95), rgba(20, 26, 48, 0.95)); border: 1px solid rgba(0, 243, 255, 0.35); border-radius: 18px; padding: 26px 28px; margin-bottom: 28px; box-shadow: 0 0 35px rgba(0, 243, 255, 0.08); position: relative; overflow: hidden;">
@@ -731,6 +759,10 @@
         // INIT
         window.onload = () => {
             initGuildSelector();
+            if (currentUser && currentUser.isOwner) {
+                const b = document.getElementById('owner-support-setup-banner');
+                if (b) b.style.display = 'block';
+            }
             if (activeGuildId) selectGuild(activeGuildId);
         };
 
@@ -1639,7 +1671,119 @@
         // =========================================================================
         // TEMPLATES & LIFECYCLE CLIENT MODULES (v3.3)
         // =========================================================================
-        function buildTemplatesModalHtml(guild) {
+        
+        function openDedicatedSupportSetupModal() {
+            const guild = guilds.find(g => g.id === activeGuildId);
+            if (!guild) {
+                showToast('❌ Bitte wähle zuerst einen Zielserver aus!', 'error');
+                return;
+            }
+
+            const overlay = document.getElementById('config-modal-overlay');
+            const iconEl = document.getElementById('modal-icon');
+            const titleEl = document.getElementById('modal-title');
+            const subtitleEl = document.getElementById('modal-subtitle');
+            const toggleEl = document.getElementById('modal-module-toggle');
+            const bodyEl = document.getElementById('modal-body-content');
+
+            overlay.classList.add('active');
+            currentOpenModule = 'dedicated_support_setup';
+
+            iconEl.innerText = '👑';
+            titleEl.innerText = 'Support-Server AeroGuard erstellen';
+            subtitleEl.innerText = 'Vollautomatisches Komplett-Setup für ' + guild.name + ' (Root Owner Exklusiv)';
+            toggleEl.checked = true;
+
+            bodyEl.innerHTML = '<div style="display:flex; flex-direction:column; gap:20px;">' +
+                '<div style="background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.4); border-radius:14px; padding:20px;">' +
+                    '<div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">' +
+                        '<span style="font-size:1.8rem;">👑</span>' +
+                        '<div>' +
+                            '<h3 style="color:#fbbf24; font-size:1.2rem; margin:0 0 2px 0;">Offiziellen AeroGuard Support-Server aufsetzen</h3>' +
+                            '<p style="color:#cbd5e1; font-size:0.85rem; margin:0;">Zielserver: <strong>' + guild.name + '</strong> (ID: ' + guild.id + ')</p>' +
+                        '</div>' +
+                    '</div>' +
+                    '<p style="color:#94a3b8; font-size:0.88rem; line-height:1.6; margin:0 0 14px 0;">' +
+                        'Du bist als offizieller Bot-Besitzer verifiziert. Mit einem einzigen Klick führt der Bot ein vollständiges Enterprise-Setup durch und richtet <strong>ALLES</strong> auf deinem Server ein:' +
+                    '</p>' +
+                    '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:12px; font-size:0.82rem; color:#e2e8f0;">' +
+                        '<div style="background:rgba(0,0,0,0.3); padding:10px 14px; border-radius:10px;">👑 <strong>5 Rollen:</strong> Leitung, Staff, Support-Team, Booster & Verifiziert</div>' +
+                        '<div style="background:rgba(0,0,0,0.3); padding:10px 14px; border-radius:10px;">📌 <strong>6 Kategorien:</strong> Zentrale, Support, Community, Events, Voice, Management</div>' +
+                        '<div style="background:rgba(0,0,0,0.3); padding:10px 14px; border-radius:10px;">📜 <strong>Regelwerk:</strong> Vollständiges Regel-Embed in #aeroguard-regeln</div>' +
+                        '<div style="background:rgba(0,0,0,0.3); padding:10px 14px; border-radius:10px;">🎫 <strong>Support-Panel:</strong> Interaktives Ticket-Embed mit 5 Kategorien</div>' +
+                        '<div style="background:rgba(0,0,0,0.3); padding:10px 14px; border-radius:10px;">🤖 <strong>Bot-Status:</strong> Live Lifecycle Monitor in #bot-status verknüpft</div>' +
+                        '<div style="background:rgba(0,0,0,0.3); padding:10px 14px; border-radius:10px;">💡 <strong>Vorschläge:</strong> Voting- & Thread-System in #community-vorschläge</div>' +
+                    '</div>' +
+                '</div>' +
+
+                '<div id="support-setup-status-box" style="display:none; padding:16px 20px; border-radius:12px; font-size:0.9rem; line-height:1.5;"></div>' +
+
+                '<div style="background:#141a2e; border:1px solid var(--border); border-radius:14px; padding:20px; display:flex; flex-direction:column; gap:12px;">' +
+                    '<div style="display:flex; justify-content:space-between; align-items:center;">' +
+                        '<div>' +
+                            '<h4 style="margin:0 0 4px 0; font-size:1rem; color:#fff;">Vollautomatischen Aufbau starten</h4>' +
+                            '<p style="margin:0; font-size:0.82rem; color:#94a3b8;">Dauert ca. 15-20 Sekunden (inkl. Discord Rate-Limit Bremse).</p>' +
+                        '</div>' +
+                        '<button type="button" id="btn-run-support-setup" class="btn-primary" style="background:linear-gradient(135deg, #f59e0b, #d97706); border:none; color:#000; font-weight:800; padding:12px 24px; font-size:0.95rem; cursor:pointer;" onclick="executeDedicatedSupportSetup()">' +
+                            '🚀 Jetzt Support-Server erstellen' +
+                        '</button>' +
+                    '</div>' +
+                '</div>' +
+            '</div>';
+        }
+
+        async function executeDedicatedSupportSetup() {
+            if (!activeGuildId) return;
+            const btn = document.getElementById('btn-run-support-setup');
+            const statusBox = document.getElementById('support-setup-status-box');
+
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner" style="display:inline-block; width:14px; height:14px; border:2px solid #000; border-top-color:transparent; border-radius:50%; animation:spin 0.8s linear infinite; margin-right:8px; vertical-align:middle;"></span> Erstelle Support-Server...';
+            }
+            if (statusBox) {
+                statusBox.style.display = 'block';
+                statusBox.style.background = 'rgba(245,158,11,0.1)';
+                statusBox.style.border = '1px solid rgba(245,158,11,0.4)';
+                statusBox.style.color = '#fde68a';
+                statusBox.innerHTML = '⏳ <strong>Vorgang läuft:</strong> Rollen, 6 Kategorien, 21 Kanäle und alle Embeds werden auf Discord erstellt. Bitte das Fenster nicht schließen...';
+            }
+
+            try {
+                const res = await fetch('/api/guild/' + activeGuildId + '/setup-support-server', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    if (statusBox) {
+                        statusBox.style.background = 'rgba(16,185,129,0.15)';
+                        statusBox.style.border = '1px solid rgba(16,185,129,0.4)';
+                        statusBox.style.color = '#10b981';
+                        statusBox.innerHTML = '🎉 <strong>Erfolgreich abgeschlossen!</strong> Der offizielle AeroGuard Support-Server wurde vollständig eingerichtet! (' + data.rolesCreated + ' Rollen, ' + data.categoriesCreated + ' Kategorien, ' + data.channelsCreated + ' Kanäle & alle Embeds gepostet)';
+                    }
+                    showToast('👑 Offizieller AeroGuard Support-Server erfolgreich aufgesetzt!');
+                } else {
+                    throw new Error(data.error || 'Fehler beim Erstellen des Support-Servers');
+                }
+            } catch(err) {
+                if (statusBox) {
+                    statusBox.style.background = 'rgba(239,68,68,0.15)';
+                    statusBox.style.border = '1px solid rgba(239,68,68,0.4)';
+                    statusBox.style.color = '#ef4444';
+                    statusBox.innerHTML = '❌ <strong>Fehler:</strong> ' + err.message;
+                }
+                showToast('❌ ' + err.message, 'error');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '🚀 Jetzt Support-Server erstellen';
+                }
+            }
+        }
+
+function buildTemplatesModalHtml(guild) {
             const isBotOwner = Boolean(currentUser && currentUser.isOwner);
 
             let ownerCardHtml = '';
