@@ -1,6 +1,30 @@
-# 🚀 AeroGuard Core — Enterprise Discord & Roblox Suite (v3.1)
+# 🚀 AeroGuard Core — Enterprise Discord & Roblox Suite (v3.2)
 
-Willkommen bei **AeroGuard Core v3.1**! Das System wurde mit einem **vollwertigen Cookie- & Datenschutz-Consent-Banner (mit granularer Anpassung)** und der **Web-Exklusivität für Giveaway-Starts** weiter verfeinert.
+Willkommen bei **AeroGuard Core v3.2**! Das System wurde mit einem **100% universellen Kanal-Emoji Stylizer**, einer **Vorher/Nachher Live-Vorschau**, dem neuen **Starter-Dashboard Feature-Hub** und der prominenten Präsentation aller Bot-Funktionen auf der Startseite erweitert.
+
+---
+
+## 🌟 Neu in Version 3.2
+
+### 🎨 1. Intelligenter Kanal-Emoji Stylizer (100% Universal-Abdeckung)
+* **Lückenlose Formatierung:** Scannt ausnahmslos **jeden Kanal** auf deinem Discord-Server:
+  * 📁 **Kategorien:** z.B. `📁 📌 ┃ WICHTIG & INFO`, `📁 🎫 ┃ SUPPORT`, `📁 💬 ┃ COMMUNITY`
+  * 💬 **Textkanäle & Foren:** z.B. `# 📜・regeln`, `# 💬・allgemein`, `# 💡・vorschläge`, `# 📑・forum`
+  * 🔊 **Sprach- & Bühnenräume:** z.B. `🔊 🔊・talk-1`, `🔊 🎵・musik`, `🎭・event-bühne`
+* **Smarte Emojis & Keyword-Matching:** Umfangreiches Wörterbuch mit über 30 Kategorien (Regeln, Support, Giveaways, Dev, Gaming, Socials, Logs, Trade, Bewerbungen etc.).
+* **Universeller Fallback:** Sollte ein Kanalname kein Keyword matchen, erhält er garantiert ein passendes Standard-Icon (`💬`, `🔊`, `📁`, `📑`, `📸`). Kein Kanal wird ausgelassen!
+* **Auto-Bereinigung:** Alte, unpassende Emojis und Sonderzeichen werden vor dem Stylen automatisch sauber entfernt.
+* **Rate-Limit Schutz:** Sanfte 350ms-Verzögerung zwischen Kanaländerungen schützt vor Discord-API-Sperren.
+
+### 🖥️ 2. Starter-Dashboard Feature-Hub & Bot-Erklärung
+* **Direkt beim Aufruf von `/dashboard`:** Prominentes **Feature-Spotlight Banner**, das dem Admin alle Bot-Systeme und die neuen v3.2-Funktionen übersichtlich erklärt.
+* **Modul 9 im Dashboard:** Eigenständige Feature-Card **🎨 Intelligenter Kanal-Emoji Stylizer** in der Modul-Zentrale.
+* **Live Vorher ➔ Nachher Server-Vorschau:** Interaktive Vorschau-Tabelle im Modal, die direkt die echten Kanäle deines Servers mit den vorhergesagten neuen Namen vergleicht, bevor du auf den Button klickst!
+* **1-Klick-Ausführung:** Button `✨ Alle Kanäle jetzt formatieren` wendet das Styling direkt auf Discord an.
+
+### 🌐 3. Website-Landingpage Upgrade (Öffentliche Seite)
+* **Spotlight-Bereich auf der Startseite:** Detaillierte Vorstellung der 3 Next-Gen Systeme (Emoji Stylizer, Vorschläge-Engine, Giveaway Suite).
+* **Vorher/Nachher Vergleichstabelle:** Besucher sehen sofort, wie chaotische Kanäle in ein aufgeräumtes Cyberpunk-Design verwandelt werden.
 
 ---
 

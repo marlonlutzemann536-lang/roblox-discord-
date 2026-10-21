@@ -126,7 +126,7 @@
             padding: 8px 14px; border-radius: 10px; font-size: 0.82rem;
             display: flex; align-items: center; gap: 8px;
         }
-        .stat-val { font-weight: 700; color: #fff; font-family: 'JetBrains Mono', monospace; }
+        .stat-val { font-weight: 700; color: #fff; font-family: \'JetBrains Mono\', monospace; }
 
         /* MODULES GRID (CLICKABLE CARDS) */
         .modules-grid {
@@ -171,7 +171,7 @@
             display: flex; justify-content: space-between; align-items: center;
             border-top: 1px solid var(--border); padding-top: 14px; margin-top: auto;
         }
-        .feature-subtext { font-size: 0.75rem; color: var(--text-dim); font-family: 'JetBrains Mono', monospace; }
+        .feature-subtext { font-size: 0.75rem; color: var(--text-dim); font-family: \'JetBrains Mono\', monospace; }
         .btn-configure {
             background: rgba(0, 243, 255, 0.1); border: 1px solid var(--cyan);
             color: var(--cyan); padding: 7px 16px; border-radius: 8px; font-family: inherit;
@@ -206,7 +206,7 @@
         }
         td { padding: 14px 16px; font-size: 0.9rem; border-bottom: 1px solid rgba(255, 255, 255, 0.04); vertical-align: middle; }
         tr:hover td { background: rgba(255, 255, 255, 0.02); }
-        .badge-id { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--cyan); background: rgba(0, 243, 255, 0.08); padding: 3px 8px; border-radius: 6px; }
+        .badge-id { font-family: \'JetBrains Mono\', monospace; font-size: 0.8rem; color: var(--cyan); background: rgba(0, 243, 255, 0.08); padding: 3px 8px; border-radius: 6px; }
         .badge-cat { background: rgba(157, 78, 221, 0.15); border: 1px solid rgba(157, 78, 221, 0.3); color: #d8b4fe; padding: 3px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 700; }
         .action-link {
             background: rgba(255, 255, 255, 0.06); border: 1px solid var(--border); color: #fff;
@@ -382,6 +382,89 @@
 
         <!-- TAB 1: MODUL-ZENTRALE (CLICKABLE CONFIGURABLE MODULES) -->
         <div id="tab-modules" class="tab-content">
+            <!-- ============================================================= -->
+            <!-- 🌟 V3.2 FEATURE-SPOTLIGHT & STARTER-DASHBOARD ERKLÄRUNG -->
+            <!-- ============================================================= -->
+            <div style="background: linear-gradient(135deg, rgba(13, 20, 38, 0.95), rgba(20, 26, 48, 0.95)); border: 1px solid rgba(0, 243, 255, 0.35); border-radius: 18px; padding: 26px 28px; margin-bottom: 28px; box-shadow: 0 0 35px rgba(0, 243, 255, 0.08); position: relative; overflow: hidden;">
+                <div style="position: absolute; top: -30px; right: -30px; width: 140px; height: 140px; background: radial-gradient(circle, rgba(0,243,255,0.15), transparent 70%); border-radius: 50%; pointer-events: none;"></div>
+                
+                <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 14px; margin-bottom: 16px;">
+                    <div>
+                        <div style="display: inline-flex; align-items: center; gap: 8px; background: rgba(0, 243, 255, 0.12); color: var(--cyan); border: 1px solid rgba(0, 243, 255, 0.3); padding: 4px 14px; border-radius: 20px; font-size: 0.75rem; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase;">
+                            <span>🌟 VERSION 3.2 UPDATE</span>
+                            <span>•</span>
+                            <span>NEXT-GEN SUITE</span>
+                        </div>
+                        <h2 style="font-size: 1.5rem; font-weight: 800; margin-top: 10px; color: #fff; letter-spacing: -0.02em;">
+                            Starter-Dashboard & Bot-Funktionen im Überblick
+                        </h2>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); padding: 6px 14px; border-radius: 20px; font-size: 0.8rem; font-weight: 700;">
+                            ● Bot Online & Bereit
+                        </span>
+                    </div>
+                </div>
+
+                <p style="color: #94a3b8; font-size: 0.95rem; line-height: 1.6; margin-bottom: 22px; max-width: 950px;">
+                    Willkommen im zentralen Steuerungs-Hub von <strong>AeroGuard Core</strong>! Hier verwaltest du alle Systeme deines Discord-Servers in Echtzeit. Dein Bot wurde mit drei leistungsstarken Next-Gen Modulen ausgestattet, die deinen Server automatisieren, strukturieren und für maximale Aktivität sorgen.
+                </p>
+
+                <!-- 3 HIGHLIGHT FEATURE CARDS -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 16px;">
+                    <!-- Highlight 1: Stylizer -->
+                    <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(0, 243, 255, 0.25); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; justify-content: space-between;">
+                        <div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                <span style="font-size: 1.8rem;">🎨</span>
+                                <span style="background: rgba(0, 243, 255, 0.15); color: var(--cyan); padding: 2px 10px; border-radius: 12px; font-size: 0.72rem; font-weight: 800;">100% ABDECKUNG</span>
+                            </div>
+                            <h4 style="font-size: 1.05rem; font-weight: 700; color: #fff; margin-bottom: 6px;">Kanal-Emoji Stylizer</h4>
+                            <p style="color: #94a3b8; font-size: 0.84rem; line-height: 1.5; margin-bottom: 14px;">
+                                Scannt ausnahmslos <strong>jeden Kanal</strong> (Text, Voice, Bühnen & Kategorien), entfernt alte Emojis und vergibt Cyberpunk-Symbole. Mit Vorher/Nachher Live-Vorschau!
+                            </p>
+                        </div>
+                        <button type="button" class="btn-primary" style="width: 100%; justify-content: center; padding: 8px 14px; font-size: 0.85rem;" onclick="openModuleModal('stylizer')">
+                            ✨ Kanäle jetzt stylen
+                        </button>
+                    </div>
+
+                    <!-- Highlight 2: Suggestions -->
+                    <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(157, 78, 221, 0.25); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; justify-content: space-between;">
+                        <div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                <span style="font-size: 1.8rem;">💡</span>
+                                <span style="background: rgba(157, 78, 221, 0.15); color: #c084fc; padding: 2px 10px; border-radius: 12px; font-size: 0.72rem; font-weight: 800;">COMMUNITY FEEDBACK</span>
+                            </div>
+                            <h4 style="font-size: 1.05rem; font-weight: 700; color: #fff; margin-bottom: 6px;">Vorschläge & Threads</h4>
+                            <p style="color: #94a3b8; font-size: 0.84rem; line-height: 1.5; margin-bottom: 14px;">
+                                Automatische Voting-Embeds im Vorschlagskanal oder via <code>/suggest</code> mit Up-/Downvotes, Live-Prozentanzeige und Diskussions-Threads.
+                            </p>
+                        </div>
+                        <button type="button" class="btn-secondary" style="width: 100%; justify-content: center; padding: 8px 14px; font-size: 0.85rem;" onclick="openModuleModal('suggestions')">
+                            💡 Vorschläge verwalten
+                        </button>
+                    </div>
+
+                    <!-- Highlight 3: Giveaways -->
+                    <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; justify-content: space-between;">
+                        <div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                <span style="font-size: 1.8rem;">🎉</span>
+                                <span style="background: rgba(16, 185, 129, 0.15); color: #10b981; padding: 2px 10px; border-radius: 12px; font-size: 0.72rem; font-weight: 800;">WEB-EXKLUSIV</span>
+                            </div>
+                            <h4 style="font-size: 1.05rem; font-weight: 700; color: #fff; margin-bottom: 6px;">Giveaway Suite</h4>
+                            <p style="color: #94a3b8; font-size: 0.84rem; line-height: 1.5; margin-bottom: 14px;">
+                                Verlosungen direkt aus dem Dashboard starten. Inklusive Live-Countdown-Timer, 1-Klick-Button-Teilnahme und optionaler Roblox-Spieler-Pflicht.
+                            </p>
+                        </div>
+                        <button type="button" class="btn-secondary" style="width: 100%; justify-content: center; padding: 8px 14px; font-size: 0.85rem;" onclick="openModuleModal('giveaways')">
+                            🎉 Giveaway erstellen
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <div class="modules-grid">
                 <!-- MODULE 1: TICKETS -->
                 <div class="feature-card" onclick="openModuleModal('tickets')">
@@ -495,6 +578,20 @@
                     </div>
                 </div>
             </div>
+                <!-- MODULE 9: KANAL-EMOJI STYLIZER (100% UNIVERSAL COVERAGE) -->
+                <div class="feature-card" onclick="openModuleModal('stylizer')">
+                    <div class="feature-card-header">
+                        <div class="feature-icon-wrapper" style="color:var(--cyan);">🎨</div>
+                        <span id="badge-mod-stylizer" class="feature-badge-active badge-on">● 100% Abdeckung</span>
+                    </div>
+                    <div class="feature-title">Intelligenter Kanal-Emoji Stylizer</div>
+                    <div class="feature-desc">Scannt jeden Text-, Sprach- & Kategorie-Kanal deines Servers und formatiert ihn vollautomatisch mit Cyberpunk-Emojis. Alte Emojis werden vorher sauber bereinigt.</div>
+                    <div class="feature-card-footer">
+                        <span class="feature-subtext">Live Vorher/Nachher Vorschau</span>
+                        <button type="button" class="btn-configure">✨ Jetzt Ausführen</button>
+                    </div>
+                </div>
+
         </div>
 
         <!-- TAB 2: LIVE-TICKETS -->
@@ -662,6 +759,7 @@
             setModuleBadge('badge-mod-logging', m.logging !== false);
             setModuleBadge('badge-mod-suggestions', settings.suggestions ? settings.suggestions.enabled !== false : true);
             setModuleBadge('badge-mod-giveaways', true);
+            setModuleBadge('badge-mod-stylizer', true);
         }
 
         function setModuleBadge(elementId, isActive, isInverse) {
@@ -757,6 +855,12 @@
                 toggleEl.checked = true;
                 bodyEl.innerHTML = buildGiveawaysModalHtml(guild);
                 loadGiveawaysListModal();
+            } else if (moduleId === 'stylizer') {
+                iconEl.innerText = '🎨';
+                titleEl.innerText = 'Intelligenter Kanal-Emoji Stylizer';
+                subtitleEl.innerText = '100% Kanal-Abdeckung • Cyberpunk-Stil • Text, Voice & Kategorien';
+                toggleEl.checked = true;
+                bodyEl.innerHTML = buildStylizerModalHtml(guild);
             }
         }
 
@@ -1054,7 +1158,9 @@
             const isModuleActive = document.getElementById('modal-module-toggle').checked;
             const payload = { modules: guild.settings.modules || {} };
 
-            if (currentOpenModule === 'tickets') {
+            if (currentOpenModule === 'stylizer') {
+                payload.modules.stylizer = isModuleActive;
+            } else if (currentOpenModule === 'tickets') {
                 payload.modules.tickets = isModuleActive;
                 payload.ticketCategoryId = document.getElementById('cfg-ticket-category').value || null;
                 payload.supportRoleId = document.getElementById('cfg-support-role').value || null;
@@ -1295,7 +1401,254 @@
         }
 
         // --- HTML BUILDER FOR GIVEAWAYS MODAL (WEB-EXKLUSIV) ---
-        function buildGiveawaysModalHtml(guild) {
+        
+        function cleanChannelNameClient(rawName) {
+            if (!rawName) return '';
+            return rawName
+                .replace(/^[\p{Emoji}\u200d\uFE0F\uFE0E\u{1F300}-\u{1FAFF}\u{2600}-\u{26FF}\s・\-_|~📁📌💬🎫🎮🔊🛡️📜👋📢🎉💡🚀🤣📸🤖🏆🤝📊🎪✨💻💭🔴🎵💤🎙️🚨]+/gu, '')
+                .trim() || rawName;
+        }
+
+        function predictChannelStyle(rawName, type) {
+            const clean = cleanChannelNameClient(rawName);
+            const lower = clean.toLowerCase();
+
+            const textDict = [
+                { keys: ['regel', 'rule', 'leitfaden', 'gesetz', 'tos', 'agb', 'terms'], emoji: '📜' },
+                { keys: ['willkommen', 'welcome', 'eingang', 'start', 'intro', 'join', 'hello', 'hall-of-fame'], emoji: '👋' },
+                { keys: ['ankündigung', 'announcement', 'news', 'neuigkeiten', 'info', 'information', 'wichtig', 'notice', 'alerts', 'status'], emoji: '📢' },
+                { keys: ['giveaway', 'verlosung', 'drops', 'gewinn', 'gift', 'drop', 'preise', 'loot'], emoji: '🎉' },
+                { keys: ['vorschlag', 'vorschläge', 'suggest', 'feedback', 'ideen', 'ideensammlung', 'wünsche', 'review'], emoji: '💡' },
+                { keys: ['ticket', 'tickets', 'support', 'hilfe', 'help', 'leitstelle', 'kundenservice', 'kontakt', 'mod-mail'], emoji: '🎫' },
+                { keys: ['update', 'updates', 'changelog', 'patch', 'patchnotes', 'release', 'neuerungen'], emoji: '🚀' },
+                { keys: ['roblox', 'game', 'spiel', 'server', 'ingame', 'place', 'minecraft', 'gta', 'fortnite', 'valorant', 'steam'], emoji: '🎮' },
+                { keys: ['meme', 'memes', 'lustig', 'clip', 'clips', 'funny', 'witze', 'comedy'], emoji: '🤣' },
+                { keys: ['medien', 'media', 'bild', 'bilder', 'fotos', 'screenshots', 'galerie', 'art', 'gfx', 'designs', 'fanart'], emoji: '📸' },
+                { keys: ['bot', 'bots', 'command', 'commands', 'befehle', 'spam', 'bot-commands', 'bot-spam'], emoji: '🤖' },
+                { keys: ['rang', 'level', 'xp', 'leaderboard', 'top', 'highscore', 'stats', 'ränge', 'level-up'], emoji: '🏆' },
+                { keys: ['partner', 'partnerschaft', 'promo', 'werbung', 'kooperation', 'affiliate'], emoji: '🤝' },
+                { keys: ['umfrage', 'umfragen', 'poll', 'polls', 'abstimmung', 'voting'], emoji: '📊' },
+                { keys: ['event', 'events', 'turnier', 'meisterschaft', 'contest', 'gewinnspiele'], emoji: '🎪' },
+                { keys: ['boost', 'booster', 'vip', 'donator', 'spenden', 'perks', 'premium', 'elite'], emoji: '✨' },
+                { keys: ['dev', 'develop', 'code', 'coding', 'script', 'skript', 'programmieren', 'github', 'api', 'bot-code'], emoji: '💻' },
+                { keys: ['offtopic', 'off-topic', 'quatsch', 'laberecke', 'spam-channel', 'random', 'talk-allgemein'], emoji: '💭' },
+                { keys: ['social', 'youtube', 'twitch', 'tiktok', 'instagram', 'twitter', 'socials', 'stream', 'yt', 'kick'], emoji: '🔴' },
+                { keys: ['log', 'logs', 'audit', 'modlog', 'sicherheit', 'security', 'ban', 'kick', 'warn', 'server-logs'], emoji: '🛡️' },
+                { keys: ['trade', 'trading', 'handel', 'shop', 'markt', 'kaufen', 'verkaufen', 'store', 'preise', 'börse'], emoji: '🛒' },
+                { keys: ['faq', 'fragen', 'question', 'questions', 'qna', 'anleitung', 'tutorial', 'hilfe-fragen'], emoji: '❓' },
+                { keys: ['bewerbung', 'bewerben', 'apply', 'application', 'jobs', 'team-bewerbung', 'recruitment'], emoji: '📝' },
+                { keys: ['musik', 'music', 'radio', 'song', 'songs', 'beats', 'sound'], emoji: '🎵' },
+                { keys: ['video', 'videos', 'clip-highlights', 'reels', 'shorts', 'trailer'], emoji: '🎬' },
+                { keys: ['chat', 'general', 'allgemein', 'hauptchat', 'lounge', 'main', 'unterhaltung', 'öffentlich'], emoji: '💬' }
+            ];
+
+            const voiceDict = [
+                { keys: ['musik', 'music', 'radio', 'song', 'groove', 'sound'], emoji: '🎵' },
+                { keys: ['gaming', 'zocken', 'game', 'duo', 'trio', 'squad', 'roblox', 'minecraft', 'gta'], emoji: '🎮' },
+                { keys: ['afk', 'abwesend', 'schlafen', 'sleep', 'pause'], emoji: '💤' },
+                { keys: ['team', 'staff', 'meeting', 'besprechung', 'konferenz', 'leitung', 'intern'], emoji: '🎙️' },
+                { keys: ['support', 'hilfe', 'warten', 'warteraum', 'leitung', 'help'], emoji: '🚨' },
+                { keys: ['live', 'stream', 'streaming', 'streamer'], emoji: '📹' },
+                { keys: ['privat', 'private', 'vip', 'duo-talk'], emoji: '🔒' },
+                { keys: ['lounge', 'chill', 'talk', 'voice', 'labern', 'quasseln', 'redner'], emoji: '🔊' }
+            ];
+
+            const categoryDict = [
+                { keys: ['info', 'start', 'wichtig', 'regeln', 'willkommen', 'leitfaden'], prefix: '📌 ┃ ' },
+                { keys: ['support', 'hilfe', 'ticket', 'leitstelle', 'kundendienst'], prefix: '🎫 ┃ ' },
+                { keys: ['community', 'chat', 'allgemein', 'text', 'öffentlich', 'haupt'], prefix: '💬 ┃ ' },
+                { keys: ['gaming', 'roblox', 'game', 'server', 'spielzone', 'games'], prefix: '🎮 ┃ ' },
+                { keys: ['voice', 'talk', 'audio', 'sprachkanäle', 'talks', 'sprachzonen', 'sprach'], prefix: '🔊 ┃ ' },
+                { keys: ['team', 'staff', 'verwaltung', 'moderation', 'intern', 'führung'], prefix: '🛡️ ┃ ' },
+                { keys: ['logs', 'archiv', 'backup', 'verlauf'], prefix: '📜 ┃ ' },
+                { keys: ['media', 'bilder', 'clips', 'content'], prefix: '📸 ┃ ' },
+                { keys: ['event', 'events', 'aktionen'], prefix: '🎪 ┃ ' }
+            ];
+
+            if (type === 4) { // GuildCategory
+                let matched = categoryDict.find(item => item.keys.some(k => lower.includes(k)));
+                const prefix = matched ? matched.prefix : '📁 ┃ ';
+                return prefix + clean.toUpperCase();
+            } else if (type === 2 || type === 13) { // GuildVoice, GuildStageVoice
+                if (type === 13) return '🎭・' + clean;
+                let matched = voiceDict.find(item => item.keys.some(k => lower.includes(k)));
+                const emoji = matched ? matched.emoji : '🔊';
+                return emoji + '・' + clean;
+            } else {
+                // Text / Forum / Media / Announcements - 100% Universal Coverage
+                let matched = textDict.find(item => item.keys.some(k => lower.includes(k)));
+                let emoji = matched ? matched.emoji : null;
+                if (!emoji) {
+                    if (type === 15) emoji = '📑';
+                    else if (type === 16) emoji = '📸';
+                    else emoji = '💬';
+                }
+                return emoji + '・' + clean.toLowerCase().replace(/\s+/g, '-');
+            }
+        }
+
+        function buildStylizerModalHtml(guild) {
+            const categories = guild.categories || [];
+            const textChannels = guild.textChannels || [];
+            const voiceChannels = guild.voiceChannels || [];
+            const totalChannels = categories.length + textChannels.length + voiceChannels.length;
+
+            let previewRows = '';
+
+            // 1. Categories
+            categories.forEach(c => {
+                const styled = predictChannelStyle(c.name, 4);
+                previewRows += '<div style="display:grid; grid-template-columns: 80px 1fr 20px 1.2fr; gap:10px; padding:8px 12px; border-bottom:1px solid rgba(255,255,255,0.05); align-items:center; font-size:0.83rem;">' +
+                    '<span style="color:#c084fc; font-weight:700;">📁 Kat.</span>' +
+                    '<span style="color:#94a3b8; font-family:\'JetBrains Mono\', monospace; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + c.name + '</span>' +
+                    '<span style="color:var(--cyan); text-align:center;">➔</span>' +
+                    '<span style="color:#fff; font-weight:600; font-family:\'JetBrains Mono\', monospace; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + styled + '</span>' +
+                '</div>';
+            });
+
+            // 2. Text & Announcement & Forum Channels
+            textChannels.forEach(c => {
+                const styled = predictChannelStyle(c.name, c.type || 0);
+                previewRows += '<div style="display:grid; grid-template-columns: 80px 1fr 20px 1.2fr; gap:10px; padding:8px 12px; border-bottom:1px solid rgba(255,255,255,0.05); align-items:center; font-size:0.83rem;">' +
+                    '<span style="color:#38bdf8; font-weight:700;">💬 Text</span>' +
+                    '<span style="color:#94a3b8; font-family:\'JetBrains Mono\', monospace; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">#' + c.name + '</span>' +
+                    '<span style="color:var(--cyan); text-align:center;">➔</span>' +
+                    '<span style="color:#fff; font-weight:600; font-family:\'JetBrains Mono\', monospace; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">#' + styled + '</span>' +
+                '</div>';
+            });
+
+            // 3. Voice Channels
+            voiceChannels.forEach(c => {
+                const styled = predictChannelStyle(c.name, c.type || 2);
+                previewRows += '<div style="display:grid; grid-template-columns: 80px 1fr 20px 1.2fr; gap:10px; padding:8px 12px; border-bottom:1px solid rgba(255,255,255,0.05); align-items:center; font-size:0.83rem;">' +
+                    '<span style="color:#10b981; font-weight:700;">🔊 Voice</span>' +
+                    '<span style="color:#94a3b8; font-family:\'JetBrains Mono\', monospace; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + c.name + '</span>' +
+                    '<span style="color:var(--cyan); text-align:center;">➔</span>' +
+                    '<span style="color:#fff; font-weight:600; font-family:\'JetBrains Mono\', monospace; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + styled + '</span>' +
+                '</div>';
+            });
+
+            if (totalChannels === 0) {
+                previewRows = '<div style="padding:20px; text-align:center; color:#64748b;">Keine Kanäle auf diesem Server gefunden oder noch nicht geladen.</div>';
+            }
+
+            return '<div style="display:flex; flex-direction:column; gap:20px;">' +
+                // ENGINE EXPLANATION BOX
+                '<div style="background:rgba(0,243,255,0.04); border:1px solid rgba(0,243,255,0.25); border-radius:14px; padding:18px;">' +
+                    '<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">' +
+                        '<div style="display:flex; align-items:center; gap:8px;">' +
+                            '<span style="font-size:1.4rem;">⚡</span>' +
+                            '<strong style="color:#fff; font-size:1.05rem;">100% Kanal-Abdeckung & Intelligente Keyword-Erkennung</strong>' +
+                        '</div>' +
+                        '<span style="background:rgba(0,243,255,0.15); color:var(--cyan); padding:3px 10px; border-radius:20px; font-size:0.75rem; font-weight:800;">' + totalChannels + ' KANÄLE GEFUNDEN</span>' +
+                    '</div>' +
+                    '<p style="color:#94a3b8; font-size:0.88rem; line-height:1.5; margin:0 0 10px 0;">' +
+                        'Der Stylizer scannt alle <strong>Text-Kanäle, Voice-Rooms, Bühnen und Kategorien</strong> auf <em>' + guild.name + '</em>. Vorhandene alte Emojis werden sauber bereinigt und durch Cyberpunk-Icons mit passenden Trennzeichen ersetzt. Jeder einzelne Kanal erhält ein Design!' +
+                    '</p>' +
+                    '<div style="display:flex; flex-wrap:wrap; gap:12px; font-size:0.8rem; color:#cbd5e1;">' +
+                        '<span style="background:rgba(255,255,255,0.05); padding:4px 10px; border-radius:8px;">📁 ' + categories.length + ' Kategorien</span>' +
+                        '<span style="background:rgba(255,255,255,0.05); padding:4px 10px; border-radius:8px;">💬 ' + textChannels.length + ' Text-Kanäle</span>' +
+                        '<span style="background:rgba(255,255,255,0.05); padding:4px 10px; border-radius:8px;">🔊 ' + voiceChannels.length + ' Sprach-Kanäle</span>' +
+                    '</div>' +
+                '</div>' +
+
+                // STATUS / NOTICE BOX
+                '<div id="stylizer-status-box" style="display:none; padding:14px 18px; border-radius:12px; font-size:0.88rem; line-height:1.5;"></div>' +
+
+                // LIVE PREVIEW TABLE
+                '<div>' +
+                    '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">' +
+                        '<span style="font-size:0.82rem; font-weight:700; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.05em;">Live Vorher ➔ Nachher Vorschau deines Servers</span>' +
+                        '<span style="font-size:0.75rem; color:#64748b;">Automatische Echtzeit-Berechnung</span>' +
+                    '</div>' +
+                    '<div style="background:#090e1b; border:1px solid var(--border); border-radius:12px; overflow:hidden;">' +
+                        '<div style="display:grid; grid-template-columns: 80px 1fr 20px 1.2fr; gap:10px; padding:10px 12px; background:rgba(255,255,255,0.02); border-bottom:1px solid rgba(255,255,255,0.08); font-size:0.75rem; font-weight:800; color:#64748b; text-transform:uppercase;">' +
+                            '<span>Typ</span>' +
+                            '<span>❌ Aktueller Name</span>' +
+                            '<span></span>' +
+                            '<span style="color:#10b981;">✨ Neuer Name</span>' +
+                        '</div>' +
+                        '<div style="max-height:260px; overflow-y:auto;">' +
+                            previewRows +
+                        '</div>' +
+                    '</div>' +
+                '</div>' +
+
+                // ACTION BOX
+                '<div style="background:#141a2e; border:1px solid var(--border); border-radius:14px; padding:20px; display:flex; flex-direction:column; gap:12px;">' +
+                    '<div style="display:flex; justify-content:space-between; align-items:center;">' +
+                        '<div>' +
+                            '<h4 style="margin:0 0 4px 0; font-size:1rem; color:#fff;">Formatierung auf Discord anwenden</h4>' +
+                            '<p style="margin:0; font-size:0.82rem; color:#94a3b8;">Schreibt die neuen Namen direkt in deinen Discord-Server (inkl. sanfter 350ms Rate-Limit-Bremse).</p>' +
+                        '</div>' +
+                        '<button type="button" id="btn-execute-stylizer" class="btn-primary" style="padding:10px 22px; font-weight:800; font-size:0.92rem;" onclick="executeChannelStyling()">' +
+                            '✨ Alle ' + totalChannels + ' Kanäle jetzt formatieren' +
+                        '</button>' +
+                    '</div>' +
+                '</div>' +
+            '</div>';
+        }
+
+        async function executeChannelStyling() {
+            if (!activeGuildId) return;
+            const btn = document.getElementById('btn-execute-stylizer');
+            const statusBox = document.getElementById('stylizer-status-box');
+            
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner" style="display:inline-block; width:14px; height:14px; border:2px solid #fff; border-top-color:transparent; border-radius:50%; animation:spin 0.8s linear infinite; margin-right:8px; vertical-align:middle;"></span> Formatiere Kanäle...';
+            }
+            if (statusBox) {
+                statusBox.style.display = 'block';
+                statusBox.style.background = 'rgba(0,243,255,0.08)';
+                statusBox.style.border = '1px solid rgba(0,243,255,0.3)';
+                statusBox.style.color = '#e2e8f0';
+                statusBox.innerHTML = '⏳ <strong>Vorgang läuft:</strong> Kanäle auf Discord werden umbenannt. Dies dauert je nach Kanalanzahl einige Sekunden...';
+            }
+
+            try {
+                const res = await fetch('/api/guild/' + activeGuildId + '/style-channels', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    if (statusBox) {
+                        statusBox.style.background = 'rgba(16,185,129,0.12)';
+                        statusBox.style.border = '1px solid rgba(16,185,129,0.35)';
+                        statusBox.style.color = '#10b981';
+                        statusBox.innerHTML = '✅ <strong>Erfolgreich abgeschlossen:</strong> ' + data.changed + ' von ' + data.total + ' Kanälen wurden gestylt! (' + data.skipped + ' waren bereits formatiert)';
+                    }
+                    showToast('🎨 ' + data.changed + ' Kanäle erfolgreich formatiert!');
+
+                    // Update local guild channel names in memory
+                    const guild = guilds.find(g => g.id === activeGuildId);
+                    if (guild) {
+                        if (guild.categories) guild.categories.forEach(c => c.name = predictChannelStyle(c.name, 4));
+                        if (guild.textChannels) guild.textChannels.forEach(c => c.name = predictChannelStyle(c.name, c.type || 0));
+                        if (guild.voiceChannels) guild.voiceChannels.forEach(c => c.name = predictChannelStyle(c.name, c.type || 2));
+                    }
+                } else {
+                    throw new Error(data.error || 'Fehler beim Formatieren der Kanäle');
+                }
+            } catch(err) {
+                if (statusBox) {
+                    statusBox.style.background = 'rgba(239,68,68,0.12)';
+                    statusBox.style.border = '1px solid rgba(239,68,68,0.35)';
+                    statusBox.style.color = '#ef4444';
+                    statusBox.innerHTML = '❌ <strong>Fehler:</strong> ' + err.message;
+                }
+                showToast('❌ Fehler: ' + err.message, 'error');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '✨ Alle Kanäle jetzt formatieren';
+                }
+            }
+        }
+
+function buildGiveawaysModalHtml(guild) {
             const textChs = guild.textChannels || [];
             let chOpts = '';
             textChs.forEach(ch => {

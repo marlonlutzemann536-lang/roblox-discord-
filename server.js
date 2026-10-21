@@ -2994,46 +2994,55 @@ async function styleGuildChannels(guild) {
     if (!guild) return { total: 0, changed: 0, skipped: 0 };
     
     const textDict = [
-        { keys: ['regel', 'rule', 'leitfaden', 'gesetz'], emoji: '📜' },
-        { keys: ['willkommen', 'welcome', 'eingang', 'start', 'intro'], emoji: '👋' },
-        { keys: ['ankündigung', 'announcement', 'news', 'neuigkeiten', 'info', 'information'], emoji: '📢' },
-        { keys: ['giveaway', 'verlosung', 'drops', 'gewinn', 'gift'], emoji: '🎉' },
-        { keys: ['vorschlag', 'vorschläge', 'suggest', 'feedback', 'ideen', 'ideensammlung'], emoji: '💡' },
-        { keys: ['ticket', 'tickets', 'support', 'hilfe', 'help', 'leitstelle', 'kundenservice'], emoji: '🎫' },
-        { keys: ['update', 'updates', 'changelog', 'patch', 'patchnotes'], emoji: '🚀' },
-        { keys: ['roblox', 'game', 'spiel', 'server', 'ingame', 'place'], emoji: '🎮' },
-        { keys: ['meme', 'memes', 'lustig', 'clip', 'clips', 'funny'], emoji: '🤣' },
-        { keys: ['medien', 'media', 'bild', 'bilder', 'fotos', 'screenshots', 'galerie', 'art'], emoji: '📸' },
-        { keys: ['bot', 'bots', 'command', 'commands', 'befehle', 'spam'], emoji: '🤖' },
-        { keys: ['rang', 'level', 'xp', 'leaderboard', 'top', 'highscore'], emoji: '🏆' },
-        { keys: ['partner', 'partnerschaft', 'promo', 'werbung', 'kooperation'], emoji: '🤝' },
+        { keys: ['regel', 'rule', 'leitfaden', 'gesetz', 'tos', 'agb', 'terms'], emoji: '📜' },
+        { keys: ['willkommen', 'welcome', 'eingang', 'start', 'intro', 'join', 'hello', 'hall-of-fame'], emoji: '👋' },
+        { keys: ['ankündigung', 'announcement', 'news', 'neuigkeiten', 'info', 'information', 'wichtig', 'notice', 'alerts', 'status'], emoji: '📢' },
+        { keys: ['giveaway', 'verlosung', 'drops', 'gewinn', 'gift', 'drop', 'preise', 'loot'], emoji: '🎉' },
+        { keys: ['vorschlag', 'vorschläge', 'suggest', 'feedback', 'ideen', 'ideensammlung', 'wünsche', 'review'], emoji: '💡' },
+        { keys: ['ticket', 'tickets', 'support', 'hilfe', 'help', 'leitstelle', 'kundenservice', 'kontakt', 'mod-mail'], emoji: '🎫' },
+        { keys: ['update', 'updates', 'changelog', 'patch', 'patchnotes', 'release', 'neuerungen'], emoji: '🚀' },
+        { keys: ['roblox', 'game', 'spiel', 'server', 'ingame', 'place', 'minecraft', 'gta', 'fortnite', 'valorant', 'steam'], emoji: '🎮' },
+        { keys: ['meme', 'memes', 'lustig', 'clip', 'clips', 'funny', 'witze', 'comedy'], emoji: '🤣' },
+        { keys: ['medien', 'media', 'bild', 'bilder', 'fotos', 'screenshots', 'galerie', 'art', 'gfx', 'designs', 'fanart'], emoji: '📸' },
+        { keys: ['bot', 'bots', 'command', 'commands', 'befehle', 'spam', 'bot-commands', 'bot-spam'], emoji: '🤖' },
+        { keys: ['rang', 'level', 'xp', 'leaderboard', 'top', 'highscore', 'stats', 'ränge', 'level-up'], emoji: '🏆' },
+        { keys: ['partner', 'partnerschaft', 'promo', 'werbung', 'kooperation', 'affiliate'], emoji: '🤝' },
         { keys: ['umfrage', 'umfragen', 'poll', 'polls', 'abstimmung', 'voting'], emoji: '📊' },
-        { keys: ['event', 'events', 'turnier', 'meisterschaft'], emoji: '🎪' },
-        { keys: ['boost', 'booster', 'vip', 'donator', 'spenden', 'perks'], emoji: '✨' },
-        { keys: ['dev', 'develop', 'code', 'coding', 'script', 'skript', 'programmieren', 'github'], emoji: '💻' },
-        { keys: ['offtopic', 'off-topic', 'quatsch', 'laberecke', 'spam-channel'], emoji: '💭' },
-        { keys: ['social', 'youtube', 'twitch', 'tiktok', 'instagram', 'twitter', 'socials'], emoji: '🔴' },
-        { keys: ['log', 'logs', 'audit', 'modlog', 'sicherheit', 'security', 'ban', 'kick'], emoji: '🛡️' },
-        { keys: ['chat', 'general', 'allgemein', 'hauptchat', 'lounge', 'main', 'unterhaltung'], emoji: '💬' }
+        { keys: ['event', 'events', 'turnier', 'meisterschaft', 'contest', 'gewinnspiele'], emoji: '🎪' },
+        { keys: ['boost', 'booster', 'vip', 'donator', 'spenden', 'perks', 'premium', 'elite'], emoji: '✨' },
+        { keys: ['dev', 'develop', 'code', 'coding', 'script', 'skript', 'programmieren', 'github', 'api', 'bot-code'], emoji: '💻' },
+        { keys: ['offtopic', 'off-topic', 'quatsch', 'laberecke', 'spam-channel', 'random', 'talk-allgemein'], emoji: '💭' },
+        { keys: ['social', 'youtube', 'twitch', 'tiktok', 'instagram', 'twitter', 'socials', 'stream', 'yt', 'kick'], emoji: '🔴' },
+        { keys: ['log', 'logs', 'audit', 'modlog', 'sicherheit', 'security', 'ban', 'kick', 'warn', 'server-logs'], emoji: '🛡️' },
+        { keys: ['trade', 'trading', 'handel', 'shop', 'markt', 'kaufen', 'verkaufen', 'store', 'preise', 'börse'], emoji: '🛒' },
+        { keys: ['faq', 'fragen', 'question', 'questions', 'qna', 'anleitung', 'tutorial', 'hilfe-fragen'], emoji: '❓' },
+        { keys: ['bewerbung', 'bewerben', 'apply', 'application', 'jobs', 'team-bewerbung', 'recruitment'], emoji: '📝' },
+        { keys: ['musik', 'music', 'radio', 'song', 'songs', 'beats', 'sound'], emoji: '🎵' },
+        { keys: ['video', 'videos', 'clip-highlights', 'reels', 'shorts', 'trailer'], emoji: '🎬' },
+        { keys: ['chat', 'general', 'allgemein', 'hauptchat', 'lounge', 'main', 'unterhaltung', 'öffentlich'], emoji: '💬' }
     ];
 
     const voiceDict = [
-        { keys: ['musik', 'music', 'radio', 'song', 'groove'], emoji: '🎵' },
-        { keys: ['gaming', 'zocken', 'game', 'duo', 'trio', 'squad', 'roblox'], emoji: '🎮' },
-        { keys: ['afk', 'abwesend', 'schlafen', 'sleep'], emoji: '💤' },
-        { keys: ['team', 'staff', 'meeting', 'besprechung', 'konferenz'], emoji: '🎙️' },
-        { keys: ['support', 'hilfe', 'warten', 'warteraum', 'leitung'], emoji: '🚨' },
+        { keys: ['musik', 'music', 'radio', 'song', 'groove', 'sound'], emoji: '🎵' },
+        { keys: ['gaming', 'zocken', 'game', 'duo', 'trio', 'squad', 'roblox', 'minecraft', 'gta'], emoji: '🎮' },
+        { keys: ['afk', 'abwesend', 'schlafen', 'sleep', 'pause'], emoji: '💤' },
+        { keys: ['team', 'staff', 'meeting', 'besprechung', 'konferenz', 'leitung', 'intern'], emoji: '🎙️' },
+        { keys: ['support', 'hilfe', 'warten', 'warteraum', 'leitung', 'help'], emoji: '🚨' },
+        { keys: ['live', 'stream', 'streaming', 'streamer'], emoji: '📹' },
+        { keys: ['privat', 'private', 'vip', 'duo-talk'], emoji: '🔒' },
         { keys: ['lounge', 'chill', 'talk', 'voice', 'labern', 'quasseln', 'redner'], emoji: '🔊' }
     ];
 
     const categoryDict = [
         { keys: ['info', 'start', 'wichtig', 'regeln', 'willkommen', 'leitfaden'], prefix: '📌 ┃ ' },
         { keys: ['support', 'hilfe', 'ticket', 'leitstelle', 'kundendienst'], prefix: '🎫 ┃ ' },
-        { keys: ['community', 'chat', 'allgemein', 'text', 'öffentlich'], prefix: '💬 ┃ ' },
-        { keys: ['gaming', 'roblox', 'game', 'server', 'spielzone'], prefix: '🎮 ┃ ' },
-        { keys: ['voice', 'talk', 'audio', 'sprachkanäle', 'talks', 'sprachzonen'], prefix: '🔊 ┃ ' },
+        { keys: ['community', 'chat', 'allgemein', 'text', 'öffentlich', 'haupt'], prefix: '💬 ┃ ' },
+        { keys: ['gaming', 'roblox', 'game', 'server', 'spielzone', 'games'], prefix: '🎮 ┃ ' },
+        { keys: ['voice', 'talk', 'audio', 'sprachkanäle', 'talks', 'sprachzonen', 'sprach'], prefix: '🔊 ┃ ' },
         { keys: ['team', 'staff', 'verwaltung', 'moderation', 'intern', 'führung'], prefix: '🛡️ ┃ ' },
-        { keys: ['logs', 'archiv', 'backup', 'verlauf'], prefix: '📜 ┃ ' }
+        { keys: ['logs', 'archiv', 'backup', 'verlauf'], prefix: '📜 ┃ ' },
+        { keys: ['media', 'bilder', 'clips', 'content'], prefix: '📸 ┃ ' },
+        { keys: ['event', 'events', 'aktionen'], prefix: '🎪 ┃ ' }
     ];
 
     let total = 0;
@@ -3053,12 +3062,22 @@ async function styleGuildChannels(guild) {
             const prefix = matched ? matched.prefix : '📁 ┃ ';
             newName = prefix + clean.toUpperCase();
         } else if (ch.type === ChannelType.GuildVoice || ch.type === ChannelType.GuildStageVoice) {
-            let matched = voiceDict.find(item => item.keys.some(k => lower.includes(k)));
-            const emoji = matched ? matched.emoji : '🔊';
-            newName = emoji + '・' + clean;
-        } else if (ch.type === ChannelType.GuildText || ch.type === ChannelType.GuildAnnouncement) {
+            if (ch.type === ChannelType.GuildStageVoice) {
+                newName = '🎭・' + clean;
+            } else {
+                let matched = voiceDict.find(item => item.keys.some(k => lower.includes(k)));
+                const emoji = matched ? matched.emoji : '🔊';
+                newName = emoji + '・' + clean;
+            }
+        } else {
+            // Text, Announcement, Forum, Media, etc. - 100% Universal Coverage
             let matched = textDict.find(item => item.keys.some(k => lower.includes(k)));
-            const emoji = matched ? matched.emoji : '💬';
+            let emoji = matched ? matched.emoji : null;
+            if (!emoji) {
+                if (ch.type === ChannelType.GuildForum) emoji = '📑';
+                else if (ch.type === ChannelType.GuildMedia) emoji = '📸';
+                else emoji = '💬';
+            }
             newName = emoji + '・' + clean.toLowerCase().replace(/\s+/g, '-');
         }
 
@@ -3070,7 +3089,7 @@ async function styleGuildChannels(guild) {
         try {
             await ch.setName(newName);
             changed++;
-            // Gentle sleep to respect Discord rate limits
+            // Gentle delay to protect Discord rate limit
             await new Promise(resolve => setTimeout(resolve, 350));
         } catch(err) {
             skipped++;
@@ -4189,6 +4208,103 @@ app.get('/', (req, res) => {
             </div>
         </div>
 
+        <!-- ========================================================================= -->
+        <!-- SPOTLIGHT: DIE 3 NEUEN HIGH-END FEATURES V3.2 (INKL. VORHER/NACHHER) -->
+        <!-- ========================================================================= -->
+        <section style="margin-bottom:70px;">
+            <div class="section-headline">
+                <div class="hero-badge" style="margin-bottom:12px;">🌟 BRANDNEU IN VERSION 3.2</div>
+                <h2>Next-Gen Features im Überblick</h2>
+                <p>AeroGuard Core wurde mit drei mächtigen neuen Systemen aufgerüstet, die deine Discord-Community auf ein völlig neues Level heben.</p>
+            </div>
+
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(360px, 1fr)); gap:24px;">
+                <!-- FEATURE 1: EMOJI STYLIZER WITH LIVE BEFORE/AFTER -->
+                <div style="background:var(--surface); border:1px solid rgba(0,243,255,0.3); border-radius:20px; padding:30px; box-shadow:0 0 30px rgba(0,243,255,0.1);">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+                        <span style="font-size:2rem;">🎨</span>
+                        <span style="background:rgba(0,243,255,0.15); color:var(--cyan); border:1px solid rgba(0,243,255,0.3); padding:3px 12px; border-radius:20px; font-size:0.75rem; font-weight:700;">100% ABDECKUNG</span>
+                    </div>
+                    <h3 style="font-size:1.4rem; font-weight:800; margin-bottom:8px;">Intelligenter Kanal-Emoji Stylizer</h3>
+                    <p style="color:#94a3b8; font-size:0.95rem; margin-bottom:20px; line-height:1.5;">
+                        Unser Algorithmus scannt ausnahmslos <strong>jeden Kanal</strong> auf deinem Server (Text, Voice, Kategorien, Foren) und versieht ihn per Knopfdruck mit dem passenden Cyberpunk-Emoji. Alte Emojis werden vorher sauber bereinigt!
+                    </p>
+
+                    <div style="background:rgba(0,0,0,0.35); border:1px solid rgba(255,255,255,0.06); border-radius:12px; padding:16px; font-family:'JetBrains Mono', monospace; font-size:0.82rem;">
+                        <div style="display:grid; grid-template-columns:1fr auto 1.2fr; gap:10px; align-items:center;">
+                            <span style="color:#64748b; font-weight:700;">❌ VORHER</span>
+                            <span style="color:#00f3ff;">➔</span>
+                            <span style="color:#10b981; font-weight:700;">✨ NACHHER (AEROGUARD)</span>
+
+                            <span style="color:#94a3b8;"># regeln</span>
+                            <span>➔</span>
+                            <span style="color:#fff;"># 📜・regeln</span>
+
+                            <span style="color:#94a3b8;"># allgemein</span>
+                            <span>➔</span>
+                            <span style="color:#fff;"># 💬・allgemein</span>
+
+                            <span style="color:#94a3b8;"># vorschlaege</span>
+                            <span>➔</span>
+                            <span style="color:#fff;"># 💡・vorschläge</span>
+
+                            <span style="color:#94a3b8;"># giveaways</span>
+                            <span>➔</span>
+                            <span style="color:#fff;"># 🎉・giveaways</span>
+
+                            <span style="color:#94a3b8;">🔊 Talk 1</span>
+                            <span>➔</span>
+                            <span style="color:#fff;">🔊 🔊・talk-1</span>
+
+                            <span style="color:#94a3b8;">🔊 Musik</span>
+                            <span>➔</span>
+                            <span style="color:#fff;">🔊 🎵・musik</span>
+
+                            <span style="color:#94a3b8;">📁 SUPPORT</span>
+                            <span>➔</span>
+                            <span style="color:#fff;">📁 🎫 ┃ SUPPORT</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- FEATURE 2: SUGGESTIONS -->
+                <div style="background:var(--surface); border:1px solid rgba(157,78,221,0.3); border-radius:20px; padding:30px; box-shadow:0 0 30px rgba(157,78,221,0.1);">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+                        <span style="font-size:2rem;">💡</span>
+                        <span style="background:rgba(157,78,221,0.15); color:#c084fc; border:1px solid rgba(157,78,221,0.3); padding:3px 12px; border-radius:20px; font-size:0.75rem; font-weight:700;">COMMUNITY VOTING</span>
+                    </div>
+                    <h3 style="font-size:1.4rem; font-weight:800; margin-bottom:8px;">Vorschläge & Diskussions-Threads</h3>
+                    <p style="color:#94a3b8; font-size:0.95rem; margin-bottom:16px; line-height:1.5;">
+                        Verwandelt jede Idee automatisch in ein professionelles Abstimmungs-Embed.
+                    </p>
+                    <ul style="color:#cbd5e1; font-size:0.88rem; list-style:none; padding:0; display:flex; flex-direction:column; gap:8px;">
+                        <li>👍 <strong>Echtzeit-Stimmen:</strong> Live-Upvote und Downvote Buttons mit Prozentanzeige.</li>
+                        <li>💬 <strong>Auto-Threads:</strong> Für jeden Vorschlag wird ein eigener Thread eröffnet.</li>
+                        <li>⚙️ <strong>Team-Review:</strong> Status auf <em>Angenommen</em>, <em>Abgelehnt</em> oder <em>In Umsetzung</em> setzen.</li>
+                        <li>🤖 <strong>Befehle:</strong> <code>/suggest &lt;Idee&gt;</code> oder direkt in <code>#💡・vorschläge</code> tippen!</li>
+                    </ul>
+                </div>
+
+                <!-- FEATURE 3: GIVEAWAYS -->
+                <div style="background:var(--surface); border:1px solid rgba(16,185,129,0.3); border-radius:20px; padding:30px; box-shadow:0 0 30px rgba(16,185,129,0.1);">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+                        <span style="font-size:2rem;">🎉</span>
+                        <span style="background:rgba(16,185,129,0.15); color:#10b981; border:1px solid rgba(16,185,129,0.3); padding:3px 12px; border-radius:20px; font-size:0.75rem; font-weight:700;">WEB-EXKLUSIV</span>
+                    </div>
+                    <h3 style="font-size:1.4rem; font-weight:800; margin-bottom:8px;">High-End Giveaway Suite</h3>
+                    <p style="color:#94a3b8; font-size:0.95rem; margin-bottom:16px; line-height:1.5;">
+                        Faire und transparente Verlosungen mit vollständiger Web-Dashboard Steuerung.
+                    </p>
+                    <ul style="color:#cbd5e1; font-size:0.88rem; list-style:none; padding:0; display:flex; flex-direction:column; gap:8px;">
+                        <li>🔒 <strong>Web-Exklusiver Start:</strong> Giveaways können nur über das Dashboard gestartet werden.</li>
+                        <li>⏰ <strong>Live-Countdown:</strong> Discord-nativer Countdown-Timer mit sekundengenauer Auslosung.</li>
+                        <li>🎮 <strong>Roblox-Pflicht:</strong> Optional nur für verifizierte Roblox-Spieler freischaltbar.</li>
+                        <li>🎲 <strong>Manipulationssicher:</strong> Automatischer Zufalls-Draw mit Reroll-Funktion im Discord.</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
         <section id="features">
             <div class="section-headline">
                 <h2>Was ist AeroGuard Core?</h2>
@@ -4562,8 +4678,9 @@ app.get('/dashboard', async (req, res) => {
                 icon: guild.iconURL() || '',
                 memberCount: guild.memberCount,
                 userRoleLabel: perm.roleLabel,
-                categories: guild.channels.cache.filter(c => c.type === ChannelType.GuildCategory).map(c => ({ id: c.id, name: c.name })),
-                textChannels: guild.channels.cache.filter(c => c.type === ChannelType.GuildText).map(c => ({ id: c.id, name: c.name })),
+                categories: guild.channels.cache.filter(c => c.type === ChannelType.GuildCategory).map(c => ({ id: c.id, name: c.name, type: c.type })),
+                textChannels: guild.channels.cache.filter(c => c.type === ChannelType.GuildText || c.type === ChannelType.GuildAnnouncement || c.type === ChannelType.GuildForum || c.type === ChannelType.GuildMedia).map(c => ({ id: c.id, name: c.name, type: c.type })),
+                voiceChannels: guild.channels.cache.filter(c => c.type === ChannelType.GuildVoice || c.type === ChannelType.GuildStageVoice).map(c => ({ id: c.id, name: c.name, type: c.type })),
                 roles: guild.roles.cache.filter(r => r.name !== '@everyone').map(r => ({ id: r.id, name: r.name, color: r.hexColor })),
                 settings: getGuildSettings(guild.id)
             });
