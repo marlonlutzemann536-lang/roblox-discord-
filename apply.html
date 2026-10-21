@@ -746,6 +746,15 @@
             <p style="color:var(--text-dim); font-size:0.92rem; margin-bottom:28px;">Fülle bitte alle Felder wahrheitsgemäß aus. Nach dem Absenden leitet das System deine Bewerbung sofort an die Projektleitung weiter.</p>
 
             <form id="application-form" onsubmit="handleFormSubmit(event)">
+                <div style="margin-bottom:24px; background:rgba(0,0,0,0.3); border:1px solid rgba(0,243,255,0.25); border-radius:14px; padding:18px;">
+                    <label class="form-label" style="color:var(--cyan); font-size:0.95rem; font-weight:800; margin-bottom:8px;">
+                        🎯 Wähle eine offene Stellenausschreibung <span class="req">*</span>
+                    </label>
+                    <select id="select-position" class="form-control" style="font-weight:700; font-size:1rem; border-color:rgba(0,243,255,0.4);" onchange="onPositionSelect(this.value)">
+                        <option value="🎫 AeroGuard Support-Team">🎫 AeroGuard Supporter / Ticket-Support (Aktiv)</option>
+                    </select>
+                    <div id="selected-job-details" style="font-size:0.82rem; color:#cbd5e1; margin-top:10px; line-height:1.5;"></div>
+                </div>
                 <div class="form-grid">
                     <!-- Discord Tag -->
                     <div>
@@ -895,6 +904,15 @@
                 </button>
             </div>
         </div>
+        <!-- FOOTER WITH RENDER HOSTING & IMPRESSUM -->
+        <footer style="margin-top:60px; padding:24px 0; border-top:1px solid var(--border); text-align:center; font-size:0.85rem; color:var(--text-dim);">
+            <div>AeroGuard Core • Offizielles Support- & Recruiting-Portal</div>
+            <div style="margin-top:6px;">
+                Gehostet auf <a href="https://render.com" target="_blank" style="color:var(--cyan); text-decoration:none; font-weight:700;">Render.com</a> Cloud Platform • 
+                <a href="/impressum" target="_blank" style="color:#cbd5e1; text-decoration:none; margin-left:8px;">⚖️ Impressum & Hosting-Info</a> • 
+                <a href="https://discord.gg/JvnhWC5Gnu" target="_blank" style="color:var(--cyan); text-decoration:none; margin-left:8px;">🎧 Support-Server</a>
+            </div>
+        </footer>
     </div>
 
     <!-- TOAST -->
@@ -912,8 +930,39 @@
             setTimeout(() => t.classList.remove('show'), duration);
         }
 
+        let availableJobs = [];
+
+        async function loadJobPostings() {
+            try {
+                const res = await fetch('/api/job-postings');
+                const data = await res.json();
+                if (data.success && Array.isArray(data.jobPostings)) {
+                    availableJobs = data.jobPostings.filter(j => j.active !== false);
+                    const sel = document.getElementById('select-position');
+                    if (sel && availableJobs.length > 0) {
+                        sel.innerHTML = availableJobs.map(j => `<option value="${escapeHtml(j.title)}">${escapeHtml(j.title)}</option>`).join('');
+                        onPositionSelect(availableJobs[0].title);
+                    }
+                }
+            } catch(e) {
+                console.error('Error loading job postings:', e);
+            }
+        }
+
+        function onPositionSelect(title) {
+            const job = availableJobs.find(j => j.title === title);
+            const box = document.getElementById('selected-job-details');
+            if (box && job) {
+                box.innerHTML = `
+                    <div style="margin-bottom:6px;"><strong>Beschreibung:</strong> ${escapeHtml(job.description || '')}</div>
+                    ${job.requirements ? '<div><strong>Anforderungen:</strong> ' + escapeHtml(job.requirements).replace(/\n/g, '<br>') + '</div>' : ''}
+                `;
+            }
+        }
+
         // Initialize from URL query parameters (e.g. ?id=APP-xxx&token=yyy)
         window.addEventListener('DOMContentLoaded', () => {
+            loadJobPostings();
             const params = new URLSearchParams(window.location.search);
             const id = params.get('id');
             const token = params.get('token');

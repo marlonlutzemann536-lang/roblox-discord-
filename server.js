@@ -288,6 +288,7 @@ let cloudStorage = {
     robloxBanDatabase: {},
     robloxRestartSchedules: {},
     activeApplications: {},
+    jobPostings: {},
     livePollsDatabase: {},
     voiceSupportAlertChannels: {},
     voiceSupportQueue: {},
@@ -373,6 +374,46 @@ function loadCloudVaultFromDisk() {
             cloudStorage.systemSettings = { ...cloudStorage.systemSettings, ...parsedData.systemSettings };
             
             if (!cloudStorage.globalBlacklist) cloudStorage.globalBlacklist = [];
+            if (!cloudStorage.jobPostings || Object.keys(cloudStorage.jobPostings).length === 0) {
+                cloudStorage.jobPostings = {
+                    'job_support': {
+                        id: 'job_support',
+                        title: '🎫 AeroGuard Supporter / Ticket-Support',
+                        category: 'Support',
+                        description: 'Betreue unsere Discord-Community, beantworte Tickets und helfe Spielern sowie Serverbesitzern bei Fragen zu AeroGuard.',
+                        requirements: '• Mindestalter 14 Jahre\n• Freundlicher, geduldiger Umgangston\n• Zuverlässigkeit & regelmäßige Aktivität\n• Headset für den Voice-Support erwünscht',
+                        tasks: '• Bearbeitung von Support-Tickets\n• Hilfestellung im Warteraum (/support-next)\n• Weiterleitung von Feedback',
+                        perks: '• Offizielle Supporter-Rolle & Team-Zugänge\n• Exklusive Staff-Channels\n• Direkter Draht zur Projektleitung',
+                        targetRole: '🎫 AeroGuard Support-Team',
+                        active: true,
+                        createdAt: Date.now()
+                    },
+                    'job_moderator': {
+                        id: 'job_moderator',
+                        title: '🛡️ Discord Moderator / Staff-Team',
+                        category: 'Moderation',
+                        description: 'Sorge für Ordnung, halte unsere Community frei von Spam und sorge für ein sicheres, angenehmes Klima.',
+                        requirements: '• Mindestalter 15 Jahre\n• Gute Kenntnisse der Discord Community-Richtlinien\n• Erfahrung mit Moderations-Tools & Timeouts\n• Hohe Konfliktfähigkeit',
+                        tasks: '• Überwachung von Chats & Sprachkanälen\n• Verwarnungen & Timeouts bei Regelverstößen\n• Schlichtung von Konflikten',
+                        perks: '• Moderations-Rechte auf dem Support-Server\n• Mod-Log Zugänge & Team-Meetings',
+                        targetRole: '🛡️ Head-Moderator / Staff-Leitung',
+                        active: true,
+                        createdAt: Date.now()
+                    },
+                    'job_scripter': {
+                        id: 'job_scripter',
+                        title: '🎮 Roblox Luau Scripter & Game-Dev',
+                        category: 'Entwicklung',
+                        description: 'Programmiere neue interaktive Features für unsere Roblox-Spiele, SB-Kassen, A-Chassis und Ingame-Systeme.',
+                        requirements: '• Gute Kenntnisse in Roblox Luau / Scripting\n• Erfahrung mit DataStores, RemoteEvents & TweenService\n• Zuverlässige Arbeitsweise',
+                        tasks: '• Entwicklung von Game-Mechaniken & Bugfixes\n• Performance-Optimierung von Skripten',
+                        perks: '• Roblox Studio Team-Create Zugänge\n• Entwickler-Rolle & Nennung in den Game-Credits',
+                        targetRole: '💎 Management / Co-Leitung',
+                        active: false,
+                        createdAt: Date.now()
+                    }
+                };
+            }
             
             console.log("🟩 [AEROGUARD CLOUD] Cloud-Datenbank erfolgreich wiederhergestellt! Konfigurationen geladen.");
         } else {
@@ -6204,6 +6245,11 @@ app.get('/dashboard', async (req, res) => {
     template = template.replace(/\{\{APPLICATIONS_PENDING_COUNT\}\}/g, String(pendingAppsCount));
     template = template.replace(/\{\{APPLICATIONS_JSON\}\}/g, JSON.stringify(allApplications).replace(/</g, '\\u003c'));
 
+    const allJobPostings = Object.values(cloudStorage.jobPostings || {});
+    const activeJobsCount = allJobPostings.filter(j => j.active !== false).length;
+    template = template.replace(/\{\{JOB_POSTINGS_COUNT\}\}/g, String(activeJobsCount));
+    template = template.replace(/\{\{JOB_POSTINGS_JSON\}\}/g, JSON.stringify(allJobPostings).replace(/</g, '\\u003c'));
+
     res.send(template);
 });
 
@@ -6365,6 +6411,276 @@ app.post('/api/admin/bot/broadcast-status', async (req, res) => {
     } catch(err) {
         res.status(500).json({ error: err.message });
     }
+});
+
+// =========================================================================
+// OFFIZIELLES IMPRESSUM & HOSTING-INFORMATIONEN (RENDER.COM)
+// =========================================================================
+app.get(['/impressum', '/legal', '/hosting'], (req, res) => {
+    res.send(`<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AeroGuard Core — Impressum & Hosting-Informationen (Render.com)</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #07080f;
+            --surface: rgba(14, 18, 34, 0.85);
+            --border: rgba(255, 255, 255, 0.08);
+            --cyan: #00f3ff;
+            --purple: #9d4edd;
+            --amber: #f59e0b;
+            --text-dim: #94a3b8;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background-color: var(--bg);
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(157, 78, 221, 0.15) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(0, 243, 255, 0.12) 0%, transparent 40%);
+            color: #f1f5f9;
+            font-family: 'Outfit', sans-serif;
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+        .container { max-width: 860px; margin: 0 auto; }
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 36px;
+            backdrop-filter: blur(20px);
+            box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+            margin-bottom: 24px;
+        }
+        h1 { font-size: 2.2rem; font-weight: 800; margin-bottom: 8px; }
+        h2 { font-size: 1.35rem; font-weight: 700; color: var(--cyan); margin: 24px 0 10px 0; border-bottom: 1px solid rgba(0,243,255,0.2); padding-bottom: 6px; }
+        p, li { color: #cbd5e1; font-size: 0.95rem; line-height: 1.6; margin-bottom: 10px; }
+        ul { padding-left: 20px; margin-bottom: 14px; }
+        .host-badge {
+            display: inline-flex; align-items: center; gap: 8px;
+            background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.4);
+            color: var(--amber); padding: 6px 16px; border-radius: 999px; font-weight: 700; font-size: 0.85rem; margin-bottom: 20px;
+        }
+        .btn-back {
+            display: inline-flex; align-items: center; gap: 8px;
+            background: rgba(0, 243, 255, 0.1); border: 1px solid rgba(0, 243, 255, 0.3);
+            color: var(--cyan); text-decoration: none; padding: 10px 20px; border-radius: 12px; font-weight: 700; transition: all 0.2s;
+        }
+        .btn-back:hover { background: rgba(0, 243, 255, 0.2); transform: translateY(-2px); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div style="margin-bottom: 20px;">
+            <a href="/" class="btn-back">← Zurück zur Startseite</a>
+        </div>
+
+        <div class="card">
+            <div class="host-badge">⚡ Offizielle Hosting- & Betreiberinformationen</div>
+            <h1>Impressum & Hosting</h1>
+            <p>Angaben gemäß § 5 TMG / Digital Services Act (DSA) für die Webanwendung und den Discord-Bot <strong>AeroGuard Core</strong>.</p>
+
+            <h2>1. Angaben zum Betreiber & Projektleitung</h2>
+            <p>
+                <strong>Projekt:</strong> AeroGuard Core Enterprise Discord & Roblox Suite<br>
+                <strong>Projektleitung / System Owner:</strong> 2003marlonl (Discord ID: 1075845857875873852)<br>
+                <strong>Offizieller Support-Server:</strong> <a href="${SUPPORT_SERVER_INVITE_URL}" target="_blank" style="color:var(--cyan); text-decoration:none;">discord.gg/JvnhWC5Gnu</a><br>
+                <strong>Webportal:</strong> <a href="https://roblox-discord-g44u.onrender.com/" style="color:var(--cyan); text-decoration:none;">https://roblox-discord-g44u.onrender.com/</a>
+            </p>
+
+            <h2>2. Offizieller Hosting-Provider & Server-Betrieb (Render.com)</h2>
+            <p>
+                Diese Webanwendung, die Datenbank-Schnittstellen und die Node.js-Laufzeitumgebung des Bots werden über die Cloud-Plattform von <strong>Render</strong> betrieben und gehostet:
+            </p>
+            <ul>
+                <li><strong>Hosting-Dienstleister:</strong> Render Services, Inc.</li>
+                <li><strong>Unternehmenssitz:</strong> 525 Brannan Street, Suite 300, San Francisco, CA 94107, USA</li>
+                <li><strong>Offizielle Website:</strong> <a href="https://render.com" target="_blank" style="color:var(--cyan); text-decoration:none;">https://render.com</a></li>
+                <li><strong>Hosting-Art:</strong> Managed Cloud Application Services, Docker Container & Global Edge Network</li>
+                <li><strong>Sicherheits-Infrastruktur:</strong> Automatische SSL/TLS-Verschlüsselung, DDoS-Schutz, 24/7 Uptime-Monitoring</li>
+            </ul>
+
+            <h2>3. Server-Logfiles & Hosting-Datenschutz</h2>
+            <p>
+                Beim Aufrufen unserer Webseiten speichert der Webserver des Hosters Render Services, Inc. automatisch Informationen in sogenannten Server-Logdateien, die Ihr Browser automatisch übermittelt. Dies umfasst:
+            </p>
+            <ul>
+                <li>Browsertyp und Browserversion</li>
+                <li>Verwendetes Betriebssystem</li>
+                <li>Referrer URL (die zuvor besuchte Seite)</li>
+                <li>Hostname des zugreifenden Rechners / IP-Adresse</li>
+                <li>Uhrzeit der Serveranfrage</li>
+            </ul>
+            <p>
+                Diese Daten sind nicht bestimmten Personen zuordenbar. Eine Zusammenführung dieser Daten mit anderen Datenquellen wird nicht vorgenommen. Die Erfassung erfolgt auf Grundlage von Art. 6 Abs. 1 lit. f DSGVO zur Gewährleistung der Stabilität, Sicherheit und Performance des Hostings.
+            </p>
+
+            <h2>4. Haftungsausschluss (Disclaimer)</h2>
+            <p>
+                <strong>Haftung für Inhalte:</strong> Die Inhalte unserer Seiten wurden mit größter Sorgfalt erstellt. Für die Richtigkeit, Vollständigkeit und Aktualität der Inhalte können wir jedoch keine Gewähr übernehmen.<br>
+                <strong>Haftung für Links:</strong> Unser Angebot enthält Links zu externen Websites Dritter (insbesondere Discord, Roblox und Render). Auf deren Inhalte haben wir keinen Einfluss und übernehmen keine Haftung.
+            </p>
+
+            <h2>5. Markenhinweise & Urheberrecht</h2>
+            <p>
+                • <em>Discord</em> ist eine eingetragene Marke von Discord Inc.<br>
+                • <em>Roblox</em> ist eine eingetragene Marke der Roblox Corporation.<br>
+                • <em>Render</em> ist eine eingetragene Marke von Render Services, Inc.<br>
+                AeroGuard Core steht in keiner direkten geschäftlichen Verbindung mit den genannten Marken.
+            </p>
+        </div>
+    </div>
+</body>
+</html>`);
+});
+
+// =========================================================================
+// STELLENAUSSCHREIBUNGEN & KI-STELLENGENERATOR (v3.5)
+// =========================================================================
+
+// API: Alle Stellen abrufen (Öffentlich für /apply und Dashboard)
+app.get('/api/job-postings', (req, res) => {
+    const list = Object.values(cloudStorage.jobPostings || {}).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    res.json({ success: true, jobPostings: list });
+});
+
+// API: KI-Ausschreibungsgenerator (Owner Exklusiv)
+app.post('/api/job-postings/ai-generate', async (req, res) => {
+    if (!req.session.user || req.session.user.id !== OWNER_ID) {
+        return res.status(403).json({ error: '⛔ Zugriff verweigert: Nur der Bot-Besitzer kann die KI-Ausschreibungsengine nutzen.' });
+    }
+
+    const prompt = (req.body.prompt || '').trim();
+    if (!prompt) {
+        return res.status(400).json({ error: 'Bitte gib ein Stichwort oder eine kurze Beschreibung ein.' });
+    }
+
+    const pLower = prompt.toLowerCase();
+    let title = '';
+    let category = 'Support';
+    let description = '';
+    let requirements = '';
+    let tasks = '';
+    let perks = '';
+    let targetRole = '🎫 AeroGuard Support-Team';
+
+    if (pLower.includes('scripter') || pLower.includes('programmierer') || pLower.includes('dev') || pLower.includes('luau') || pLower.includes('skript')) {
+        category = 'Entwicklung';
+        title = '🎮 Roblox Luau Lead-Scripter & Core-Developer';
+        targetRole = '💎 Management / Co-Leitung';
+        description = 'Als Core-Entwickler programmierst du neue Spielmechaniken, sb-kassen, Pfandautomaten und Netzwerk-Synchronisationen in Roblox Studio für die AeroGuard Gaming Matrix.';
+        requirements = '• Mindestalter 15+ Jahre\n• Sehr gute Kenntnisse in Roblox Luau (OOP, RemoteEvents, DataStores)\n• Sicherer Umgang mit Clean Code & Modular-Skripten\n• Zuverlässigkeit und Teamgeist bei Deadlines';
+        tasks = '• Entwicklung interaktiver Gameplay-Elemente & UI-Logik\n• Performance-Optimierung und Behebung von Lag- & Physikbugs\n• Enge Abstimmung mit der Projektleitung im Dev-Talk';
+        perks = '• Volle Studio Team-Create Zugänge & Entwickler-Rolle\n• Mitspracherecht bei Spielmechaniken\n• Nennung in den offiziellen Ingame-Credits & Updates';
+    } else if (pLower.includes('builder') || pLower.includes('bau') || pLower.includes('model') || pLower.includes('map') || pLower.includes('design')) {
+        category = 'Design';
+        title = '🎨 Roblox 3D Environment Builder & Level-Designer';
+        targetRole = '🛡️ Head-Moderator / Staff-Leitung';
+        description = 'Erschaffe atemberaubende Cyberpunk- & Stadt-Umgebungen in Roblox Studio. Du gestaltest Maps, Straßen und Gebäude mit detailreichen Props und optimierten Meshes.';
+        requirements = '• Mindestalter 14+ Jahre\n• Erfahrung im Bauen von Maps in Roblox Studio & Blender\n• Verständnis für Lighting, Atmosphären & Lag-Reduktion\n• Portfolio oder Screenshots bisheriger Bauwerke erwünscht';
+        tasks = '• Bau und Gestaltung neuer Spielbereiche & Gebäude\n• Platzierung von Assets und Requisiten\n• Optimierung von Part-Counts für flüssige Mobile-FPS';
+        perks = '• Team-Create Rechte auf den Entwicklungs-Servern\n• Eigene Design-Channels & Anerkennung im Game\n• Feste VIP- & Builder-Rolle im Discord';
+    } else if (pLower.includes('mod') || pLower.includes('moderator') || pLower.includes('sicherheit')) {
+        category = 'Moderation';
+        title = '🛡️ Head-Moderator / Staff-Leitung & Server-Schutz';
+        targetRole = '🛡️ Head-Moderator / Staff-Leitung';
+        description = 'Überwache unsere Discord- und Roblox-Server, setze die Serverregeln konsequent durch und sorge für eine respektvolle, freundliche Community-Atmosphäre.';
+        requirements = '• Mindestalter 15+ Jahre\n• Hohe geistige Reife & besonnene Konfliktlösung\n• Erfahrung mit Moderationsbefehlen (/warn, /mute, /clear)\n• Headset für Teambesprechungen & Warteraum-Begleitung';
+        tasks = '• Aktive Chat-Überwachung & Einschreiten bei Regelverstößen\n• Timeouts und Verwarnungen dokumentieren\n• Schlichtung von Streitigkeiten im Support-Talk';
+        perks = '• Volle Moderationsrechte im Discord\n• Zugriff auf interne Staff-Protokolle & Mod-Logs\n• Bevorzugte Berücksichtigung bei Leitungs-Beförderungen';
+    } else {
+        category = 'Support';
+        title = '🎫 AeroGuard Supporter / Ticket- & Voice-Leitstelle';
+        targetRole = '🎫 AeroGuard Support-Team';
+        description = 'Du bist die erste Anlaufstelle für unsere Community! Du hilfst bei Bot-Fragen, begleitest User im Warteraum und bearbeitest Tickets freundlich und kompetent.';
+        requirements = '• Mindestalter 14+ Jahre\n• Ausgeprägte Hilfsbereitschaft & Geduld\n• Gute deutsche Rechtschreibung & Ausdrucksweise\n• Headset für den Voice-Support (/support-next)';
+        tasks = '• Schnelle Annahme von Support-Tickets über das Webpanel\n• Abrufen wartender User aus dem Support-Warteraum\n• Meldung technischer Bugs an die Entwickler';
+        perks = '• Offizielle Supporter-Rolle auf dem Discord-Server\n• Berechtigung für das Web-Dashboard\n• Wertvolle Erfahrung im Community-Management';
+    }
+
+    res.json({
+        success: true,
+        generated: {
+            title,
+            category,
+            description,
+            requirements,
+            tasks,
+            perks,
+            targetRole
+        }
+    });
+});
+
+// API: Neue Stellenausschreibung erstellen (Owner Exklusiv)
+app.post('/api/job-postings/create', (req, res) => {
+    if (!req.session.user || req.session.user.id !== OWNER_ID) {
+        return res.status(403).json({ error: '⛔ Zugriff verweigert: Nur der Bot-Besitzer kann Ausschreibungen erstellen.' });
+    }
+
+    const { title, category, description, requirements, tasks, perks, targetRole, active } = req.body;
+    if (!title || title.trim().length < 3) {
+        return res.status(400).json({ error: 'Bitte gib einen aussagekräftigen Titel an.' });
+    }
+
+    if (!cloudStorage.jobPostings) cloudStorage.jobPostings = {};
+
+    const jobId = 'job_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 5);
+    const newJob = {
+        id: jobId,
+        title: title.trim(),
+        category: (category || 'Support').trim(),
+        description: (description || '').trim(),
+        requirements: (requirements || '').trim(),
+        tasks: (tasks || '').trim(),
+        perks: (perks || '').trim(),
+        targetRole: (targetRole || '🎫 AeroGuard Support-Team').trim(),
+        active: active !== false,
+        createdAt: Date.now()
+    };
+
+    cloudStorage.jobPostings[jobId] = newJob;
+    saveCloudVaultToDisk();
+    addLog('info', `Neue Stellenausschreibung erstellt: ${newJob.title} (${jobId})`);
+
+    res.json({ success: true, jobPosting: newJob, message: 'Stellenausschreibung erfolgreich veröffentlicht!' });
+});
+
+// API: Status der Stellenausschreibung umschalten (Aktiv/Pausiert)
+app.post('/api/job-postings/:id/toggle', (req, res) => {
+    if (!req.session.user || req.session.user.id !== OWNER_ID) {
+        return res.status(403).json({ error: '⛔ Zugriff verweigert: Nur der Bot-Besitzer kann Ausschreibungen verwalten.' });
+    }
+
+    const jobId = req.params.id;
+    const job = cloudStorage.jobPostings ? cloudStorage.jobPostings[jobId] : null;
+    if (!job) return res.status(404).json({ error: 'Ausschreibung nicht gefunden.' });
+
+    job.active = !job.active;
+    saveCloudVaultToDisk();
+    addLog('info', `Stellenausschreibung ${job.title} Status geändert auf: ${job.active ? 'Aktiv' : 'Pausiert'}`);
+
+    res.json({ success: true, active: job.active, message: `Status erfolgreich auf ${job.active ? 'Aktiv' : 'Pausiert'} gesetzt!` });
+});
+
+// API: Stellenausschreibung löschen
+app.post('/api/job-postings/:id/delete', (req, res) => {
+    if (!req.session.user || req.session.user.id !== OWNER_ID) {
+        return res.status(403).json({ error: '⛔ Zugriff verweigert: Nur der Bot-Besitzer kann Ausschreibungen löschen.' });
+    }
+
+    const jobId = req.params.id;
+    if (cloudStorage.jobPostings && cloudStorage.jobPostings[jobId]) {
+        delete cloudStorage.jobPostings[jobId];
+        saveCloudVaultToDisk();
+        addLog('info', `Stellenausschreibung ${jobId} gelöscht.`);
+        return res.json({ success: true, message: 'Ausschreibung erfolgreich gelöscht.' });
+    }
+
+    res.status(404).json({ error: 'Ausschreibung nicht gefunden.' });
 });
 
 // =========================================================================
