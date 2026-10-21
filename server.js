@@ -3,6 +3,8 @@
 // =========================================================================
 
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
 const { 
     Client, 
     GatewayIntentBits, 
@@ -54,8 +56,6 @@ const {
 } = require('@discordjs/voice');
 const axios = require('axios');
 const session = require('express-session');
-const fs = require('fs');
-const path = require('path');
 const crypto = require('crypto');
 
 // =========================================================================
@@ -509,7 +509,7 @@ function initiateBotRecovery() {
     setTimeout(() => {
         try {
             client.destroy();
-            client.login(process.env.DISCORD_TOKEN);
+            if (process.env.DISCORD_TOKEN) { client.login(process.env.DISCORD_TOKEN).catch(e => addLog('error', 'Discord Login Fehler: ' + e.message)); } else { addLog('error', 'Kein DISCORD_TOKEN gefunden! Bitte trage deinen Token in die .env Datei ein.'); }
         } catch (e) { addLog('error', `Kritischer Fehler im Recovery: ${e.message}`); }
     }, delay);
 }
@@ -842,6 +842,105 @@ client.on('messageCreate', async message => {
         const isSupp = isSupporterOrAdmin(message.member);
         logTicketMessage(message.channel.id, message.author.tag, message.content, isSupp);
     }
+    // =========================================================================
+    // AEROGUARD INSTANT TEXT-COMMANDS & PREFIX FALLBACK (!setup, !ticket, /ticket)
+    // =========================================================================
+    const rawContent = message.content.trim();
+    const lowerContent = rawContent.toLowerCase();
+
+    // Check staff permissions
+    const isSupp = isSupporterOrAdmin(message.member);
+
+    // Command: Setup / Panel (Works for: !setup, !ticket setup, !panel, !ticket panel, or plain text /ticket ...)
+    if (
+        lowerContent === '!setup' || 
+        lowerContent === '!ticket setup' || 
+        lowerContent === '!panel' || 
+        lowerContent === '!ticket panel' || 
+        lowerContent === '!ticket-panel' || 
+        lowerContent.startsWith('/ticket setup') || 
+        lowerContent.startsWith('/ticket panel')
+    ) {
+        if (!isSupp) {
+            return message.reply('⛔ **Zugriff verweigert:** Nur Administratoren und Supporter können das Ticket-System einrichten.');
+        }
+
+        // Auto-detect or create category
+        let parentCategory = null;
+        if (cloudStorage.systemSettings.ticketCategoryId) {
+            parentCategory = message.guild.channels.cache.get(cloudStorage.systemSettings.ticketCategoryId);
+        }
+        if (!parentCategory) {
+            parentCategory = message.guild.channels.cache.find(c => c.type === ChannelType.GuildCategory && c.name.toLowerCase().includes('ticket'));
+        }
+        if (!parentCategory) {
+            try {
+                parentCategory = await message.guild.channels.create({
+                    name: '📁 SUPPORT-TICKETS',
+                    type: ChannelType.GuildCategory
+                });
+                cloudStorage.systemSettings.ticketCategoryId = parentCategory.id;
+                saveCloudVaultToDisk();
+            } catch(e) {}
+        }
+
+        // Deploy Support Hub Panel
+        const row = new ActionRowBuilder(); 
+        ticketSystemConfig.categories.forEach(cat => { 
+            row.addComponents(
+                new ButtonBuilder()
+                    .setCustomId('server_panel_trigger_' + cat.id + '_' + message.guild.id)
+                    .setLabel(cat.label)
+                    .setStyle(cat.color)
+            ); 
+        });
+        
+        const panelEmbed = new EmbedBuilder()
+            .setTitle('🛰️ AeroGuard Core Support Hub')
+            .setDescription(ticketSystemConfig.welcomeMessage)
+            .setColor(0x9d4edd)
+            .setThumbnail(message.guild.iconURL() || client.user.displayAvatarURL())
+            .setFooter({ text: 'Klicke auf eine Kategorie, um ein privates Ticket mit dem Team zu eröffnen.' })
+            .setTimestamp();
+
+        await message.channel.send({ embeds: [panelEmbed], components: [row] });
+        return message.reply('✅ **AeroGuard Ticket-System bereit!** Das interaktive Support-Panel wurde in diesen Kanal gesendet. Tickets werden automatisch unter **' + (parentCategory ? parentCategory.name : 'SUPPORT-TICKETS') + '** erstellt.');
+    }
+
+    // In-Ticket Channel Commands (!close, !claim, !transcript, !add, !remove)
+    if (cloudStorage.activeTickets[message.channel.id]) {
+        const ticket = cloudStorage.activeTickets[message.channel.id];
+
+        if (lowerContent === '!close' || lowerContent === '/close' || lowerContent === '!ticket close' || lowerContent.startsWith('/ticket close')) {
+            const confirmRow = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId('ticket_ch_confirm_close_' + message.channel.id).setLabel('Ja, schließen & archivieren').setEmoji('✅').setStyle(ButtonStyle.Danger),
+                new ButtonBuilder().setCustomId('ticket_ch_cancel_close_' + message.channel.id).setLabel('Abbrechen').setEmoji('❌').setStyle(ButtonStyle.Secondary)
+            );
+            return message.reply({
+                content: '⚠️ **Möchtest du dieses Ticket wirklich schließen? Es wird ein Transkript generiert und der Kanal archiviert.**',
+                components: [confirmRow]
+            });
+        }
+
+        if (lowerContent === '!claim' || lowerContent === '/claim' || lowerContent === '!ticket claim' || lowerContent === '/ticket claim') {
+            if (!isSupp) return message.reply('⛔ Nur Supporter können Tickets claimen.');
+            if (ticket.claimedBy) return message.reply('⚠️ Dieses Ticket wird bereits von <@' + ticket.claimedBy + '> bearbeitet.');
+            ticket.claimedBy = message.author.id;
+            ticket.status = 'CLAIMED';
+            saveCloudVaultToDisk();
+            return message.reply('👤 ' + message.author.toString() + ' hat dieses Ticket übernommen!');
+        }
+
+        if (lowerContent === '!transcript' || lowerContent === '/transcript' || lowerContent === '!ticket transcript' || lowerContent === '/ticket transcript') {
+            const htmlContent = generateHtmlTranscript(message.channel.id, ticket);
+            const buffer = Buffer.from(htmlContent, 'utf-8');
+            return message.reply({
+                content: '📜 **AeroGuard HTML-Sitzungstranskript (#' + ticket.ticketNum + '):**',
+                files: [{ attachment: buffer, name: 'transcript_ticket_' + ticket.ticketNum + '.html' }]
+            });
+        }
+    }
+
 
 
     if (cloudStorage.systemSettings.lockdownActive && !cloudStorage.systemSettings.whitelistedUsers.includes(message.author.id)) {
@@ -944,205 +1043,7 @@ client.on('messageCreate', async message => {
 // =========================================================================
 client.on('interactionCreate', async interaction => {
     
-    if (interaction.isButton() && interaction.customId.startsWith('ai_ticket_')) {
-        await interaction.deferUpdate().catch(() => {});
-        const parts = interaction.customId.split('_');
-        const action = parts[2];
-        const userId = parts[3];
-
-        if (interaction.user.id !== userId) return interaction.followUp({ content: '❌ Das ist nicht dein Ticket.', ephemeral: true });
-
-        const pendingData = cloudStorage.aiPendingTickets[userId];
-        if (!pendingData) return interaction.followUp({ content: '❌ Ticket-Session abgelaufen.', ephemeral: true });
-
-        if (action === 'solved') {
-            delete cloudStorage.aiPendingTickets[userId];
-            saveCloudVaultToDisk();
-            await interaction.editReply({ content: `✅ **Wunderbar!** Die Cloud-KI konnte dein Problem lösen. Der Vorgang wurde geschlossen.`, embeds: [], components: [] });
-            return;
-        }
-
-        if (action === 'human') {
-            cloudStorage.systemSettings.ticketCounter += 1;
-            cloudStorage.activeTickets[userId] = { 
-                ticketNum: cloudStorage.systemSettings.ticketCounter, 
-                guildId: pendingData.guildId, 
-                username: interaction.user.tag, 
-                category: pendingData.category, 
-                reason: pendingData.reason, 
-                claimedBy: null 
-            };
-            
-            logTicketMessage(userId, interaction.user.tag, pendingData.reason, false);
-
-            delete cloudStorage.aiPendingTickets[userId];
-            saveCloudVaultToDisk();
-
-            await interaction.editReply({ content: `⏳ **Menschlicher Support angefordert.** Dein Ticket (#${cloudStorage.systemSettings.ticketCounter}) wurde in die Cloud-Warteschlange der Sektor-Leitung verschoben!`, embeds: [], components: [] });
-            
-            cloudStorage.systemSettings.authorizedSupporters.forEach(async (suppId) => {
-                try {
-                    const suppUser = await client.users.fetch(suppId);
-                    if (suppUser) await sendCentralTicketPanel(suppUser);
-                } catch(e){}
-            });
-            return;
-        }
-    }
-
-    if (interaction.isStringSelectMenu() && interaction.customId === 'supporter_ticket_select') {
-        await interaction.deferUpdate().catch(() => {});
-
-        const targetUserId = interaction.values[0]; 
-        const ticket = cloudStorage.activeTickets[targetUserId]; 
-        const supporterId = interaction.user.id;
-
-        if (!ticket || ticket.claimedBy) {
-            return interaction.followUp({ content: '❌ Fehler: Dieses Ticket existiert nicht mehr im Datencluster oder ein Kollege war schneller.', ephemeral: true });
-        }
-
-        cloudStorage.ownerActiveSession[supporterId] = targetUserId; 
-        ticket.claimedBy = supporterId; 
-        getKPI(supporterId).claimed += 1;
-        saveCloudVaultToDisk();
-
-        const originalEmbed = new EmbedBuilder()
-            .setTitle('📂 Warteschlange - Ticket zugewiesen')
-            .setDescription(`Du hast das Ticket #${ticket.ticketNum} erfolgreich aus dem Datenstrom isoliert.`)
-            .setColor(0x555555)
-            .setTimestamp();
-
-        const disabledRow = new ActionRowBuilder().addComponents(
-            new StringSelectMenuBuilder()
-                .setCustomId('disabled_select_claimed')
-                .setPlaceholder(`Ticket übernommen von ${interaction.user.username}`)
-                .addOptions([{ label: '-', value: '-' }])
-                .setDisabled(true)
-        );
-
-        await interaction.editReply({ embeds: [originalEmbed], components: [disabledRow] }).catch(()=>{});
-
-        const controlRow = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId(`dm_panel_close_${targetUserId}`).setLabel('🟥 Schließen').setStyle(ButtonStyle.Danger),
-            new ButtonBuilder().setCustomId(`dm_panel_transfer_${targetUserId}`).setLabel('🟨 In Warteschleife').setStyle(ButtonStyle.Warning),
-            new ButtonBuilder().setCustomId(`dm_panel_transcript_${targetUserId}`).setLabel('📝 Transkript').setStyle(ButtonStyle.Secondary)
-        );
-
-        const macroRow = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId(`dm_macro_hello_${targetUserId}`).setLabel('👋 Begrüßung').setStyle(ButtonStyle.Primary),
-            new ButtonBuilder().setCustomId(`dm_macro_wait_${targetUserId}`).setLabel('⏳ Bitte warten').setStyle(ButtonStyle.Primary),
-            new ButtonBuilder().setCustomId(`dm_macro_done_${targetUserId}`).setLabel('✅ Erledigt').setStyle(ButtonStyle.Success)
-        );
-
-        const controlEmbed = new EmbedBuilder()
-            .setTitle(`⚙️ TICKET STEUERUNGS-ZENTRALE (#${ticket.ticketNum})`)
-            .setDescription(`Ticket übernommen von: **${interaction.user.tag}**\n\nDu bist nun live verbunden. Jede Nachricht, die du hier schreibst, wird direkt als sicheres Text-Zitat an den User gesendet. Verwende die Buttons unten oder schreibe einfach \`/close\` in den Chat, um das Ticket schnell zu beenden.`)
-            .addFields(
-                { name: '👤 Antragssteller', value: `${ticket.username}`, inline: true },
-                { name: '🔮 Kategorie Sektor', value: `${ticket.category}`, inline: true },
-                { name: '📝 Grund der Eröffnung', value: `*" ${ticket.reason} "*` }
-            )
-            .setColor(0x00f5d4)
-            .setFooter({ text: 'AeroGuard Cloud Dynamic Bridge Node v23' })
-            .setTimestamp();
-
-        await interaction.followUp({ embeds: [controlEmbed], components: [controlRow, macroRow], ephemeral: true }).catch(() => {});
-        
-        try { 
-            const userObj = await client.users.fetch(targetUserId);
-            if (userObj) await userObj.send({
-                embeds: [new EmbedBuilder()
-                    .setTitle('🟩 TICKET ÜBERNOMMEN')
-                    .setDescription(`Ein Projektleiter ist nun live im Chat für dich da!\n\n**Ticket übernommen von:** \`${interaction.user.tag}\`\n\n*(Alles was du jetzt schreibst, wird direkt an den Supporter weitergeleitet)*`)
-                    .setColor(0x00f5d4)]
-            }); 
-        } catch(e){}
-        return;
-    }
-
-    if (interaction.isButton() && interaction.customId.startsWith('dm_macro_')) {
-        await interaction.deferUpdate().catch(() => {});
-        const parts = interaction.customId.split('_');
-        const macroType = parts[2];
-        const targetUserId = parts[3];
-
-        try {
-            const userObj = await client.users.fetch(targetUserId);
-            let replyText = "";
-
-            if (macroType === 'hello') replyText = `👋 Hallo! Ich habe dein Ticket soeben übernommen. Wie genau kann ich dir bei deinem Problem helfen?`;
-            if (macroType === 'wait') replyText = `⏳ Ich überprüfe das System gerade für dich. Bitte gib mir einen kurzen Moment Zeit.`;
-            if (macroType === 'done') replyText = `✅ Alles klar, ich habe den Fehler behoben. Gibt es sonst noch etwas, bei dem ich dir helfen kann?`;
-
-            if (userObj) {
-                logTicketMessage(targetUserId, interaction.user.tag, replyText, true);
-                await userObj.send(`🛡️ **Supporter ${interaction.user.username} antwortet:**\n> ${replyText}`);
-                await interaction.followUp({ content: `✅ Makro gesendet: *"${replyText}"*`, ephemeral: true });
-            }
-        } catch(e) {
-            await interaction.followUp({ content: '❌ Fehler beim Senden des Makros.', ephemeral: true });
-        }
-        return;
-    }
-
-    if (interaction.isButton() && interaction.customId.startsWith('dm_panel_')) {
-        await interaction.deferUpdate().catch(() => {});
-        const parts = interaction.customId.split('_'); 
-        const action = parts[2]; 
-        const targetUserId = parts[3]; 
-        const supporterId = interaction.user.id;
-        const ticket = cloudStorage.activeTickets[targetUserId]; 
-
-        if (action === 'close') {
-            getKPI(supporterId).closed += 1; 
-            
-            const closedEmbed = new EmbedBuilder()
-                .setTitle(`🟥 TICKET GESCHLOSSEN`)
-                .setDescription(`Der Datentunnel zu **${ticket?.username || 'Unbekannt'}** wurde von dir beendet und gelöscht.`)
-                .setColor(0xff0000)
-                .setTimestamp();
-
-            await interaction.editReply({ content: ``, embeds: [closedEmbed], components: [] });
-            
-            try { 
-                const targetUserObj = await client.users.fetch(targetUserId);
-                if (targetUserObj) await targetUserObj.send('🔒 Dein AeroGuard Support-Tunnel wurde von der Administration geschlossen und archiviert. Vielen Dank für deine Anfrage!'); 
-            } catch(e){}
-            
-            delete cloudStorage.activeTickets[targetUserId]; 
-            delete cloudStorage.ownerActiveSession[supporterId];
-            saveCloudVaultToDisk();
-        }
-        
-        if (action === 'transfer') { 
-            if (ticket) ticket.claimedBy = null; 
-            
-            const transferEmbed = new EmbedBuilder()
-                .setTitle(`🟨 TICKET FREIGEGEBEN`)
-                .setDescription(`Du hast das Ticket von **${ticket?.username || 'Unbekannt'}** zurück in den globalen Pool geschoben.`)
-                .setColor(0xffaa00)
-                .setTimestamp();
-
-            await interaction.editReply({ content: ``, embeds: [transferEmbed], components: [] });
-            
-            delete cloudStorage.ownerActiveSession[supporterId];
-            saveCloudVaultToDisk();
-            
-            try { 
-                const targetUserObj = await client.users.fetch(targetUserId);
-                if (targetUserObj) await targetUserObj.send('🔮 Du wurdest von der Administration zurück in die globale Zuweisungs-Warteschleife geleitet.'); 
-            } catch(e){}
-        }
-
-        if (action === 'transcript') {
-            if (!ticket) return;
-            const htmlContent = generateHtmlTranscript(targetUserId, ticket);
-            const buffer = Buffer.from(htmlContent, 'utf-8');
-            await interaction.followUp({ content: '📝 Hier ist dein verschlüsseltes, formatiertes HTML Sitzungs-Transkript:', files: [{ attachment: buffer, name: `transcript_ticket_${ticket.ticketNum}.html` }], ephemeral: true });
-        }
-        return;
-    }
-
+    // [REMOVED OLD DM TICKET BUTTONS]
     if (interaction.isButton() && (interaction.customId === 'live_poll_btn_a' || interaction.customId === 'live_poll_btn_b')) {
         const poll = cloudStorage.livePollsDatabase[interaction.message.id]; 
         if (!poll) return;
@@ -2365,266 +2266,27 @@ client.on('messageCreate', async message => {
         }
     }
 
-    if (!message.guild && cloudStorage.systemSettings.authorizedSupporters.includes(message.author.id)) {
-        const suppId = message.author.id; 
-
-        // GOOGLE PREMIUM TTS VOICE BRIDGE LOGIC
-        if (cloudStorage.activeVoiceSessions[suppId]) {
-            const vSession = cloudStorage.activeVoiceSessions[suppId];
-            
-            if (message.content.trim().toLowerCase() === '/closevoice') {
-                delete cloudStorage.activeVoiceSessions[suppId];
-                saveCloudVaultToDisk();
-                return message.author.send('🔇 Voice-Bridge getrennt. Du bist nicht mehr live im Sprachkanal auf Sendung.');
-            }
-
-            const clientGuilds = client.guilds.cache;
-            let targetChannel = null;
-            for (const [gId, guild] of clientGuilds) {
-                targetChannel = guild.channels.cache.get(vSession.channelId);
-                if (targetChannel) break;
-            }
-
-            if (targetChannel) {
-                await playTTS(targetChannel, message.content, true); 
-                await message.react('🎙️');
-            } else {
-                delete cloudStorage.activeVoiceSessions[suppId];
-                saveCloudVaultToDisk();
-                await message.author.send('❌ Fehler: Kanal offline. Brücke beendet.');
-            }
-            return; 
-        }
-
-        if (!cloudStorage.ownerActiveSession[suppId]) { 
-            await sendCentralTicketPanel(message.author); 
-            return; 
-        }
-        
-        const currentTargetUserId = cloudStorage.ownerActiveSession[suppId];
-        const ticket = cloudStorage.activeTickets[currentTargetUserId];
-
-        if (!ticket) {
-            delete cloudStorage.ownerActiveSession[suppId];
-            saveCloudVaultToDisk();
-            return message.author.send('❌ Fehler: Die Zielsitzung wurde bereits aufgelöst.');
-        }
-
-        // 🟢 NEU: TICKET SCHNELL BEENDEN PER /CLOSE TEXT COMMAND
-        if (message.content.trim().toLowerCase() === '/close') {
-            getKPI(suppId).closed += 1; 
-            
-            const closedEmbed = new EmbedBuilder()
-                .setTitle(`🟥 TICKET GESCHLOSSEN`)
-                .setDescription(`Der Datentunnel zu **${ticket?.username || 'Unbekannt'}** wurde von dir per Schnell-Befehl beendet und gelöscht.`)
-                .setColor(0xff0000)
-                .setTimestamp();
-
-            await message.author.send({ embeds: [closedEmbed] });
-            
-            try { 
-                const targetUserObj = await client.users.fetch(currentTargetUserId);
-                if (targetUserObj) await targetUserObj.send('🔒 Dein AeroGuard Support-Tunnel wurde von der Administration geschlossen und archiviert. Vielen Dank für deine Anfrage!'); 
-            } catch(e){}
-            
-            delete cloudStorage.activeTickets[currentTargetUserId]; 
-            delete cloudStorage.ownerActiveSession[suppId];
-            saveCloudVaultToDisk();
-            return;
-        }
-
-        if (message.content.trim().toLowerCase() === '/panel' || message.content.trim().toLowerCase() === '/pennel') {
-            const controlRow = new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId(`dm_panel_close_${currentTargetUserId}`).setLabel('🟥 Ticket schließen').setStyle(ButtonStyle.Danger),
-                new ButtonBuilder().setCustomId(`dm_panel_transfer_${currentTargetUserId}`).setLabel('🟨 In Warteschleife freigeben').setStyle(ButtonStyle.Warning),
-                new ButtonBuilder().setCustomId(`dm_panel_transcript_${currentTargetUserId}`).setLabel('📝 Transkript generieren').setStyle(ButtonStyle.Secondary)
-            );
-
-            const controlEmbed = new EmbedBuilder().setTitle(`⚙️ TICKET STEUERUNGS-ZENTRALE (#${ticket.ticketNum})`).setColor(0x00f5d4).setTimestamp();
-            return message.author.send({ embeds: [controlEmbed], components: [controlRow] });
-        }
-
-        try { 
-            const userObj = await client.users.fetch(currentTargetUserId);
-            if (userObj) {
-                logTicketMessage(currentTargetUserId, message.author.tag, message.content, true);
-                await userObj.send(`🛡️ **Supporter ${message.author.username} antwortet:**\n> ${message.content}`); 
-                await message.react('✉️');
-            }
-        } catch(e) {
-            await message.reply('❌ Die Nachricht konnte nicht zugestellt werden (User hat DMs gesperrt).');
-        }
-        return;
-    }
-
-    if (!message.guild) {
-        const userId = message.author.id;
-        
-        if (cloudStorage.activeTickets[userId]) {
-            const ticket = cloudStorage.activeTickets[userId];
-            if (ticket.claimedBy) {
-                try { 
-                    const supp = await client.users.fetch(ticket.claimedBy); 
-                    if (supp) {
-                        logTicketMessage(userId, message.author.tag, message.content, false);
-                        await supp.send(`🗣️ **[LIVE-CHAT] Nachricht von ${message.author.username}:**\n> ${message.content}`);
-                        await message.react('✅'); 
-                    }
-                } catch(e){}
-            } else {
-                const waitMsgs = [
-                    "⏳ **Warteschleife:** Wir haben deine Nachricht sicher in der Datenbank gespeichert. Bitte warte auf einen Supporter.",
-                    "⏳ **AeroGuard System:** Dein Datentunnel ist aktiv. Ein Agent wird sich gleich um dich kümmern.",
-                    "⏳ **Info:** Die Projektleitung wurde über deine neue Nachricht informiert. Halte dich bereit."
-                ];
-                await message.reply(waitMsgs[Math.floor(Math.random() * waitMsgs.length)]);
-            }
-            return;
-        }
-
-        if (cloudStorage.pendingTicketSelections[userId]) {
-            const selection = cloudStorage.pendingTicketSelections[userId]; 
-            const reason = message.content;
-            
-            const aiAnswer = analyzeTicketWithAI(reason);
-            
-            cloudStorage.aiPendingTickets[userId] = {
-                guildId: selection.guildId,
-                category: selection.categoryLabel,
-                reason: reason
-            };
-            
-            delete cloudStorage.pendingTicketSelections[userId];
-            saveCloudVaultToDisk();
-
-            const aiRow = new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId(`ai_ticket_solved_${userId}`).setLabel('✅ Problem gelöst').setStyle(ButtonStyle.Success),
-                new ButtonBuilder().setCustomId(`ai_ticket_human_${userId}`).setLabel('🆘 Menschlichen Supporter rufen').setStyle(ButtonStyle.Danger)
-            );
-            
-            await message.reply({ 
-                content: `🧠 **Die AeroGuard Cloud-KI hat dein Anliegen geprüft!**\n\n${aiAnswer}\n\nKonnten wir dir damit bereits helfen? Wähle unten eine Option:`, 
-                components: [aiRow] 
-            });
-            return;
-        }
-    }
+    // [REMOVED OLD DM TICKET CHAT ROUTER]
 });
 
-// =========================================================================
-// EXPANDED REGISTER COMMAND DEFINITIONS MATRIX
-// =========================================================================
-const extendedCommandDefinitions = [
-    // =========================================================================
-    // AEROGUARD CHANNEL TICKET SYSTEM COMMANDS
-    // =========================================================================
-    new SlashCommandBuilder()
-        .setName('ticket')
-        .setDescription('AeroGuard Ticket-Management-System')
-        .addSubcommand(sub => 
-            sub.setName('setup')
-               .setDescription('Konfiguriere das Ticket-System (Kategorie, Support-Rolle, Log-Kanal)')
-               .addChannelOption(o => o.setName('kategorie').setDescription('Kategorie, unter der Tickets erstellt werden').addChannelTypes(ChannelType.GuildCategory).setRequired(true))
-               .addRoleOption(o => o.setName('support_rolle').setDescription('Rolle für Support-Mitarbeiter').setRequired(true))
-               .addChannelOption(o => o.setName('log_kanal').setDescription('Kanal für Ticket-Transkripte & Archiv').addChannelTypes(ChannelType.GuildText).setRequired(false))
-        )
-        .addSubcommand(sub => 
-            sub.setName('panel')
-               .setDescription('Sendet das interaktive Ticket-Startpanel in einen spezifischen Kanal')
-               .addChannelOption(o => o.setName('kanal').setDescription('Kanal für das Ticket-Panel').addChannelTypes(ChannelType.GuildText).setRequired(true))
-        )
-        .addSubcommand(sub => 
-            sub.setName('close')
-               .setDescription('Schließt das aktuelle Ticket')
-               .addStringOption(o => o.setName('grund').setDescription('Grund für die Schließung').setRequired(false))
-        )
-        .addSubcommand(sub => 
-            sub.setName('claim')
-               .setDescription('Weist das aktuelle Ticket dir selbst zu')
-        )
-        .addSubcommand(sub => 
-            sub.setName('unclaim')
-               .setDescription('Gibt das Ticket wieder für das gesamte Team frei')
-        )
-        .addSubcommand(sub => 
-            sub.setName('add')
-               .setDescription('Fügt einen weiteren Nutzer zum aktuellen Ticket hinzu')
-               .addUserOption(o => o.setName('nutzer').setDescription('Der hinzuzufügende Nutzer').setRequired(true))
-        )
-        .addSubcommand(sub => 
-            sub.setName('remove')
-               .setDescription('Entfernt einen Nutzer aus dem Ticket')
-               .addUserOption(o => o.setName('nutzer').setDescription('Der zu entfernende Nutzer').setRequired(true))
-        )
-        .addSubcommand(sub => 
-            sub.setName('rename')
-               .setDescription('Benennt den Ticket-Kanal um')
-               .addStringOption(o => o.setName('name').setDescription('Neuer Kanalname').setRequired(true))
-        )
-        .addSubcommand(sub => 
-            sub.setName('transcript')
-               .setDescription('Generiert ein vollständiges HTML-Transkript des Tickets')
-        ),
 
-    new SlashCommandBuilder().setName('status').setDescription('AeroGuard Live-Status, Telemetrie & RAM-Auslastung'),
-    new SlashCommandBuilder().setName('cloud-inspect').setDescription('Prüft den persistenten Speicherzustand der Cloud-Datenbank'),
-    new SlashCommandBuilder().setName('ping').setDescription('Gibt die Websocket-Latenz zurück'),
-    new SlashCommandBuilder().setName('clear').setDescription('Löscht Chatnachrichten & bereinigt flüchtige RAM-Zuweisungen').addIntegerOption(o => o.setName('anzahl').setDescription('1-100').setRequired(true)),
-    new SlashCommandBuilder().setName('warn').setDescription('Verwarnt ein Mitglied formell').addUserOption(o => o.setName('target').setDescription('Nutzer').setRequired(true)).addStringOption(o => o.setName('grund').setDescription('Grund').setRequired(true)),
-    new SlashCommandBuilder().setName('warnlist').setDescription('Zeigt alle Warnungen eines Nutzers an').addUserOption(o => o.setName('ziel').setDescription('Nutzer').setRequired(true)),
-    new SlashCommandBuilder().setName('clearwarns').setDescription('Löscht alle Warnungen eines Nutzers').addUserOption(o => o.setName('ziel').setDescription('Nutzer').setRequired(true)),
-    new SlashCommandBuilder().setName('setup-ticketpanel').setDescription('Projiziert das Support-Startpanel in einen spezifischen Kanal'),
-    new SlashCommandBuilder().setName('setup-voicesupport').setDescription('Konfiguriere den Textkanal für automatische Support-Warteraum Benachrichtigungen'),
-    new SlashCommandBuilder().setName('setup-modlog').setDescription('Legt den Kanal für automatische Snapshot-Beweisfotos und Warn-Logs fest'),
-    new SlashCommandBuilder().setName('setup-infohub').setDescription('Konfiguriere den offiziellen Spiele-Info-Kanal mit Direktstart-Links für Roblox'),
-    new SlashCommandBuilder().setName('poll').setDescription('Erstellt eine live Umfrage').addStringOption(o => o.setName('frage').setDescription('Thema').setRequired(true)).addStringOption(o => o.setName('option_a').setDescription('A').setRequired(true)).addStringOption(o => o.setName('option_b').setDescription('B').setRequired(true)),
-    new SlashCommandBuilder().setName('wallet').setDescription('Zeigt dein aktuelles Münzguthaben an'),
-    new SlashCommandBuilder().setName('daily').setDescription('Belohnung abholen'),
-    new SlashCommandBuilder().setName('rbx-shout').setDescription('Aktualisiert die offizielle Gruppenmeldung deiner Roblox-Gruppe direkt via Open Cloud API').addStringOption(o => o.setName('meldung').setDescription('Inhalt des Gruppenshouts').setRequired(true)),
-    new SlashCommandBuilder().setName('rbx-serverlogs').setDescription('Ruft die Echtzeit-Fehlerprotokolle und Crash-Dumps der laufenden Roblox Serverinstanzen ab'),
-    new SlashCommandBuilder().setName('rbx-shutdown').setDescription('Schließt augenblicklich alle aktiven Spielserver-Instanzen zur Einspielung eines kritischen Updates'),
-    new SlashCommandBuilder().setName('setup-voiceannounce').setDescription('Konfiguriere den Text, den der Bot als Audio-Ansage beim Betreten des Support-Kanals spricht').addStringOption(o => o.setName('text').setDescription('Der gesprochene Text-to-Speech Inhalt').setRequired(true)),
-    new SlashCommandBuilder().setName('rbx-savedata').setDescription('Schreibt In-Game-Daten direkt via Open Cloud um').addStringOption(o => o.setName('userid').setDescription('Roblox ID').setRequired(true)).addIntegerOption(o => o.setName('coins').setDescription('AeroCoins').setRequired(true)),
-    new SlashCommandBuilder().setName('rbx-cleardata').setDescription('Löscht das Profil eines Spielers komplett im Roblox-DataStore').addStringOption(o => o.setName('userid').setDescription('Roblox ID').setRequired(true)),
-    new SlashCommandBuilder().setName('clan-war').setDescription('Startet eine Sektor-Herausforderung gegen eine verfeindete Fraktion').addStringOption(o => o.setName('gegnerclan').setDescription('Name des feindlichen Clans').setRequired(true)),
-    new SlashCommandBuilder().setName('nuke').setDescription('Löscht den aktuellen Kanal und erstellt ihn komplett leer neu (Anti-Raid)'),
-    new SlashCommandBuilder().setName('lockdown').setDescription('Sperrt den gesamten Server (verhindert Nachrichten von allen normalen Spielern)'),
-    new SlashCommandBuilder().setName('unlockdown').setDescription('Entsperrt den Server wieder nach einem Lockdown'),
-    new SlashCommandBuilder().setName('slowmode').setDescription('Aktiviert den Chat-Slowmode').addIntegerOption(o => o.setName('sekunden').setDescription('Zeit in Sekunden').setRequired(true)),
-    new SlashCommandBuilder().setName('addrole').setDescription('Vergibt eine Rolle an einen Spieler').addUserOption(o => o.setName('ziel').setDescription('Der User').setRequired(true)).addRoleOption(o => o.setName('rolle').setDescription('Die Rolle').setRequired(true)),
-    new SlashCommandBuilder().setName('removerole').setDescription('Entzieht einem Spieler eine Rolle').addUserOption(o => o.setName('ziel').setDescription('Der User').setRequired(true)).addRoleOption(o => o.setName('rolle').setDescription('Die Rolle').setRequired(true)),
-    new SlashCommandBuilder().setName('8ball').setDescription('Befragt die magische Miesmuschel').addStringOption(o => o.setName('frage').setDescription('Deine Frage').setRequired(true)),
-    new SlashCommandBuilder().setName('coinflip').setDescription('Wirft eine Münze'),
-    new SlashCommandBuilder().setName('slots').setDescription('Spielt eine Runde am Casino-Automaten').addIntegerOption(o => o.setName('einsatz').setDescription('AeroCoins Einsatz').setRequired(true)),
-    new SlashCommandBuilder().setName('set-placeid').setDescription('Ändert die Roblox Place ID für das Info-Hub live').addStringOption(o => o.setName('placeid').setDescription('Die neue Roblox ID').setRequired(true)),
-    new SlashCommandBuilder().setName('mute').setDescription('Schaltet einen User temporär auf dem Server stumm').addUserOption(o => o.setName('ziel').setDescription('User').setRequired(true)).addIntegerOption(o => o.setName('minuten').setDescription('Dauer').setRequired(true)).addStringOption(o => o.setName('grund').setDescription('Grund').setRequired(true)),
-    new SlashCommandBuilder().setName('unmute').setDescription('Hebt den Timeout eines Users auf').addUserOption(o => o.setName('ziel').setDescription('User').setRequired(true)),
-    new SlashCommandBuilder().setName('lockchannel').setDescription('Sperrt den aktuellen Kanal für alle Mitglieder ab'),
-    new SlashCommandBuilder().setName('unlockchannel').setDescription('Gibt den Kanal nach einer Sperrung wieder frei'),
-    new SlashCommandBuilder().setName('dm').setDescription('Sendet eine private Nachricht an ein Mitglied').addUserOption(o => o.setName('target').setDescription('Nutzer').setRequired(true)).addStringOption(o => o.setName('nachricht').setDescription('Inhalt').setRequired(true)),
-    new SlashCommandBuilder().setName('whitelist').setDescription('Verwalte die administrative Whitelist').addStringOption(o => o.setName('aktion').setDescription('add/remove').setRequired(true)).addUserOption(o => o.setName('target').setDescription('Nutzer').setRequired(true)),
-    new SlashCommandBuilder().setName('supporter').setDescription('Verwalte die Support-Berechtigungen').addStringOption(o => o.setName('aktion').setDescription('add/remove').setRequired(true)).addUserOption(o => o.setName('target').setDescription('Nutzer').setRequired(true)),
-    new SlashCommandBuilder().setName('backup-server').setDescription('Erstellt ein massives JSON-Cloud-Backup der gesamten Server-Struktur (Rollen & Kanäle)'),
-    new SlashCommandBuilder().setName('verify').setDescription('Verknüpft deinen Discord-Account offiziell mit deinem Roblox-Profil').addStringOption(o => o.setName('roblox_name').setDescription('Dein genauer Roblox Benutzername').setRequired(true)),
-    new SlashCommandBuilder().setName('buy-premium').setDescription('Zeigt dir den Stripe-Link an, um Premium-Funktionen freizuschalten'),
-    new SlashCommandBuilder().setName('premium-status').setDescription('Zeigt an, ob dein Account als Premium registriert ist'),
-    new SlashCommandBuilder().setName('give-premium').setDescription('Gibt einem User manuell den Premium-Status (Admin)').addUserOption(o => o.setName('target').setDescription('Nutzer').setRequired(true)),
-    new SlashCommandBuilder().setName('setup-welcome').setDescription('Legt den Kanal fest, in dem der Bot neue Spieler mit einem Embed begrüßt').addChannelOption(o => o.setName('kanal').setDescription('Kanal wählen').setRequired(true)),
-    new SlashCommandBuilder().setName('setup-livestatus').setDescription('Richtet ein Live-Embed ein, das die Roblox Spielerzahlen in Echtzeit synchronisiert'),
-    new SlashCommandBuilder().setName('setup-autorole').setDescription('Legt die automatische Rolle (z.B. verifiziert) beim Server-Beitritt fest').addRoleOption(o => o.setName('rolle').setDescription('Die Rolle, die neue User erhalten').setRequired(true)),
-    // 🟢 NEU: BLACKLIST SLASH COMMAND
-    new SlashCommandBuilder().setName('blacklist').setDescription('Sperrt oder entsperrt einen Nutzer für das Ticket-System').addStringOption(o => o.setName('aktion').setDescription('add/remove').setRequired(true)).addUserOption(o => o.setName('target').setDescription('Nutzer').setRequired(true))
-].map(cmd => cmd.toJSON());
+client.once('ready', async () => {
+    addLog('info', 'AeroGuard Cloud Engine Online als: ' + client.user.tag);
+    
+    // Auto-Sync Slash-Commands auf allen verbundenen Servern
+    client.guilds.cache.forEach(async guild => {
+        try {
+            await deployExtendedCommands(guild.id);
+            addLog('info', 'Slash Commands für Server ' + guild.name + ' (' + guild.id + ') synchronisiert.');
+        } catch(e) {
+            addLog('error', 'Fehler beim Sync für ' + guild.id + ': ' + e.message);
+        }
+    });
 
-async function deployExtendedCommands(guildId) {
-    try {
-        const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
-        await rest.put(Routes.applicationGuildCommands(client.user.id, guildId), { body: extendedCommandDefinitions });
-    } catch(e){}
-}
-
-client.on('guildCreate', async guild => { await deployExtendedCommands(guild.id); });
-client.once('ready', async () => { if (process.env.GUILD_ID) await deployExtendedCommands(process.env.GUILD_ID); });
+    if (process.env.GUILD_ID) {
+        await deployExtendedCommands(process.env.GUILD_ID);
+    }
+});
 
 // =========================================================================
 // WEBPANEL OAUTH2 UTILITIES & WEBHOOK ROUTING LAYER
@@ -2643,9 +2305,228 @@ app.get('/api/auth/callback', async (req, res) => {
     } catch (e) { return res.redirect('/login'); }
 });
 
-app.get('/', async (req, res) => {
-    res.send(`<html><body style="background:#06040c;color:white;font-family:sans-serif;padding:30px;"><h1>🌌 AeroGuard Ultimate Cloud Matrix</h1><p>Status: Online (Persistent)</p></body></html>`);
+
+// =========================================================================
+// AEROGUARD ENTERPRISE WEB DASHBOARD & TRANSCRIPT SUITE
+// =========================================================================
+
+// API: Bot Status & Telemetry
+app.get('/api/status', (req, res) => {
+    const uptimeSec = Math.floor(process.uptime());
+    const memMb = Math.round(process.memoryUsage().heapUsed / 1024 / 1024);
+    res.json({
+        online: client.isReady(),
+        botTag: client.user ? client.user.tag : 'AeroGuard#0000',
+        pingMs: client.ws.ping || 0,
+        uptimeSeconds: uptimeSec,
+        guildsCount: client.guilds.cache.size,
+        activeTicketsCount: Object.keys(cloudStorage.activeTickets).length,
+        totalTicketsCount: cloudStorage.systemSettings.ticketCounter || 0,
+        robloxPlayers: currentPlayersCount || 0,
+        robloxMaxPlayers: maxPlayersCount || 0,
+        memoryUsageMb: memMb
+    });
 });
+
+// API: Active Tickets List
+app.get('/api/tickets', (req, res) => {
+    const list = Object.keys(cloudStorage.activeTickets).map(chId => ({
+        channelId: chId,
+        ...cloudStorage.activeTickets[chId]
+    }));
+    res.json(list);
+});
+
+// Route: View Formatted HTML Transcript for any Ticket
+app.get('/transcript/:ticketId', (req, res) => {
+    const tId = req.params.ticketId;
+    let ticket = cloudStorage.activeTickets[tId];
+    if (!ticket) {
+        ticket = { ticketNum: tId, username: 'Archivierter Nutzer', category: 'Support', reason: 'Archiviertes Ticket', ign: 'N/A' };
+    }
+    const html = generateHtmlTranscript(tId, ticket);
+    res.send(html);
+});
+
+// Route: Main Enterprise Web Dashboard
+app.get('/', async (req, res) => {
+    const activeList = Object.keys(cloudStorage.activeTickets).map(chId => ({
+        channelId: chId,
+        ...cloudStorage.activeTickets[chId]
+    }));
+
+    const ticketRowsHtml = activeList.length === 0 
+        ? '<tr><td colspan="6" style="text-align:center; padding:30px; color:#64748b;">🟢 Keine offenen Tickets im System. Alle Anfragen sind bearbeitet!</td></tr>'
+        : activeList.map(t => {
+            const statusColor = t.status === 'CLAIMED' ? '#fbbf24' : '#00f3ff';
+            const statusLabel = t.status === 'CLAIMED' ? 'In Bearbeitung' : 'Offen';
+            return '<tr>' +
+                '<td><span class="badge-ticket">#' + (String(t.ticketNum).padStart(4, '0')) + '</span></td>' +
+                '<td><strong>' + (t.username || 'Unbekannt') + '</strong></td>' +
+                '<td><span class="badge-cat">' + (t.category || 'Support') + '</span></td>' +
+                '<td>' + (t.ign || 'N/A') + '</td>' +
+                '<td><span style="color:' + statusColor + '; font-weight:bold;">● ' + statusLabel + '</span></td>' +
+                '<td><a href="/transcript/' + t.channelId + '" class="action-btn" target="_blank">Transkript öffnen</a></td>' +
+            '</tr>';
+        }).join('');
+
+    const botUptimeHrs = (process.uptime() / 3600).toFixed(1);
+    const ping = client.ws.ping || 0;
+    const botUser = client.user ? client.user.tag : 'AeroGuard Core';
+
+    const fullHtml = '<!DOCTYPE html>\n' +
+'<html lang="de">\n' +
+'<head>\n' +
+'    <meta charset="UTF-8">\n' +
+'    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n' +
+'    <title>AeroGuard Core • Official Discord Bot & Ticket Dashboard</title>\n' +
+'    <link rel="preconnect" href="https://fonts.googleapis.com">\n' +
+'    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n' +
+'    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">\n' +
+'    <style>\n' +
+'        :root {\n' +
+'            --bg: #07090e;\n' +
+'            --card: rgba(14, 20, 32, 0.85);\n' +
+'            --border: rgba(255, 255, 255, 0.08);\n' +
+'            --cyan: #00f3ff;\n' +
+'            --cyan-glow: rgba(0, 243, 255, 0.3);\n' +
+'            --purple: #9d4edd;\n' +
+'            --green: #00ff88;\n' +
+'            --text: #f0f4fc;\n' +
+'            --text-dim: #94a3b8;\n' +
+'        }\n' +
+'        * { box-sizing: border-box; margin: 0; padding: 0; }\n' +
+'        body {\n' +
+'            background-color: var(--bg);\n' +
+'            color: var(--text);\n' +
+'            font-family: "Outfit", sans-serif;\n' +
+'            line-height: 1.6;\n' +
+'            padding-bottom: 60px;\n' +
+'        }\n' +
+'        .glow-bg {\n' +
+'            position: fixed; top: 0; left: 50%; transform: translateX(-50%);\n' +
+'            width: 800px; height: 350px; background: radial-gradient(ellipse at top, rgba(0,243,255,0.18), transparent 70%);\n' +
+'            pointer-events: none; z-index: 0;\n' +
+'        }\n' +
+'        .container { max-width: 1200px; margin: 0 auto; padding: 30px 24px; position: relative; z-index: 1; }\n' +
+'        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px; border-bottom: 1px solid var(--border); padding-bottom: 20px; }\n' +
+'        .brand { display: flex; align-items: center; gap: 14px; }\n' +
+'        .brand-icon { width: 44px; height: 44px; border-radius: 10px; background: linear-gradient(135deg, var(--cyan), var(--purple)); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: bold; color: #000; box-shadow: 0 0 20px var(--cyan-glow); }\n' +
+'        .brand-name { font-size: 1.4rem; font-weight: 800; letter-spacing: -0.02em; }\n' +
+'        .brand-sub { font-size: 0.8rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.1em; }\n' +
+'        .status-pill { display: flex; align-items: center; gap: 8px; background: rgba(0,255,136,0.1); border: 1px solid rgba(0,255,136,0.3); padding: 6px 16px; border-radius: 999px; font-size: 0.85rem; font-weight: 600; color: var(--green); }\n' +
+'        .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 10px var(--green); animation: pulse 2s infinite; }\n' +
+'        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }\n' +
+'        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; margin-bottom: 35px; }\n' +
+'        .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 22px; backdrop-filter: blur(12px); box-shadow: 0 10px 25px rgba(0,0,0,0.5); }\n' +
+'        .stat-val { font-size: 2.2rem; font-weight: 800; font-family: "JetBrains Mono", monospace; color: var(--cyan); line-height: 1.1; margin-top: 6px; }\n' +
+'        .stat-title { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); }\n' +
+'        .card-panel { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 28px; margin-bottom: 35px; box-shadow: 0 15px 40px rgba(0,0,0,0.6); }\n' +
+'        .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 14px; }\n' +
+'        .panel-title { font-size: 1.3rem; font-weight: 700; color: #fff; }\n' +
+'        table { width: 100%; border-collapse: collapse; text-align: left; }\n' +
+'        th { font-size: 0.8rem; text-transform: uppercase; color: var(--text-dim); padding: 12px 14px; border-bottom: 1px solid var(--border); }\n' +
+'        td { padding: 14px; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 0.92rem; }\n' +
+'        .badge-ticket { background: rgba(0,243,255,0.15); border: 1px solid var(--cyan); color: var(--cyan); padding: 3px 8px; border-radius: 6px; font-family: "JetBrains Mono", monospace; font-weight: 700; font-size: 0.8rem; }\n' +
+'        .badge-cat { background: rgba(157,78,221,0.15); border: 1px solid var(--purple); color: #d8b4fe; padding: 3px 8px; border-radius: 6px; font-size: 0.8rem; }\n' +
+'        .action-btn { background: transparent; border: 1px solid var(--cyan); color: var(--cyan); padding: 6px 14px; border-radius: 8px; text-decoration: none; font-size: 0.82rem; font-weight: 600; transition: all 0.2s; }\n' +
+'        .action-btn:hover { background: var(--cyan); color: #000; box-shadow: 0 0 14px var(--cyan-glow); }\n' +
+'        .commands-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 16px; }\n' +
+'        .cmd-box { background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 8px; }\n' +
+'        .cmd-code { font-family: "JetBrains Mono", monospace; background: #000; color: var(--cyan); padding: 6px 10px; border-radius: 6px; font-size: 0.88rem; width: fit-content; border: 1px solid rgba(0,243,255,0.2); }\n' +
+'        .cmd-desc { font-size: 0.85rem; color: var(--text-dim); }\n' +
+'    </style>\n' +
+'</head>\n' +
+'<body>\n' +
+'    <div class="glow-bg"></div>\n' +
+'    <div class="container">\n' +
+'        <header>\n' +
+'            <div class="brand">\n' +
+'                <div class="brand-icon">AG</div>\n' +
+'                <div>\n' +
+'                    <div class="brand-name">AEROGUARD <span style="color:var(--cyan)">CORE</span></div>\n' +
+'                    <div class="brand-sub">Enterprise Discord Ticket & Management Suite</div>\n' +
+'                </div>\n' +
+'            </div>\n' +
+'            <div class="status-pill">\n' +
+'                <span class="dot"></span>\n' +
+'                <span>Bot Online • ' + botUser + '</span>\n' +
+'            </div>\n' +
+'        </header>\n' +
+'        \n' +
+'        <div class="stats-grid">\n' +
+'            <div class="stat-card">\n' +
+'                <div class="stat-title">Aktive Tickets</div>\n' +
+'                <div class="stat-val" id="stat-active">' + activeList.length + '</div>\n' +
+'            </div>\n' +
+'            <div class="stat-card">\n' +
+'                <div class="stat-title">Gesamt Bearbeitet</div>\n' +
+'                <div class="stat-val">' + (cloudStorage.systemSettings.ticketCounter || 0) + '</div>\n' +
+'            </div>\n' +
+'            <div class="stat-card">\n' +
+'                <div class="stat-title">Websocket Ping</div>\n' +
+'                <div class="stat-val">' + ping + ' <span style="font-size:1rem;color:var(--text-dim)">ms</span></div>\n' +
+'            </div>\n' +
+'            <div class="stat-card">\n' +
+'                <div class="stat-title">Server Uptime</div>\n' +
+'                <div class="stat-val">' + botUptimeHrs + ' <span style="font-size:1rem;color:var(--text-dim)">Std</span></div>\n' +
+'            </div>\n' +
+'        </div>\n' +
+'        \n' +
+'        <div class="card-panel">\n' +
+'            <div class="panel-header">\n' +
+'                <div class="panel-title">🎫 Live Ticket-Matrix (Echtzeit-Übersicht)</div>\n' +
+'                <button onclick="location.reload()" class="action-btn" style="cursor:pointer">Aktualisieren</button>\n' +
+'            </div>\n' +
+'            <div style="overflow-x:auto">\n' +
+'                <table>\n' +
+'                    <thead>\n' +
+'                        <tr>\n' +
+'                            <th>Nummer</th>\n' +
+'                            <th>Ersteller</th>\n' +
+'                            <th>Kategorie</th>\n' +
+'                            <th>Roblox / IGN</th>\n' +
+'                            <th>Status</th>\n' +
+'                            <th>Aktion</th>\n' +
+'                        </tr>\n' +
+'                    </thead>\n' +
+'                    <tbody>\n' +
+'                        ' + ticketRowsHtml + '\n' +
+'                    </tbody>\n' +
+'                </table>\n' +
+'            </div>\n' +
+'        </div>\n' +
+'        \n' +
+'        <div class="card-panel">\n' +
+'            <div class="panel-title" style="margin-bottom:14px;">⚡ Discord Setup & Befehls-Zentrale</div>\n' +
+'            <p style="color:var(--text-dim);font-size:0.92rem;margin-bottom:16px;">\n' +
+'                Du kannst diese Befehle direkt in deinem Discord-Server eingeben (entweder als Text mit <code>!</code> oder als Slash-Command <code>/</code>):\n' +
+'            </p>\n' +
+'            <div class="commands-grid">\n' +
+'                <div class="cmd-box">\n' +
+'                    <div class="cmd-code">!setup  oder  !ticket panel</div>\n' +
+'                    <div class="cmd-desc">Erstellt automatisch die Kategorie <code>📁 SUPPORT-TICKETS</code> und sendet das interaktive Support-Startpanel in den aktuellen Kanal.</div>\n' +
+'                </div>\n' +
+'                <div class="cmd-box">\n' +
+'                    <div class="cmd-code">!close  oder  /ticket close</div>\n' +
+'                    <div class="cmd-desc">Schließt und archiviert das aktuelle Ticket, generiert das HTML-Transkript und löscht den Kanal nach 5 Sekunden.</div>\n' +
+'                </div>\n' +
+'                <div class="cmd-box">\n' +
+'                    <div class="cmd-code">!claim  oder  /ticket claim</div>\n' +
+'                    <div class="cmd-desc">Weist das Ticket dem ausführenden Supporter zu und setzt den Status auf "In Bearbeitung".</div>\n' +
+'                </div>\n' +
+'                <div class="cmd-box">\n' +
+'                    <div class="cmd-code">!transcript  oder  /ticket transcript</div>\n' +
+'                    <div class="cmd-desc">Generiert sofort ein vollständiges HTML-Transkript und sendet es als Datei in den Chat.</div>\n' +
+'                </div>\n' +
+'            </div>\n' +
+'        </div>\n' +
+'    </div>\n' +
+'</body>\n' +
+'</html>';
+    res.send(fullHtml);
+});
+
 
 app.post('/api/webhook/stripe', (req, res) => {
     console.log("Stripe Webhook Ping empfangen!");
