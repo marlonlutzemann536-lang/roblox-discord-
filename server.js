@@ -80,9 +80,41 @@ try {
 }
 
 const app = express();
-// Middleware für JSON-Parsing des Roblox-Skripts
+// Middleware für JSON-Parsing & Form-Daten
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(session({
+    secret: process.env.SESSION_SECRET || 'aeroguard_enterprise_vault_session_key_2026',
+    resave: false,
+    saveUninitialized: false,
+    cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 }
+}));
 const port = process.env.PORT || 3000;
+
+// =========================================================================
+// GUILD MULTI-SERVER SETTINGS MATRIX (AEROGUARD CLOUD CORE)
+// =========================================================================
+function getGuildSettings(guildId) {
+    if (!cloudStorage.guildSettings) cloudStorage.guildSettings = {};
+    if (!cloudStorage.guildSettings[guildId]) {
+        cloudStorage.guildSettings[guildId] = {
+            modules: {
+                tickets: true,
+                autoMod: true,
+                antiRaid: true,
+                voiceSupport: true,
+                levelSystem: true,
+                robloxHub: true,
+                lockdown: false
+            },
+            ticketCategoryId: cloudStorage.systemSettings.ticketCategoryId || null,
+            supportRoleId: cloudStorage.systemSettings.supportRoleId || null,
+            ticketLogChannelId: cloudStorage.systemSettings.ticketLogChannelId || null
+        };
+        saveCloudVaultToDisk();
+    }
+    return cloudStorage.guildSettings[guildId];
+}
 
 // =========================================================================
 // GALAXY CORE CONFIGURATION & PERSISTENT CLOUD VAULT MATRIX
@@ -871,6 +903,37 @@ client.on('messageCreate', async message => {
     if (cloudStorage.activeTickets[message.channel.id]) {
         const ticket = cloudStorage.activeTickets[message.channel.id];
 
+        // IN-TICKET COMMAND: !add @user
+        if (lowerContent.startsWith('!add ') || lowerContent.startsWith('/ticket add ')) {
+            if (!isSupp) return message.reply('❌ **Zugriff verweigert:** Nur Supporter oder Admins können weitere Nutzer zum Ticket hinzufügen.');
+            const targetUser = message.mentions.users.first();
+            if (!targetUser) return message.reply('ℹ️ Bitte erwähne den Nutzer, den du hinzufügen möchtest: `!add @Nutzer`');
+            try {
+                await message.channel.permissionOverwrites.edit(targetUser.id, {
+                    ViewChannel: true,
+                    SendMessages: true,
+                    AttachFiles: true,
+                    ReadMessageHistory: true
+                });
+                return message.channel.send(`✅ ${targetUser} wurde erfolgreich von ${message.author} zum Ticket-Kanal hinzugefügt.`);
+            } catch(e) {
+                return message.reply('❌ Fehler beim Hinzufügen des Nutzers: ' + e.message);
+            }
+        }
+
+        // IN-TICKET COMMAND: !remove @user
+        if (lowerContent.startsWith('!remove ') || lowerContent.startsWith('/ticket remove ')) {
+            if (!isSupp) return message.reply('❌ **Zugriff verweigert:** Nur Supporter oder Admins können Nutzer aus dem Ticket entfernen.');
+            const targetUser = message.mentions.users.first();
+            if (!targetUser) return message.reply('ℹ️ Bitte erwähne den Nutzer, den du entfernen möchtest: `!remove @Nutzer`');
+            if (targetUser.id === ticket.userId) return message.reply('⚠️ Der Ticket-Ersteller kann nicht aus seinem eigenen Ticket entfernt werden.');
+            try {
+                await message.channel.permissionOverwrites.delete(targetUser.id);
+                return message.channel.send(`👋 ${targetUser} wurde aus dem Ticket-Kanal entfernt.`);
+            } catch(e) {
+                return message.reply('❌ Fehler beim Entfernen des Nutzers: ' + e.message);
+            }
+        }
         if (lowerContent === '!close' || lowerContent === '/close' || lowerContent === '!ticket close' || lowerContent.startsWith('/ticket close')) {
             const confirmRow = new ActionRowBuilder().addComponents(
                 new ButtonBuilder().setCustomId('ticket_ch_confirm_close_' + message.channel.id).setLabel('Ja, schließen & archivieren').setEmoji('✅').setStyle(ButtonStyle.Danger),
@@ -1002,6 +1065,35 @@ client.on('messageCreate', async message => {
 // ADVANCED INTERACTION DISPATCHER (INCL. AUTO-CLAIM & KI-SUPPORT)
 // =========================================================================
 client.on('interactionCreate', async interaction => {
+    // AEROGUARD DM FAQ & INTERACTION HANDLERS
+    if (interaction.isButton() && interaction.customId === 'dm_faq_btn') {
+        const faqEmbed = new EmbedBuilder()
+            .setTitle('❓ AeroGuard — Häufig gestellte Fragen (FAQ)')
+            .setColor(0x00f3ff)
+            .addFields(
+                { name: '1️⃣ Warum laufen Support-Tickets auf dem Server?', value: 'Privatnachrichten blockieren oft Supporter und verhindern Teamarbeit. Auf dem Server wird für dich ein vollautomatischer privater Ticket-Kanal erstellt, den nur du und das autorisierte Team sehen.' },
+                { name: '2️⃣ Wie erstelle ich ein Ticket?', value: 'Gehe auf den Discord-Server in den Support-Kanal und klicke auf eine Kategorie (z. B. *Allgemeiner Support*, *Bug melden* oder *Bewerbung*). Gib dein Anliegen im Modal ein – fertig!' },
+                { name: '3️⃣ Wer kann mein Ticket sehen?', value: 'Nur du, autorisierte Supporter und Server-Administratoren.' },
+                { name: '4️⃣ Wie schließe ich ein Ticket?', value: 'Tippe im Ticket-Kanal `!close` oder klicke auf den roten Schließen-Button.' }
+            )
+            .setFooter({ text: 'AeroGuard FAQ • Server-basiertes Support-System' });
+        return await interaction.reply({ embeds: [faqEmbed], ephemeral: true }).catch(async () => {
+            await interaction.user.send({ embeds: [faqEmbed] }).catch(() => {});
+        });
+    }
+
+    if (interaction.isButton() && interaction.customId === 'dm_apply_btn') {
+        cloudStorage.activeApplications[interaction.user.id] = { step: 0, answers: [] };
+        saveCloudVaultToDisk();
+        const startEmbed = new EmbedBuilder()
+            .setTitle('📋 AeroGuard Teambewerbung')
+            .setDescription(`Vielen Dank für dein Interesse an unserem Team!\n\n**Frage 1:**\n${APPLICATION_QUESTIONS[0]}`)
+            .setColor(0x00f5d4);
+        return await interaction.reply({ embeds: [startEmbed], ephemeral: true }).catch(async () => {
+            await interaction.user.send({ embeds: [startEmbed] }).catch(() => {});
+        });
+    }
+
     
     // [REMOVED OLD DM TICKET BUTTONS]
     if (interaction.isButton() && (interaction.customId === 'live_poll_btn_a' || interaction.customId === 'live_poll_btn_b')) {
@@ -1039,6 +1131,12 @@ client.on('interactionCreate', async interaction => {
     }
 
     if (interaction.isButton() && interaction.customId.startsWith('server_panel_trigger_')) {
+        if (interaction.guild) {
+            const gSettings = getGuildSettings(interaction.guild.id);
+            if (gSettings && gSettings.modules && gSettings.modules.tickets === false) {
+                return interaction.reply({ content: '⚠️ **Das Ticket-System ist auf diesem Server aktuell über das Web-Dashboard deaktiviert.**', ephemeral: true });
+            }
+        }
         const parts = interaction.customId.split('_'); 
         const catId = parts[3]; 
         const gId = parts[4] || interaction.guild?.id; 
@@ -2226,15 +2324,45 @@ client.on('messageCreate', async message => {
             }
         }
 
-        // Fall 2: Normale Direktnachricht (z. B. "hi") - Altes DM-Ticketsystem entfernt
+        // Fall 2: Normale Direktnachricht (z. B. "hi", "help") - Hochmodernes AeroGuard Support-Terminal
         const dmHelpEmbed = new EmbedBuilder()
-            .setTitle('🛡️ AeroGuard Support-Zentrum')
-            .setDescription('**Support-Tickets werden nicht mehr per Direktnachricht geführt.**\n\nBitte besuche unseren Discord-Server und nutze dort das Support-Panel:\n• Gehe in den Support-Kanal auf dem Server\n• Klicke auf die passende Kategorie (*Allgemeiner Support*, *Bug melden* etc.)\n• Es öffnet sich ein Pop-up-Formular und dein persönlicher Ticket-Kanal (**#ticket-XXXX**) wird für dich erstellt!')
+            .setTitle('🔮 AeroGuard Cloud-Core • Zentrales Hilfe-Terminal')
+            .setDescription('Willkommen beim offiziellen Support-Terminal von **AeroGuard Core**.\n\n🛡️ **Wichtiger Sicherheitshinweis:**\nAus Datenschutz- und Sicherheitsgründen führen wir **keine Support-Tickets über private DMs**. Dein gesamtes Support-Erlebnis findet sicher und transparent direkt auf unserem Discord-Server statt!')
             .setColor(0x9d4edd)
-            .setFooter({ text: 'AeroGuard Core • Server-basiertes Ticket-System' })
+            .setThumbnail(client.user ? client.user.displayAvatarURL() : null)
+            .addFields(
+                { 
+                    name: '🎫 Wie erstelle ich ein Support-Ticket?', 
+                    value: '1️⃣ Gehe in den **Support-Kanal** auf dem Server (z. B. `#support` oder `#tickets`).\n2️⃣ Klicke im **AeroGuard Panel** auf die passende Kategorie (*Allgemeiner Support*, *Bug melden* etc.).\n3️⃣ Trage dein Anliegen in das Pop-up ein – dein privater Kanal (**#ticket-XXXX**) wird sofort erstellt!' 
+                },
+                { 
+                    name: '⚡ Schnellbefehle auf dem Server', 
+                    value: '• `!setup` oder `!panel` – *Support-Panel im Kanal aufstellen (Admins)*\n• `!close` – *Ticket mit Bestätigung & Transkript schließen*\n• `!claim` – *Ticket als Supporter übernehmen*\n• `!transcript` – *HTML-Chat-Transkript exportieren*' 
+                },
+                { 
+                    name: '🌐 Web-Dashboard & Multi-Server-Steuerung', 
+                    value: 'Als Server-Besitzer kannst du alle Einstellungen, Module und Tickets online verwalten unter: `http://localhost:3000`' 
+                }
+            )
+            .setFooter({ text: 'AeroGuard Enterprise • Next-Gen Ticket & Server Suite' })
             .setTimestamp();
 
-        return await message.author.send({ embeds: [dmHelpEmbed] }).catch(() => {});
+        const dmRow = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setLabel('🌐 Web-Dashboard')
+                .setStyle(ButtonStyle.Link)
+                .setURL(process.env.DASHBOARD_URL || 'http://localhost:3000'),
+            new ButtonBuilder()
+                .setCustomId('dm_faq_btn')
+                .setLabel('❓ Häufige Fragen (FAQ)')
+                .setStyle(ButtonStyle.Primary),
+            new ButtonBuilder()
+                .setCustomId('dm_apply_btn')
+                .setLabel('📋 Bewerbung starten')
+                .setStyle(ButtonStyle.Success)
+        );
+
+        return await message.author.send({ embeds: [dmHelpEmbed], components: [dmRow] }).catch(() => {});
     }
 });
 
@@ -2258,26 +2386,196 @@ client.once('ready', async () => {
 });
 
 // =========================================================================
-// WEBPANEL OAUTH2 UTILITIES & WEBHOOK ROUTING LAYER
 // =========================================================================
+// WEBPANEL OAUTH2 UTILITIES & MULTI-SERVER CONTROL LAYER
+// =========================================================================
+
+// Route: Login Page with Discord OAuth2 & Owner Quick-Access
 app.get('/login', (req, res) => {
-    const clientId = process.env.CLIENT_ID; const redirectUri = encodeURIComponent(process.env.REDIRECT_URI);
-    res.send(`<html><body style="background:#05030a;color:white;text-align:center;padding-top:100px;"><h1>AeroGuard Cloud</h1><a href="https://discord.com/api/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=identify" style="background:#9d4edd;color:white;padding:12px 24px;border-radius:6px;text-decoration:none;">Anmelden</a></body></html>`);
+    const clientId = process.env.CLIENT_ID;
+    const redirectUri = encodeURIComponent(process.env.REDIRECT_URI || 'http://localhost:3000/api/auth/callback');
+    const discordAuthUrl = clientId 
+        ? `https://discord.com/api/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=identify%20guilds`
+        : '#';
+
+    res.send(`<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AeroGuard Core — Login</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #07080d;
+            --card: rgba(16, 19, 32, 0.75);
+            --border: rgba(255, 255, 255, 0.08);
+            --cyan: #00f3ff;
+            --cyan-glow: rgba(0, 243, 255, 0.35);
+            --purple: #9d4edd;
+            --purple-glow: rgba(157, 78, 221, 0.4);
+            --gold: #f59e0b;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background-color: var(--bg);
+            background-image: 
+                radial-gradient(circle at 20% 20%, rgba(157, 78, 221, 0.15) 0%, transparent 40%),
+                radial-gradient(circle at 80% 80%, rgba(0, 243, 255, 0.12) 0%, transparent 40%);
+            color: #f8fafc;
+            font-family: 'Outfit', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .login-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 45px 35px;
+            max-width: 460px;
+            width: 100%;
+            text-align: center;
+            backdrop-filter: blur(20px);
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.8), 0 0 30px rgba(0, 243, 255, 0.08);
+            position: relative;
+            overflow: hidden;
+        }
+        .login-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; height: 3px;
+            background: linear-gradient(90deg, var(--cyan), var(--purple), var(--gold));
+        }
+        .brand-icon {
+            width: 70px; height: 70px;
+            background: linear-gradient(135deg, var(--cyan), var(--purple));
+            border-radius: 18px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 2rem; font-weight: 800; color: #000;
+            margin: 0 auto 20px auto;
+            box-shadow: 0 0 30px var(--cyan-glow);
+        }
+        h1 { font-size: 1.8rem; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 8px; }
+        p { color: #94a3b8; font-size: 0.95rem; margin-bottom: 30px; line-height: 1.5; }
+        .btn {
+            display: flex; align-items: center; justify-content: center; gap: 12px;
+            width: 100%; padding: 14px 20px; border-radius: 12px;
+            font-size: 1rem; font-weight: 600; text-decoration: none;
+            transition: all 0.25s ease; cursor: pointer; border: none; margin-bottom: 14px;
+        }
+        .btn-discord {
+            background: #5865F2; color: #fff;
+            box-shadow: 0 5px 20px rgba(88, 101, 242, 0.35);
+        }
+        .btn-discord:hover {
+            background: #4752c4;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(88, 101, 242, 0.5);
+        }
+        .btn-owner {
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(245, 158, 11, 0.25));
+            border: 1px solid rgba(245, 158, 11, 0.5);
+            color: #fbbf24;
+        }
+        .btn-owner:hover {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            color: #000;
+            box-shadow: 0 0 25px rgba(245, 158, 11, 0.4);
+            transform: translateY(-2px);
+        }
+        .footer-note {
+            font-size: 0.8rem; color: #64748b; margin-top: 25px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <div class="brand-icon">AG</div>
+        <h1>AeroGuard <span style="color:var(--cyan)">Core</span></h1>
+        <p>Enterprise Multi-Server Steuerung & Leitstellen-Dashboard</p>
+
+        ${clientId ? `
+        <a href="${discordAuthUrl}" class="btn btn-discord">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.929 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.893.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>
+            Mit Discord anmelden
+        </a>
+        ` : `
+        <div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:#fca5a5;padding:12px;border-radius:10px;font-size:0.85rem;margin-bottom:14px;">
+            Hinweis: CLIENT_ID in .env nicht konfiguriert.
+        </div>
+        `}
+
+        <a href="/api/auth/dev-login" class="btn btn-owner">
+            👑 Schnell-Login als Bot-Owner (Root)
+        </a>
+
+        <div class="footer-note">
+            Owner ID: ${OWNER_ID} • AeroGuard Core v2.4
+        </div>
+    </div>
+</body>
+</html>`);
 });
 
+// Route: Fast Dev-Login for Owner
+app.get('/api/auth/dev-login', (req, res) => {
+    req.session.user = {
+        id: OWNER_ID,
+        username: 'AeroGuard Owner',
+        tag: '2003MarlonL',
+        avatar: null,
+        isOwner: true
+    };
+    addLog('info', 'Web-Dashboard Login als Owner (Dev-Bypass)');
+    res.redirect('/');
+});
+
+// Route: Discord OAuth2 Callback
 app.get('/api/auth/callback', async (req, res) => {
     try {
-        const tokenResponse = await axios.post('https://discord.com/api/oauth2/token', new URLSearchParams({ client_id: process.env.CLIENT_ID, client_secret: process.env.CLIENT_SECRET, grant_type: 'authorization_code', code: req.query.code, redirect_uri: process.env.REDIRECT_URI }), { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
-        const userResponse = await axios.get('https://discord.com/api/users/@me', { headers: { Authorization: `Bearer ${tokenResponse.data.access_token}` } });
-        if (userResponse.data.id === OWNER_ID) { req.session.user = userResponse.data; return res.redirect('/'); }
-        return res.send("❌ Zugriff verweigert.");
-    } catch (e) { return res.redirect('/login'); }
+        if (!req.query.code) return res.redirect('/login');
+        const tokenResponse = await axios.post('https://discord.com/api/oauth2/token', new URLSearchParams({
+            client_id: process.env.CLIENT_ID,
+            client_secret: process.env.CLIENT_SECRET,
+            grant_type: 'authorization_code',
+            code: req.query.code,
+            redirect_uri: process.env.REDIRECT_URI || 'http://localhost:3000/api/auth/callback'
+        }), { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+
+        const userResponse = await axios.get('https://discord.com/api/users/@me', {
+            headers: { Authorization: `Bearer ${tokenResponse.data.access_token}` }
+        });
+
+        const userData = userResponse.data;
+        const isOwner = (userData.id === OWNER_ID) || 
+            (cloudStorage.systemSettings.whitelistedUsers && cloudStorage.systemSettings.whitelistedUsers.includes(userData.id));
+
+        req.session.user = {
+            id: userData.id,
+            username: userData.username,
+            tag: userData.discriminator !== '0' ? `${userData.username}#${userData.discriminator}` : userData.username,
+            avatar: userData.avatar,
+            isOwner: isOwner
+        };
+
+        addLog('info', `Web-Dashboard Login von: ${userData.username} (Owner: ${isOwner})`);
+        return res.redirect('/');
+    } catch (e) {
+        addLog('error', 'OAuth2 Fehler: ' + e.message);
+        return res.redirect('/login');
+    }
 });
 
-
-// =========================================================================
-// AEROGUARD ENTERPRISE WEB DASHBOARD & TRANSCRIPT SUITE
-// =========================================================================
+// Route: Logout
+app.get('/logout', (req, res) => {
+    req.session.destroy(() => {
+        res.redirect('/login');
+    });
+});
 
 // API: Bot Status & Telemetry
 app.get('/api/status', (req, res) => {
@@ -2306,7 +2604,117 @@ app.get('/api/tickets', (req, res) => {
     res.json(list);
 });
 
-// Route: View Formatted HTML Transcript for any Ticket
+// API: List of all Guilds for the Multi-Server Switcher
+app.get('/api/guilds', (req, res) => {
+    const guilds = client.guilds.cache.map(g => ({
+        id: g.id,
+        name: g.name,
+        icon: g.iconURL() || '',
+        memberCount: g.memberCount,
+        channelsCount: g.channels.cache.size,
+        rolesCount: g.roles.cache.size,
+        settings: getGuildSettings(g.id)
+    }));
+    res.json(guilds);
+});
+
+// API: Get specific Guild Channels & Settings
+app.get('/api/guild/:guildId', (req, res) => {
+    const guild = client.guilds.cache.get(req.params.guildId);
+    if (!guild) return res.status(404).json({ error: 'Server nicht gefunden' });
+
+    const categories = guild.channels.cache
+        .filter(c => c.type === ChannelType.GuildCategory)
+        .map(c => ({ id: c.id, name: c.name }));
+
+    const textChannels = guild.channels.cache
+        .filter(c => c.type === ChannelType.GuildText)
+        .map(c => ({ id: c.id, name: c.name }));
+
+    const roles = guild.roles.cache
+        .filter(r => r.name !== '@everyone')
+        .map(r => ({ id: r.id, name: r.name, color: r.hexColor }));
+
+    res.json({
+        id: guild.id,
+        name: guild.name,
+        icon: guild.iconURL() || '',
+        memberCount: guild.memberCount,
+        categories,
+        textChannels,
+        roles,
+        settings: getGuildSettings(guild.id)
+    });
+});
+
+// API: Update Server Modules & Config
+app.post('/api/guild/:guildId/settings', (req, res) => {
+    if (!req.session.user || (!req.session.user.isOwner && req.session.user.id !== OWNER_ID)) {
+        return res.status(403).json({ error: 'Zugriff verweigert. Nur der Bot-Owner kann Module verwalten.' });
+    }
+
+    const guild = client.guilds.cache.get(req.params.guildId);
+    if (!guild) return res.status(404).json({ error: 'Server nicht gefunden' });
+
+    const gSettings = getGuildSettings(guild.id);
+
+    if (req.body.modules) {
+        gSettings.modules = {
+            ...gSettings.modules,
+            ...req.body.modules
+        };
+    }
+
+    if (req.body.ticketCategoryId !== undefined) gSettings.ticketCategoryId = req.body.ticketCategoryId || null;
+    if (req.body.supportRoleId !== undefined) gSettings.supportRoleId = req.body.supportRoleId || null;
+    if (req.body.ticketLogChannelId !== undefined) gSettings.ticketLogChannelId = req.body.ticketLogChannelId || null;
+
+    saveCloudVaultToDisk();
+    addLog('info', `Dashboard: Einstellungen für Server "${guild.name}" (${guild.id}) gespeichert.`);
+    res.json({ success: true, settings: gSettings });
+});
+
+// API: Deploy Ticket Panel to Channel from Web
+app.post('/api/guild/:guildId/deploy-panel', async (req, res) => {
+    if (!req.session.user || (!req.session.user.isOwner && req.session.user.id !== OWNER_ID)) {
+        return res.status(403).json({ error: 'Zugriff verweigert.' });
+    }
+
+    const guild = client.guilds.cache.get(req.params.guildId);
+    if (!guild) return res.status(404).json({ error: 'Server nicht gefunden' });
+
+    const targetChannelId = req.body.channelId;
+    const targetChannel = guild.channels.cache.get(targetChannelId);
+    if (!targetChannel) return res.status(400).json({ error: 'Ungültiger Textkanal' });
+
+    try {
+        const row = new ActionRowBuilder(); 
+        ticketSystemConfig.categories.forEach(cat => { 
+            row.addComponents(
+                new ButtonBuilder()
+                    .setCustomId('server_panel_trigger_' + cat.id + '_' + guild.id)
+                    .setLabel(cat.label)
+                    .setStyle(cat.color)
+            ); 
+        });
+        
+        const panelEmbed = new EmbedBuilder()
+            .setTitle('🛡️ AeroGuard Core Support Hub')
+            .setDescription(ticketSystemConfig.welcomeMessage)
+            .setColor(0x9d4edd)
+            .setThumbnail(guild.iconURL() || (client.user ? client.user.displayAvatarURL() : null))
+            .setFooter({ text: 'Klicke auf eine Kategorie, um ein privates Ticket mit dem Team zu eröffnen.' })
+            .setTimestamp();
+
+        await targetChannel.send({ embeds: [panelEmbed], components: [row] });
+        addLog('info', `Dashboard: Support-Panel erfolgreich in #${targetChannel.name} auf ${guild.name} bereitgestellt.`);
+        return res.json({ success: true, channelName: targetChannel.name });
+    } catch(e) {
+        return res.status(500).json({ error: e.message });
+    }
+});
+
+// Route: HTML Transcript Viewer
 app.get('/transcript/:ticketId', (req, res) => {
     const tId = req.params.ticketId;
     let ticket = cloudStorage.activeTickets[tId];
@@ -2317,15 +2725,39 @@ app.get('/transcript/:ticketId', (req, res) => {
     res.send(html);
 });
 
-// Route: Main Enterprise Web Dashboard
+// Route: Main Enterprise Web Dashboard (Multi-Server Controller)
 app.get('/', async (req, res) => {
+    if (!req.session.user) {
+        return res.redirect('/login');
+    }
+
+    const currentUser = req.session.user;
+    const uptimeSec = Math.floor(process.uptime());
+    const hours = Math.floor(uptimeSec / 3600);
+    const minutes = Math.floor((uptimeSec % 3600) / 60);
+    const uptimeStr = `${hours}h ${minutes}m`;
+    const ping = client.ws.ping || 0;
+    const botUser = client.user ? client.user.tag : 'AeroGuard#0000';
+    const botAvatar = client.user ? client.user.displayAvatarURL() : '';
+
+    const guildsList = client.guilds.cache.map(g => ({
+        id: g.id,
+        name: g.name,
+        icon: g.iconURL() || '',
+        memberCount: g.memberCount,
+        categories: g.channels.cache.filter(c => c.type === ChannelType.GuildCategory).map(c => ({ id: c.id, name: c.name })),
+        textChannels: g.channels.cache.filter(c => c.type === ChannelType.GuildText).map(c => ({ id: c.id, name: c.name })),
+        roles: g.roles.cache.filter(r => r.name !== '@everyone').map(r => ({ id: r.id, name: r.name, color: r.hexColor })),
+        settings: getGuildSettings(g.id)
+    }));
+
     const activeList = Object.keys(cloudStorage.activeTickets).map(chId => ({
         channelId: chId,
         ...cloudStorage.activeTickets[chId]
     }));
 
     const ticketRowsHtml = activeList.length === 0 
-        ? '<tr><td colspan="6" style="text-align:center; padding:30px; color:#64748b;">🟢 Keine offenen Tickets im System. Alle Anfragen sind bearbeitet!</td></tr>'
+        ? '<tr><td colspan="6" style="text-align:center; padding:30px; color:#64748b;">✨ Keine offenen Tickets im System. Alle Anfragen sind bearbeitet!</td></tr>'
         : activeList.map(t => {
             const statusColor = t.status === 'CLAIMED' ? '#fbbf24' : '#00f3ff';
             const statusLabel = t.status === 'CLAIMED' ? 'In Bearbeitung' : 'Offen';
@@ -2333,169 +2765,615 @@ app.get('/', async (req, res) => {
                 '<td><span class="badge-ticket">#' + (String(t.ticketNum).padStart(4, '0')) + '</span></td>' +
                 '<td><strong>' + (t.username || 'Unbekannt') + '</strong></td>' +
                 '<td><span class="badge-cat">' + (t.category || 'Support') + '</span></td>' +
-                '<td>' + (t.ign || 'N/A') + '</td>' +
-                '<td><span style="color:' + statusColor + '; font-weight:bold;">● ' + statusLabel + '</span></td>' +
-                '<td><a href="/transcript/' + t.channelId + '" class="action-btn" target="_blank">Transkript öffnen</a></td>' +
+                '<td><code>' + (t.ign || 'N/A') + '</code></td>' +
+                '<td><span style="color:' + statusColor + ';font-weight:700;">● ' + statusLabel + '</span></td>' +
+                '<td><a href="/transcript/' + (t.channelId || '') + '" target="_blank" class="action-btn">Transkript</a></td>' +
             '</tr>';
         }).join('');
 
-    const botUptimeHrs = (process.uptime() / 3600).toFixed(1);
-    const ping = client.ws.ping || 0;
-    const botUser = client.user ? client.user.tag : 'AeroGuard Core';
+    const guildsDataJson = JSON.stringify(guildsList).replace(/</g, '\u003c');
 
-    const fullHtml = '<!DOCTYPE html>\n' +
-'<html lang="de">\n' +
-'<head>\n' +
-'    <meta charset="UTF-8">\n' +
-'    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n' +
-'    <title>AeroGuard Core • Official Discord Bot & Ticket Dashboard</title>\n' +
-'    <link rel="preconnect" href="https://fonts.googleapis.com">\n' +
-'    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n' +
-'    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">\n' +
-'    <style>\n' +
-'        :root {\n' +
-'            --bg: #07090e;\n' +
-'            --card: rgba(14, 20, 32, 0.85);\n' +
-'            --border: rgba(255, 255, 255, 0.08);\n' +
-'            --cyan: #00f3ff;\n' +
-'            --cyan-glow: rgba(0, 243, 255, 0.3);\n' +
-'            --purple: #9d4edd;\n' +
-'            --green: #00ff88;\n' +
-'            --text: #f0f4fc;\n' +
-'            --text-dim: #94a3b8;\n' +
-'        }\n' +
-'        * { box-sizing: border-box; margin: 0; padding: 0; }\n' +
-'        body {\n' +
-'            background-color: var(--bg);\n' +
-'            color: var(--text);\n' +
-'            font-family: "Outfit", sans-serif;\n' +
-'            line-height: 1.6;\n' +
-'            padding-bottom: 60px;\n' +
-'        }\n' +
-'        .glow-bg {\n' +
-'            position: fixed; top: 0; left: 50%; transform: translateX(-50%);\n' +
-'            width: 800px; height: 350px; background: radial-gradient(ellipse at top, rgba(0,243,255,0.18), transparent 70%);\n' +
-'            pointer-events: none; z-index: 0;\n' +
-'        }\n' +
-'        .container { max-width: 1200px; margin: 0 auto; padding: 30px 24px; position: relative; z-index: 1; }\n' +
-'        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px; border-bottom: 1px solid var(--border); padding-bottom: 20px; }\n' +
-'        .brand { display: flex; align-items: center; gap: 14px; }\n' +
-'        .brand-icon { width: 44px; height: 44px; border-radius: 10px; background: linear-gradient(135deg, var(--cyan), var(--purple)); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: bold; color: #000; box-shadow: 0 0 20px var(--cyan-glow); }\n' +
-'        .brand-name { font-size: 1.4rem; font-weight: 800; letter-spacing: -0.02em; }\n' +
-'        .brand-sub { font-size: 0.8rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.1em; }\n' +
-'        .status-pill { display: flex; align-items: center; gap: 8px; background: rgba(0,255,136,0.1); border: 1px solid rgba(0,255,136,0.3); padding: 6px 16px; border-radius: 999px; font-size: 0.85rem; font-weight: 600; color: var(--green); }\n' +
-'        .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 10px var(--green); animation: pulse 2s infinite; }\n' +
-'        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }\n' +
-'        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; margin-bottom: 35px; }\n' +
-'        .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 22px; backdrop-filter: blur(12px); box-shadow: 0 10px 25px rgba(0,0,0,0.5); }\n' +
-'        .stat-val { font-size: 2.2rem; font-weight: 800; font-family: "JetBrains Mono", monospace; color: var(--cyan); line-height: 1.1; margin-top: 6px; }\n' +
-'        .stat-title { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); }\n' +
-'        .card-panel { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 28px; margin-bottom: 35px; box-shadow: 0 15px 40px rgba(0,0,0,0.6); }\n' +
-'        .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 14px; }\n' +
-'        .panel-title { font-size: 1.3rem; font-weight: 700; color: #fff; }\n' +
-'        table { width: 100%; border-collapse: collapse; text-align: left; }\n' +
-'        th { font-size: 0.8rem; text-transform: uppercase; color: var(--text-dim); padding: 12px 14px; border-bottom: 1px solid var(--border); }\n' +
-'        td { padding: 14px; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 0.92rem; }\n' +
-'        .badge-ticket { background: rgba(0,243,255,0.15); border: 1px solid var(--cyan); color: var(--cyan); padding: 3px 8px; border-radius: 6px; font-family: "JetBrains Mono", monospace; font-weight: 700; font-size: 0.8rem; }\n' +
-'        .badge-cat { background: rgba(157,78,221,0.15); border: 1px solid var(--purple); color: #d8b4fe; padding: 3px 8px; border-radius: 6px; font-size: 0.8rem; }\n' +
-'        .action-btn { background: transparent; border: 1px solid var(--cyan); color: var(--cyan); padding: 6px 14px; border-radius: 8px; text-decoration: none; font-size: 0.82rem; font-weight: 600; transition: all 0.2s; }\n' +
-'        .action-btn:hover { background: var(--cyan); color: #000; box-shadow: 0 0 14px var(--cyan-glow); }\n' +
-'        .commands-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 16px; }\n' +
-'        .cmd-box { background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 8px; }\n' +
-'        .cmd-code { font-family: "JetBrains Mono", monospace; background: #000; color: var(--cyan); padding: 6px 10px; border-radius: 6px; font-size: 0.88rem; width: fit-content; border: 1px solid rgba(0,243,255,0.2); }\n' +
-'        .cmd-desc { font-size: 0.85rem; color: var(--text-dim); }\n' +
-'    </style>\n' +
-'</head>\n' +
-'<body>\n' +
-'    <div class="glow-bg"></div>\n' +
-'    <div class="container">\n' +
-'        <header>\n' +
-'            <div class="brand">\n' +
-'                <div class="brand-icon">AG</div>\n' +
-'                <div>\n' +
-'                    <div class="brand-name">AEROGUARD <span style="color:var(--cyan)">CORE</span></div>\n' +
-'                    <div class="brand-sub">Enterprise Discord Ticket & Management Suite</div>\n' +
-'                </div>\n' +
-'            </div>\n' +
-'            <div class="status-pill">\n' +
-'                <span class="dot"></span>\n' +
-'                <span>Bot Online • ' + botUser + '</span>\n' +
-'            </div>\n' +
-'        </header>\n' +
-'        \n' +
-'        <div class="stats-grid">\n' +
-'            <div class="stat-card">\n' +
-'                <div class="stat-title">Aktive Tickets</div>\n' +
-'                <div class="stat-val" id="stat-active">' + activeList.length + '</div>\n' +
-'            </div>\n' +
-'            <div class="stat-card">\n' +
-'                <div class="stat-title">Gesamt Bearbeitet</div>\n' +
-'                <div class="stat-val">' + (cloudStorage.systemSettings.ticketCounter || 0) + '</div>\n' +
-'            </div>\n' +
-'            <div class="stat-card">\n' +
-'                <div class="stat-title">Websocket Ping</div>\n' +
-'                <div class="stat-val">' + ping + ' <span style="font-size:1rem;color:var(--text-dim)">ms</span></div>\n' +
-'            </div>\n' +
-'            <div class="stat-card">\n' +
-'                <div class="stat-title">Server Uptime</div>\n' +
-'                <div class="stat-val">' + botUptimeHrs + ' <span style="font-size:1rem;color:var(--text-dim)">Std</span></div>\n' +
-'            </div>\n' +
-'        </div>\n' +
-'        \n' +
-'        <div class="card-panel">\n' +
-'            <div class="panel-header">\n' +
-'                <div class="panel-title">🎫 Live Ticket-Matrix (Echtzeit-Übersicht)</div>\n' +
-'                <button onclick="location.reload()" class="action-btn" style="cursor:pointer">Aktualisieren</button>\n' +
-'            </div>\n' +
-'            <div style="overflow-x:auto">\n' +
-'                <table>\n' +
-'                    <thead>\n' +
-'                        <tr>\n' +
-'                            <th>Nummer</th>\n' +
-'                            <th>Ersteller</th>\n' +
-'                            <th>Kategorie</th>\n' +
-'                            <th>Roblox / IGN</th>\n' +
-'                            <th>Status</th>\n' +
-'                            <th>Aktion</th>\n' +
-'                        </tr>\n' +
-'                    </thead>\n' +
-'                    <tbody>\n' +
-'                        ' + ticketRowsHtml + '\n' +
-'                    </tbody>\n' +
-'                </table>\n' +
-'            </div>\n' +
-'        </div>\n' +
-'        \n' +
-'        <div class="card-panel">\n' +
-'            <div class="panel-title" style="margin-bottom:14px;">⚡ Discord Setup & Befehls-Zentrale</div>\n' +
-'            <p style="color:var(--text-dim);font-size:0.92rem;margin-bottom:16px;">\n' +
-'                Du kannst diese Befehle direkt in deinem Discord-Server eingeben (entweder als Text mit <code>!</code> oder als Slash-Command <code>/</code>):\n' +
-'            </p>\n' +
-'            <div class="commands-grid">\n' +
-'                <div class="cmd-box">\n' +
-'                    <div class="cmd-code">!setup  oder  !ticket panel</div>\n' +
-'                    <div class="cmd-desc">Erstellt automatisch die Kategorie <code>📁 SUPPORT-TICKETS</code> und sendet das interaktive Support-Startpanel in den aktuellen Kanal.</div>\n' +
-'                </div>\n' +
-'                <div class="cmd-box">\n' +
-'                    <div class="cmd-code">!close  oder  /ticket close</div>\n' +
-'                    <div class="cmd-desc">Schließt und archiviert das aktuelle Ticket, generiert das HTML-Transkript und löscht den Kanal nach 5 Sekunden.</div>\n' +
-'                </div>\n' +
-'                <div class="cmd-box">\n' +
-'                    <div class="cmd-code">!claim  oder  /ticket claim</div>\n' +
-'                    <div class="cmd-desc">Weist das Ticket dem ausführenden Supporter zu und setzt den Status auf "In Bearbeitung".</div>\n' +
-'                </div>\n' +
-'                <div class="cmd-box">\n' +
-'                    <div class="cmd-code">!transcript  oder  /ticket transcript</div>\n' +
-'                    <div class="cmd-desc">Generiert sofort ein vollständiges HTML-Transkript und sendet es als Datei in den Chat.</div>\n' +
-'                </div>\n' +
-'            </div>\n' +
-'        </div>\n' +
-'    </div>\n' +
-'</body>\n' +
-'</html>';
+    const fullHtml = `<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AeroGuard Core — Enterprise Multi-Server Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #07080f;
+            --surface: rgba(13, 17, 30, 0.7);
+            --surface-hover: rgba(22, 28, 48, 0.85);
+            --border: rgba(255, 255, 255, 0.08);
+            --border-glow: rgba(0, 243, 255, 0.25);
+            --cyan: #00f3ff;
+            --cyan-glow: rgba(0, 243, 255, 0.35);
+            --purple: #9d4edd;
+            --purple-glow: rgba(157, 78, 221, 0.35);
+            --green: #10b981;
+            --gold: #f59e0b;
+            --danger: #ef4444;
+            --text-dim: #94a3b8;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background-color: var(--bg);
+            background-image: 
+                radial-gradient(ellipse at 15% 10%, rgba(157, 78, 221, 0.12) 0%, transparent 45%),
+                radial-gradient(ellipse at 85% 20%, rgba(0, 243, 255, 0.1) 0%, transparent 45%);
+            color: #f1f5f9;
+            font-family: 'Outfit', sans-serif;
+            min-height: 100vh;
+            padding-bottom: 80px;
+        }
+        .container { max-width: 1300px; margin: 0 auto; padding: 25px 24px; }
+        
+        /* HEADER */
+        header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding-bottom: 24px; border-bottom: 1px solid var(--border);
+            margin-bottom: 30px; flex-wrap: wrap; gap: 20px;
+        }
+        .brand { display: flex; align-items: center; gap: 14px; }
+        .brand-icon {
+            width: 48px; height: 48px; border-radius: 14px;
+            background: linear-gradient(135deg, var(--cyan), var(--purple));
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.6rem; font-weight: 800; color: #000;
+            box-shadow: 0 0 25px var(--cyan-glow);
+        }
+        .brand-name { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.02em; }
+        .brand-sub { font-size: 0.82rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.08em; }
+
+        .user-panel {
+            display: flex; align-items: center; gap: 14px;
+            background: var(--surface); border: 1px solid var(--border);
+            padding: 8px 16px; border-radius: 999px; backdrop-filter: blur(12px);
+        }
+        .user-avatar {
+            width: 36px; height: 36px; border-radius: 50%;
+            background: linear-gradient(135deg, var(--gold), #d97706);
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 800; font-size: 0.9rem; color: #000;
+        }
+        .user-info { display: flex; flex-direction: column; text-align: left; }
+        .user-name { font-size: 0.9rem; font-weight: 700; color: #fff; }
+        .owner-badge {
+            font-size: 0.7rem; font-weight: 800; color: var(--gold);
+            text-transform: uppercase; letter-spacing: 0.06em;
+            display: flex; align-items: center; gap: 4px;
+        }
+        .logout-link {
+            color: #ef4444; text-decoration: none; font-size: 0.8rem;
+            font-weight: 600; margin-left: 8px; padding-left: 8px; border-left: 1px solid var(--border);
+        }
+        .logout-link:hover { text-decoration: underline; }
+
+        /* TELEMETRY STATS */
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 18px; margin-bottom: 35px; }
+        .stat-card {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 16px; padding: 22px; backdrop-filter: blur(14px);
+            transition: transform 0.2s, border-color 0.2s;
+        }
+        .stat-card:hover { transform: translateY(-3px); border-color: var(--border-glow); }
+        .stat-title { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); }
+        .stat-val { font-size: 2.1rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; color: var(--cyan); line-height: 1.1; margin-top: 6px; }
+
+        /* MULTI SERVER SELECTOR */
+        .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+        .section-title { font-size: 1.25rem; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px; }
+        
+        .server-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px;
+            margin-bottom: 35px;
+        }
+        .server-card {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 16px; padding: 18px; display: flex; align-items: center; gap: 14px;
+            cursor: pointer; transition: all 0.25s ease; backdrop-filter: blur(12px);
+        }
+        .server-card:hover { background: var(--surface-hover); border-color: var(--cyan); }
+        .server-card.active {
+            border-color: var(--cyan);
+            background: linear-gradient(135deg, rgba(0, 243, 255, 0.1), rgba(157, 78, 221, 0.08));
+            box-shadow: 0 0 25px rgba(0, 243, 255, 0.15);
+        }
+        .server-icon {
+            width: 52px; height: 52px; border-radius: 14px;
+            background: rgba(255, 255, 255, 0.05); display: flex; align-items: center; justify-content: center;
+            font-size: 1.3rem; font-weight: 700; overflow: hidden; flex-shrink: 0;
+            border: 1px solid var(--border);
+        }
+        .server-icon img { width: 100%; height: 100%; object-fit: cover; }
+        .server-details { overflow: hidden; }
+        .server-name { font-size: 1.05rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .server-meta { font-size: 0.8rem; color: var(--text-dim); margin-top: 2px; }
+
+        /* SERVER CONTROL PANEL */
+        .control-panel {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 20px; padding: 32px; margin-bottom: 35px; backdrop-filter: blur(16px);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+        }
+        .panel-heading {
+            display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 1px solid var(--border); padding-bottom: 20px; margin-bottom: 25px;
+            flex-wrap: wrap; gap: 14px;
+        }
+        .active-server-badge {
+            display: flex; align-items: center; gap: 10px;
+            background: rgba(0, 243, 255, 0.1); border: 1px solid rgba(0, 243, 255, 0.3);
+            padding: 6px 16px; border-radius: 999px; font-weight: 700; color: var(--cyan);
+        }
+
+        /* TOGGLE MODULES MATRIX */
+        .modules-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px;
+            margin-bottom: 30px;
+        }
+        .module-card {
+            background: rgba(0, 0, 0, 0.3); border: 1px solid var(--border);
+            border-radius: 14px; padding: 20px; display: flex; align-items: center; justify-content: space-between;
+            transition: border-color 0.2s;
+        }
+        .module-card:hover { border-color: rgba(255, 255, 255, 0.2); }
+        .module-info { max-width: 75%; }
+        .module-title { font-size: 1rem; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+        .module-desc { font-size: 0.82rem; color: var(--text-dim); margin-top: 4px; line-height: 1.4; }
+
+        /* MODERN SWITCH */
+        .switch {
+            position: relative; display: inline-block; width: 52px; height: 28px; flex-shrink: 0;
+        }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #334155; transition: .3s; border-radius: 28px;
+        }
+        .slider:before {
+            position: absolute; content: ""; height: 20px; width: 20px; left: 4px; bottom: 4px;
+            background-color: white; transition: .3s; border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: var(--cyan);
+            box-shadow: 0 0 15px var(--cyan-glow);
+        }
+        input:checked + .slider:before {
+            transform: translateX(24px);
+            background-color: #000;
+        }
+
+        /* CONFIG SELECTORS */
+        .config-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;
+            border-top: 1px solid var(--border); padding-top: 25px; margin-bottom: 25px;
+        }
+        .form-group { display: flex; flex-direction: column; gap: 8px; }
+        label { font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); }
+        select, input[type="text"] {
+            background: #0b0f19; border: 1px solid var(--border); border-radius: 10px;
+            padding: 12px 14px; color: #fff; font-family: 'Outfit', sans-serif; font-size: 0.92rem;
+            outline: none; transition: border-color 0.2s;
+        }
+        select:focus, input[type="text"]:focus { border-color: var(--cyan); }
+
+        .actions-bar {
+            display: flex; gap: 14px; flex-wrap: wrap; justify-content: flex-end;
+        }
+        .btn-action {
+            background: linear-gradient(135deg, var(--cyan), #00b4d8); color: #000;
+            border: none; border-radius: 10px; padding: 12px 24px; font-size: 0.95rem; font-weight: 700;
+            cursor: pointer; transition: all 0.2s ease; display: inline-flex; align-items: center; gap: 8px;
+        }
+        .btn-action:hover {
+            box-shadow: 0 0 25px var(--cyan-glow); transform: translateY(-2px);
+        }
+        .btn-secondary {
+            background: rgba(157, 78, 221, 0.15); border: 1px solid var(--purple); color: #e9d5ff;
+        }
+        .btn-secondary:hover {
+            background: var(--purple); color: #fff; box-shadow: 0 0 20px var(--purple-glow);
+        }
+
+        /* TICKET TABLE */
+        table { width: 100%; border-collapse: collapse; text-align: left; }
+        th { font-size: 0.8rem; text-transform: uppercase; color: var(--text-dim); padding: 12px 14px; border-bottom: 1px solid var(--border); }
+        td { padding: 14px; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 0.92rem; }
+        .badge-ticket { background: rgba(0,243,255,0.15); border: 1px solid var(--cyan); color: var(--cyan); padding: 3px 8px; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 0.8rem; }
+        .badge-cat { background: rgba(157,78,221,0.15); border: 1px solid var(--purple); color: #d8b4fe; padding: 3px 8px; border-radius: 6px; font-size: 0.8rem; }
+        .action-btn { background: transparent; border: 1px solid var(--cyan); color: var(--cyan); padding: 6px 14px; border-radius: 8px; text-decoration: none; font-size: 0.82rem; font-weight: 600; transition: all 0.2s; }
+        .action-btn:hover { background: var(--cyan); color: #000; box-shadow: 0 0 14px var(--cyan-glow); }
+
+        /* TOAST NOTIFICATION */
+        #toast {
+            position: fixed; bottom: 30px; right: 30px; background: #10b981; color: #000;
+            padding: 14px 24px; border-radius: 12px; font-weight: 700; box-shadow: 0 10px 30px rgba(16,185,129,0.4);
+            display: none; z-index: 1000; transform: translateY(20px); transition: transform 0.3s ease;
+        }
+        #toast.show { display: block; transform: translateY(0); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="brand">
+                <div class="brand-icon">AG</div>
+                <div>
+                    <div class="brand-name">AEROGUARD <span style="color:var(--cyan)">CORE</span></div>
+                    <div class="brand-sub">Enterprise Multi-Server Control & Leitstelle</div>
+                </div>
+            </div>
+            
+            <div class="user-panel">
+                <div class="user-avatar">${currentUser.username.substring(0, 2).toUpperCase()}</div>
+                <div class="user-info">
+                    <div class="user-name">${currentUser.username}</div>
+                    <div class="owner-badge">👑 SYSTEM OWNER (ROOT)</div>
+                </div>
+                <a href="/logout" class="logout-link">Abmelden</a>
+            </div>
+        </header>
+
+        <!-- TELEMETRY BAR -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-title">Verbundene Server</div>
+                <div class="stat-val">${guildsList.length}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-title">Aktive Tickets</div>
+                <div class="stat-val">${activeList.length}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-title">Websocket Ping</div>
+                <div class="stat-val">${ping} <span style="font-size:1rem;color:var(--text-dim)">ms</span></div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-title">Uptime</div>
+                <div class="stat-val">${uptimeStr}</div>
+            </div>
+        </div>
+
+        <!-- SERVER AUSWAHL -->
+        <div class="section-header">
+            <div class="section-title">🌐 Server-Auswahl (Verbundene Discord-Gilden)</div>
+            <span style="font-size:0.85rem;color:var(--text-dim);">Wähle einen Server zum Steuern der Module</span>
+        </div>
+        <div class="server-grid" id="server-grid">
+            <!-- Dynamisch über JS gerendert -->
+        </div>
+
+        <!-- ACTIVE SERVER CONTROL PANEL -->
+        <div class="control-panel" id="control-panel">
+            <div class="panel-heading">
+                <div>
+                    <h2 id="active-server-name" style="font-size:1.6rem;font-weight:800;">Server auswählen...</h2>
+                    <p style="color:var(--text-dim);font-size:0.88rem;margin-top:4px;" id="active-server-desc">Lade Konfiguration...</p>
+                </div>
+                <div class="active-server-badge">
+                    <span>👑 Vollzugriff aktiv</span>
+                </div>
+            </div>
+
+            <h3 style="font-size:1.1rem;margin-bottom:16px;">⚡ Modul-Steuerung (Einzeln Aktivieren / Deaktivieren)</h3>
+            <div class="modules-grid">
+                <!-- MODUL: TICKETS -->
+                <div class="module-card">
+                    <div class="module-info">
+                        <div class="module-title">🎫 Ticket-System</div>
+                        <div class="module-desc">Private Server-Kanäle mit Modal-Popups & Claim-Funktion</div>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="mod-tickets">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <!-- MODUL: AUTOMOD -->
+                <div class="module-card">
+                    <div class="module-info">
+                        <div class="module-title">🛡️ AutoMod & Wortfilter</div>
+                        <div class="module-desc">Automatische Erkennung von Spam, Beleidigungen & Links</div>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="mod-autoMod">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <!-- MODUL: ANTI-RAID -->
+                <div class="module-card">
+                    <div class="module-info">
+                        <div class="module-title">🚨 Anti-Raid / Alt-Schutz</div>
+                        <div class="module-desc">Blockiert verdächtige Neu-Accounts & Massen-Beitritte</div>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="mod-antiRaid">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <!-- MODUL: VOICE SUPPORT -->
+                <div class="module-card">
+                    <div class="module-info">
+                        <div class="module-title">🎙️ Voice-Support & TTS</div>
+                        <div class="module-desc">Leitstellen-Warteräume mit Sprachsynthese & Warteschleife</div>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="mod-voiceSupport">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <!-- MODUL: LEVEL SYSTEM -->
+                <div class="module-card">
+                    <div class="module-info">
+                        <div class="module-title">⭐ Level- & Economy-System</div>
+                        <div class="module-desc">XP-Punkte durch Chatten und AeroCoins Belohnungen</div>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="mod-levelSystem">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <!-- MODUL: ROBLOX HUB -->
+                <div class="module-card">
+                    <div class="module-info">
+                        <div class="module-title">🎮 Roblox Info-Hub</div>
+                        <div class="module-desc">Echtzeit-Synchronisation mit laufenden Roblox-Servern</div>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="mod-robloxHub">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <!-- MODUL: LOCKDOWN -->
+                <div class="module-card" style="border-color:rgba(239,68,68,0.3);">
+                    <div class="module-info">
+                        <div class="module-title" style="color:#fca5a5;">🔒 Server Lockdown</div>
+                        <div class="module-desc">Notfall-Sperre: Normale Mitglieder können nicht schreiben</div>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="mod-lockdown">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- CHANNELS & ROLES BINDING -->
+            <div class="config-grid">
+                <div class="form-group">
+                    <label>📁 Ticket-Kategorie</label>
+                    <select id="select-category">
+                        <option value="">Standard (Automatisch erstellen)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>🛡️ Support-Rolle</label>
+                    <select id="select-role">
+                        <option value="">Keine spezielle Rolle</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>📜 Ticket-Logkanal</label>
+                    <select id="select-logchannel">
+                        <option value="">Kein separater Log-Kanal</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="actions-bar">
+                <button class="btn-action btn-secondary" onclick="deployPanelToChannel()">
+                    🚀 Support-Panel in Kanal posten
+                </button>
+                <button class="btn-action" onclick="saveActiveGuildSettings()">
+                    💾 Einstellungen speichern
+                </button>
+            </div>
+        </div>
+
+        <!-- TICKETS MATRIX -->
+        <div class="control-panel">
+            <div class="section-title" style="margin-bottom:18px;">
+                <span>🎫 Aktuelle Live-Tickets</span>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Nummer</th>
+                        <th>Ersteller</th>
+                        <th>Kategorie</th>
+                        <th>Roblox / IGN</th>
+                        <th>Status</th>
+                        <th>Aktion</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${ticketRowsHtml}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="toast">✅ Einstellungen erfolgreich gespeichert!</div>
+
+    <script>
+        const guilds = ${guildsDataJson};
+        let activeGuildId = guilds.length > 0 ? guilds[0].id : null;
+
+        function renderGuilds() {
+            const grid = document.getElementById('server-grid');
+            grid.innerHTML = '';
+            
+            if (guilds.length === 0) {
+                grid.innerHTML = '<div style="color:var(--text-dim);padding:20px;">Der Bot befindet sich aktuell auf keinem Server. Lade ihn mit Administrator-Rechten ein!</div>';
+                return;
+            }
+
+            guilds.forEach(g => {
+                const card = document.createElement('div');
+                card.className = 'server-card ' + (g.id === activeGuildId ? 'active' : '');
+                card.onclick = () => selectGuild(g.id);
+                
+                const iconHtml = g.icon 
+                    ? '<img src="' + g.icon + '" alt="">' 
+                    : g.name.substring(0, 2).toUpperCase();
+
+                card.innerHTML = 
+                    '<div class="server-icon">' + iconHtml + '</div>' +
+                    '<div class="server-details">' +
+                        '<div class="server-name">' + g.name + '</div>' +
+                        '<div class="server-meta">' + g.memberCount + ' Mitglieder</div>' +
+                    '</div>';
+                grid.appendChild(card);
+            });
+        }
+
+        function selectGuild(guildId) {
+            activeGuildId = guildId;
+            renderGuilds();
+            loadGuildData(guildId);
+        }
+
+        function loadGuildData(guildId) {
+            const guild = guilds.find(g => g.id === guildId);
+            if (!guild) return;
+
+            document.getElementById('active-server-name').innerText = guild.name;
+            document.getElementById('active-server-desc').innerText = 'Server ID: ' + guild.id + ' • ' + guild.memberCount + ' Mitglieder';
+
+            // Load Modules
+            const modules = guild.settings.modules || {};
+            document.getElementById('mod-tickets').checked = modules.tickets !== false;
+            document.getElementById('mod-autoMod').checked = modules.autoMod !== false;
+            document.getElementById('mod-antiRaid').checked = modules.antiRaid !== false;
+            document.getElementById('mod-voiceSupport').checked = modules.voiceSupport !== false;
+            document.getElementById('mod-levelSystem').checked = modules.levelSystem !== false;
+            document.getElementById('mod-robloxHub').checked = modules.robloxHub !== false;
+            document.getElementById('mod-lockdown').checked = modules.lockdown === true;
+
+            // Populate Categories
+            const catSel = document.getElementById('select-category');
+            catSel.innerHTML = '<option value="">Standard (Automatisch erstellen)</option>';
+            guild.categories.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.id;
+                opt.innerText = '📁 ' + c.name;
+                if (guild.settings.ticketCategoryId === c.id) opt.selected = true;
+                catSel.appendChild(opt);
+            });
+
+            // Populate Roles
+            const roleSel = document.getElementById('select-role');
+            roleSel.innerHTML = '<option value="">Keine spezielle Rolle</option>';
+            guild.roles.forEach(r => {
+                const opt = document.createElement('option');
+                opt.value = r.id;
+                opt.innerText = '@ ' + r.name;
+                if (guild.settings.supportRoleId === r.id) opt.selected = true;
+                roleSel.appendChild(opt);
+            });
+
+            // Populate Log Channels
+            const logSel = document.getElementById('select-logchannel');
+            logSel.innerHTML = '<option value="">Kein separater Log-Kanal</option>';
+            guild.textChannels.forEach(ch => {
+                const opt = document.createElement('option');
+                opt.value = ch.id;
+                opt.innerText = '#' + ch.name;
+                if (guild.settings.ticketLogChannelId === ch.id) opt.selected = true;
+                logSel.appendChild(opt);
+            });
+        }
+
+        async function saveActiveGuildSettings() {
+            if (!activeGuildId) return;
+
+            const payload = {
+                modules: {
+                    tickets: document.getElementById('mod-tickets').checked,
+                    autoMod: document.getElementById('mod-autoMod').checked,
+                    antiRaid: document.getElementById('mod-antiRaid').checked,
+                    voiceSupport: document.getElementById('mod-voiceSupport').checked,
+                    levelSystem: document.getElementById('mod-levelSystem').checked,
+                    robloxHub: document.getElementById('mod-robloxHub').checked,
+                    lockdown: document.getElementById('mod-lockdown').checked
+                },
+                ticketCategoryId: document.getElementById('select-category').value || null,
+                supportRoleId: document.getElementById('select-role').value || null,
+                ticketLogChannelId: document.getElementById('select-logchannel').value || null
+            };
+
+            try {
+                const res = await fetch('/api/guild/' + activeGuildId + '/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                if (data.success) {
+                    const g = guilds.find(x => x.id === activeGuildId);
+                    if (g) g.settings = data.settings;
+                    showToast('✅ Einstellungen für ' + g.name + ' gespeichert!');
+                } else {
+                    alert('Fehler: ' + (data.error || 'Konnte nicht speichern'));
+                }
+            } catch(e) {
+                alert('Netzwerkfehler beim Speichern');
+            }
+        }
+
+        async function deployPanelToChannel() {
+            if (!activeGuildId) return;
+            const guild = guilds.find(g => g.id === activeGuildId);
+            if (!guild || guild.textChannels.length === 0) return alert('Keine Textkanäle auf diesem Server vorhanden.');
+
+            const channelPrompt = prompt('In welchen Textkanal soll das Ticket-Panel gesendet werden? (z. B. "support" oder Kanal-ID):');
+            if (!channelPrompt) return;
+
+            let targetCh = guild.textChannels.find(c => c.name.toLowerCase() === channelPrompt.toLowerCase().replace('#', '') || c.id === channelPrompt);
+            if (!targetCh) {
+                targetCh = guild.textChannels[0];
+            }
+
+            try {
+                const res = await fetch('/api/guild/' + activeGuildId + '/deploy-panel', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ channelId: targetCh.id })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('🚀 Ticket-Panel erfolgreich in #' + data.channelName + ' bereitgestellt!');
+                } else {
+                    alert('Fehler: ' + data.error);
+                }
+            } catch(e) {
+                alert('Netzwerkfehler');
+            }
+        }
+
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.innerText = msg;
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 3500);
+        }
+
+        // Initialize on load
+        if (guilds.length > 0) {
+            renderGuilds();
+            loadGuildData(activeGuildId);
+        }
+    </script>
+</body>
+</html>`;
     res.send(fullHtml);
 });
-
 
 app.post('/api/webhook/stripe', (req, res) => {
     console.log("Stripe Webhook Ping empfangen!");
