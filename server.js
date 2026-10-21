@@ -17,8 +17,33 @@ const {
     ChannelType, 
     Partials, 
     StringSelectMenuBuilder,
-    ChannelSelectMenuBuilder
+    ChannelSelectMenuBuilder,
+    ModalBuilder,
+    TextInputBuilder,
+    TextInputStyle,
+    RoleSelectMenuBuilder
 } = require('discord.js');
+
+// =========================================================================
+// AUTOMATISCHER .ENV LADER (FÜR LOKALE ENTWICKLUNG & CLOUD DEPLOYMENT)
+// =========================================================================
+if (fs.existsSync(path.join(__dirname, '.env'))) {
+    try {
+        const envLines = fs.readFileSync(path.join(__dirname, '.env'), 'utf8').split(/\r?\n/);
+        for (const line of envLines) {
+            const trimmed = line.trim();
+            if (trimmed && !trimmed.startsWith('#')) {
+                const idx = trimmed.indexOf('=');
+                if (idx !== -1) {
+                    const key = trimmed.substring(0, idx).trim();
+                    const val = trimmed.substring(idx + 1).trim();
+                    if (!process.env[key]) process.env[key] = val;
+                }
+            }
+        }
+        console.log("⚙️ [CONFIG] Lokale .env Datei erfolgreich geladen.");
+    } catch(e) {}
+}
 const { 
     joinVoiceChannel, 
     createAudioPlayer, 
@@ -188,6 +213,19 @@ function loadCloudVaultFromDisk() {
 }
 
 loadCloudVaultFromDisk();
+// =========================================================================
+// AEROGUARD TICKET & PERMISSION UTILITIES
+// =========================================================================
+function isSupporterOrAdmin(member) {
+    if (!member) return false;
+    if (member.id === OWNER_ID) return true;
+    if (cloudStorage.systemSettings.whitelistedUsers && cloudStorage.systemSettings.whitelistedUsers.includes(member.id)) return true;
+    if (cloudStorage.systemSettings.authorizedSupporters && cloudStorage.systemSettings.authorizedSupporters.includes(member.id)) return true;
+    if (member.permissions && member.permissions.has(PermissionFlagsBits.Administrator)) return true;
+    if (cloudStorage.systemSettings.supportRoleId && member.roles && member.roles.cache && member.roles.cache.has(cloudStorage.systemSettings.supportRoleId)) return true;
+    return false;
+}
+
 
 // Volumetrische System-Variablen im flüchtigen RAM (Live-Metriken)
 let currentPlayersCount = 0;
@@ -371,48 +409,93 @@ function generateHtmlTranscript(ticketId, ticketData) {
     let messagesHtml = '';
 
     logs.forEach(log => {
-        const align = log.isSupporter ? 'left' : 'right';
-        const bgColor = log.isSupporter ? '#9d4edd' : '#00f5d4';
-        const color = log.isSupporter ? 'white' : 'black';
+        const isSupp = log.isSupporter;
+        const alignClass = isSupp ? 'supporter-msg' : 'user-msg';
+        const badgeLabel = isSupp ? 'Supporter' : 'Nutzer';
+        const badgeClass = isSupp ? 'badge-supporter' : 'badge-user';
         
-        messagesHtml += `
-            <div style="text-align: ${align}; margin-bottom: 15px;">
-                <div style="display: inline-block; background-color: ${bgColor}; color: ${color}; padding: 10px 15px; border-radius: 8px; max-width: 70%; text-align: left;">
-                    <div style="font-size: 0.8em; font-weight: bold; margin-bottom: 5px;">${log.author} <span style="font-weight: normal; font-size: 0.9em;">(${log.timestamp})</span></div>
-                    <div>${log.content}</div>
-                </div>
-            </div>
-        `;
+        const safeAuthor = (log.author || 'User').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const safeContent = (log.content || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+
+        messagesHtml += '<div class="message-wrapper ' + alignClass + '">' +
+            '<div class="message-bubble">' +
+                '<div class="message-header">' +
+                    '<span class="author-name">' + safeAuthor + '</span>' +
+                    '<span class="badge ' + badgeClass + '">' + badgeLabel + '</span>' +
+                    '<span class="timestamp">' + (log.timestamp || '') + '</span>' +
+                '</div>' +
+                '<div class="message-body">' + safeContent + '</div>' +
+            '</div>' +
+        '</div>';
     });
 
-    const htmlTemplate = `
-    <!DOCTYPE html>
-    <html lang="de">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>AeroGuard Transcript - #${ticketData.ticketNum}</title>
-        <style>
-            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #05030a; color: white; margin: 0; padding: 20px; }
-            .header { background-color: #130e26; padding: 20px; border-radius: 10px; border: 1px solid #9d4edd; margin-bottom: 20px; }
-            .header h1 { margin: 0 0 10px 0; color: #00f5d4; }
-            .chat-box { background-color: #0a0710; padding: 20px; border-radius: 10px; border: 1px solid #333; min-height: 400px; }
-        </style>
-    </head>
-    <body>
-        <div class="header">
-            <h1>AeroGuard Cloud Transcript</h1>
-            <p><strong>Ticket Nummer:</strong> #${ticketData.ticketNum}</p>
-            <p><strong>Kategorie:</strong> ${ticketData.category}</p>
-            <p><strong>Nutzer:</strong> ${ticketData.username}</p>
-            <p><strong>Grund:</strong> ${ticketData.reason}</p>
-        </div>
-        <div class="chat-box">
-            ${messagesHtml || '<p style="text-align:center; color:gray;">Keine Nachrichten aufgezeichnet.</p>'}
-        </div>
-    </body>
-    </html>
-    `;
+    const num = ticketData.ticketNum || '0000';
+    const user = ticketData.username || 'Unbekannt';
+    const cat = ticketData.category || 'Support';
+    const ign = ticketData.ign || 'Nicht angegeben';
+    const reason = ticketData.reason || 'Keine Beschreibung angegeben';
+
+    const htmlTemplate = '<!DOCTYPE html>\n' +
+'<html lang="de">\n' +
+'<head>\n' +
+'    <meta charset="UTF-8">\n' +
+'    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n' +
+'    <title>AeroGuard Transcript - #' + num + '</title>\n' +
+'    <style>\n' +
+'        :root { --bg-body: #080b12; --bg-card: #0f1422; --border-subtle: rgba(255, 255, 255, 0.08); --cyan: #00f3ff; --purple: #9d4edd; --text-main: #f0f4fc; --text-muted: #94a3b8; }\n' +
+'        * { box-sizing: border-box; margin: 0; padding: 0; }\n' +
+'        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: var(--bg-body); color: var(--text-main); padding: 30px 20px; line-height: 1.5; }\n' +
+'        .container { max-width: 900px; margin: 0 auto; }\n' +
+'        .header-card { background: var(--bg-card); border: 1px solid rgba(0, 243, 255, 0.3); border-radius: 12px; padding: 24px; margin-bottom: 24px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6); }\n' +
+'        .header-title-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid var(--border-subtle); padding-bottom: 12px; }\n' +
+'        .header-title { font-size: 1.5rem; font-weight: 800; color: var(--cyan); letter-spacing: -0.02em; }\n' +
+'        .grid-info { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }\n' +
+'        .info-cell { background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-subtle); padding: 10px 14px; border-radius: 8px; }\n' +
+'        .info-label { font-size: 0.72rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; letter-spacing: 0.05em; }\n' +
+'        .info-val { font-size: 0.95rem; font-weight: 600; color: #fff; margin-top: 4px; word-break: break-word; }\n' +
+'        .chat-container { display: flex; flex-direction: column; gap: 16px; min-height: 300px; }\n' +
+'        .message-wrapper { display: flex; width: 100%; }\n' +
+'        .message-wrapper.supporter-msg { justify-content: flex-start; }\n' +
+'        .message-wrapper.user-msg { justify-content: flex-end; }\n' +
+'        .message-bubble { max-width: 78%; padding: 12px 18px; border-radius: 12px; }\n' +
+'        .supporter-msg .message-bubble { background: #151a2e; border: 1px solid rgba(157, 78, 221, 0.4); border-bottom-left-radius: 2px; }\n' +
+'        .user-msg .message-bubble { background: #0d2230; border: 1px solid rgba(0, 243, 255, 0.4); border-bottom-right-radius: 2px; }\n' +
+'        .message-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 0.78rem; }\n' +
+'        .author-name { font-weight: 700; color: #fff; }\n' +
+'        .badge { font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; font-weight: 800; text-transform: uppercase; }\n' +
+'        .badge-supporter { background: var(--purple); color: #fff; }\n' +
+'        .badge-user { background: var(--cyan); color: #000; }\n' +
+'        .timestamp { color: var(--text-muted); }\n' +
+'        .message-body { font-size: 0.92rem; color: #e2e8f0; word-break: break-word; }\n' +
+'        .empty-notice { text-align: center; color: var(--text-muted); padding: 50px 0; font-size: 0.95rem; }\n' +
+'        .footer-note { text-align: center; margin-top: 40px; font-size: 0.8rem; color: var(--text-muted); }\n' +
+'    </style>\n' +
+'</head>\n' +
+'<body>\n' +
+'    <div class="container">\n' +
+'        <div class="header-card">\n' +
+'            <div class="header-title-row">\n' +
+'                <div class="header-title">AEROGUARD CLOUD TRANSCRIPT</div>\n' +
+'                <div style="font-size: 0.85rem; color: var(--cyan); font-weight: bold;">Ticket #' + num + '</div>\n' +
+'            </div>\n' +
+'            <div class="grid-info">\n' +
+'                <div class="info-cell"><div class="info-label">Ticket Ersteller</div><div class="info-val">' + user + '</div></div>\n' +
+'                <div class="info-cell"><div class="info-label">Kategorie</div><div class="info-val">' + cat + '</div></div>\n' +
+'                <div class="info-cell"><div class="info-label">In-Game Name / Roblox</div><div class="info-val">' + ign + '</div></div>\n' +
+'                <div class="info-cell"><div class="info-label">Status</div><div class="info-val" style="color: #4ade80;">Archiviert / Geschlossen</div></div>\n' +
+'            </div>\n' +
+'            <div style="margin-top: 14px; background: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px; border: 1px solid var(--border-subtle);">\n' +
+'                <div class="info-label">Gemeldetes Anliegen</div>\n' +
+'                <div style="font-size: 0.92rem; color: #cbd5e1; margin-top: 4px;">' + reason + '</div>\n' +
+'            </div>\n' +
+'        </div>\n' +
+'        <div class="chat-container">\n' +
+'            ' + (messagesHtml || '<div class="empty-notice">Keine Textnachrichten in diesem Ticket protokolliert.</div>') + '\n' +
+'        </div>\n' +
+'        <div class="footer-note">AeroGuard Enterprise Support System • Generiert am ' + new Date().toLocaleString('de-DE') + '</div>\n' +
+'    </div>\n' +
+'</body>\n' +
+'</html>';
     return htmlTemplate;
 }
 
@@ -754,6 +837,12 @@ async function sendModLogSnapshot(guild, offender, reason, originChannel) {
 // =========================================================================
 client.on('messageCreate', async message => {
     if (message.author.bot || !message.guild) return;
+    // TICKET MESSAGE LOGGER FÜR SERVER-KANÄLE
+    if (message.guild && cloudStorage.activeTickets[message.channel.id]) {
+        const isSupp = isSupporterOrAdmin(message.member);
+        logTicketMessage(message.channel.id, message.author.tag, message.content, isSupp);
+    }
+
 
     if (cloudStorage.systemSettings.lockdownActive && !cloudStorage.systemSettings.whitelistedUsers.includes(message.author.id)) {
         try {
@@ -1091,37 +1180,61 @@ client.on('interactionCreate', async interaction => {
     if (interaction.isButton() && interaction.customId.startsWith('server_panel_trigger_')) {
         const parts = interaction.customId.split('_'); 
         const catId = parts[3]; 
-        const gId = parts[4]; 
+        const gId = parts[4] || interaction.guild?.id; 
         const userId = interaction.user.id;
 
-        // 🟢 NEU: BLACKLIST CHECK VOR TICKET-ERSTELLUNG
+        // BLACKLIST CHECK
         if (cloudStorage.globalBlacklist && cloudStorage.globalBlacklist.includes(userId)) {
-            return interaction.reply({ content: '🚫 **Zugriff verweigert:** Du wurdest von der Administration auf die Blacklist gesetzt und kannst das Ticket-System nicht mehr nutzen.', ephemeral: true });
+            return interaction.reply({ 
+                content: '⛔ **Zugriff verweigert:** Du wurdest von der Administration auf die Blacklist gesetzt und kannst keine Tickets erstellen.', 
+                ephemeral: true 
+            });
         }
-        
-        if (catId === 'team') {
-            cloudStorage.activeApplications[userId] = { step: 0, answers: [], guildId: gId };
-            saveCloudVaultToDisk();
-            try { 
-                await interaction.user.send("📝 **AeroGuard Bewerbungsverfahren eingeleitet!** Anbei folgt die erste Frage des Protokolls:\n\n" + APPLICATION_QUESTIONS[0]); 
-                return interaction.reply({ content: '📥 Prüfe deine privaten Nachrichten! Der Bewerbungs-Knoten wurde dir übermittelt.', ephemeral: true }); 
-            } catch(e) {
-                return interaction.reply({ content: '❌ Fehler: Deine DMs sind blockiert. Ich kann dir die Fragen nicht zusenden.', ephemeral: true });
-            }
+
+        // Check if user already has an active channel ticket on this server
+        const existingTicketChannelId = Object.keys(cloudStorage.activeTickets).find(chId => {
+            const t = cloudStorage.activeTickets[chId];
+            return t && t.userId === userId && t.guildId === interaction.guild?.id && t.status !== 'CLOSED';
+        });
+
+        if (existingTicketChannelId && interaction.guild.channels.cache.has(existingTicketChannelId)) {
+            return interaction.reply({
+                content: '⚠️ **Du hast bereits ein offenes Ticket:** <#' + existingTicketChannelId + '>\nBitte nutze dieses Ticket oder schließe es, bevor du ein neues erstellst.',
+                ephemeral: true
+            });
         }
-        
+
         const selectedCat = ticketSystemConfig.categories.find(c => c.id === catId); 
-        const label = selectedCat ? selectedCat.label : "Support";
-        
-        cloudStorage.pendingTicketSelections[userId] = { categoryId: catId, categoryLabel: label, guildId: gId };
-        saveCloudVaultToDisk();
-        
-        try {
-            await interaction.user.send(`🔮 **AeroGuard Support-Tunnel initialisiert!**\nBitte sende mir als nächste Textnachricht einfach den detaillierten Grund deiner Anfrage. Unsere Cloud-KI wird versuchen, dein Problem vorab zu analysieren!`);
-            return interaction.reply({ content: '📥 Datentunnel vorbereitet. Bitte überprüfe deine privaten Nachrichten!', ephemeral: true });
-        } catch (e) {
-            return interaction.reply({ content: '❌ Fehler: Deine Privatsphäre-Einstellungen verhindern den Erhalt von Direktnachrichten.', ephemeral: true });
-        }
+        const catLabel = selectedCat ? selectedCat.label : "Support";
+
+        // Show Modal Popup
+        const modal = new ModalBuilder()
+            .setCustomId('ticket_modal_' + catId)
+            .setTitle(('Ticket: ' + catLabel).slice(0, 45));
+
+        const reasonInput = new TextInputBuilder()
+            .setCustomId('ticket_reason')
+            .setLabel('Beschreibe dein Anliegen')
+            .setStyle(TextInputStyle.Paragraph)
+            .setPlaceholder('Bitte schildere dein Problem oder deine Frage möglichst genau...')
+            .setRequired(true)
+            .setMinLength(5)
+            .setMaxLength(1000);
+
+        const ignInput = new TextInputBuilder()
+            .setCustomId('ticket_ign')
+            .setLabel('Roblox-Name / GamerTag (optional)')
+            .setStyle(TextInputStyle.Short)
+            .setPlaceholder('z. B. GamerAndre99')
+            .setRequired(false)
+            .setMaxLength(50);
+
+        modal.addComponents(
+            new ActionRowBuilder().addComponents(reasonInput),
+            new ActionRowBuilder().addComponents(ignInput)
+        );
+
+        return await interaction.showModal(modal);
     }
 
     if (interaction.isButton() && interaction.customId.startsWith('v_claim_')) {
@@ -1177,18 +1290,515 @@ client.on('interactionCreate', async interaction => {
     }
 
     // 💻 CHAT SLASH-COMMAND EXECUTION LAYER
+    
+    // =========================================================================
+    // AEROGUARD MODAL SUBMIT HANDLER (CHANNEL TICKET CREATION)
+    // =========================================================================
+    if (interaction.isModalSubmit() && interaction.customId.startsWith('ticket_modal_')) {
+        await interaction.deferReply({ ephemeral: true });
+
+        const catId = interaction.customId.replace('ticket_modal_', '');
+        const reason = interaction.fields.getTextInputValue('ticket_reason');
+        const ign = interaction.fields.getTextInputValue('ticket_ign') || 'Nicht angegeben';
+
+        const selectedCat = ticketSystemConfig.categories.find(c => c.id === catId);
+        const catLabel = selectedCat ? selectedCat.label : 'Support';
+
+        cloudStorage.systemSettings.ticketCounter = (cloudStorage.systemSettings.ticketCounter || 0) + 1;
+        const ticketNum = cloudStorage.systemSettings.ticketCounter;
+        const numStr = String(ticketNum).padStart(4, '0');
+        const safeUser = interaction.user.username.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 15) || 'user';
+        const channelName = 'ticket-' + numStr + '-' + safeUser;
+
+        // Category resolution
+        let parentCategory = null;
+        if (cloudStorage.systemSettings.ticketCategoryId) {
+            parentCategory = interaction.guild.channels.cache.get(cloudStorage.systemSettings.ticketCategoryId);
+        }
+        if (!parentCategory) {
+            parentCategory = interaction.guild.channels.cache.find(c => c.type === ChannelType.GuildCategory && c.name.toLowerCase().includes('ticket'));
+        }
+        if (!parentCategory) {
+            try {
+                parentCategory = await interaction.guild.channels.create({
+                    name: '📁 SUPPORT-TICKETS',
+                    type: ChannelType.GuildCategory
+                });
+                cloudStorage.systemSettings.ticketCategoryId = parentCategory.id;
+                saveCloudVaultToDisk();
+            } catch(e) {}
+        }
+
+        // Permissions
+        const permissionOverwrites = [
+            {
+                id: interaction.guild.id, // @everyone
+                deny: [PermissionFlagsBits.ViewChannel]
+            },
+            {
+                id: interaction.user.id,
+                allow: [
+                    PermissionFlagsBits.ViewChannel,
+                    PermissionFlagsBits.SendMessages,
+                    PermissionFlagsBits.AttachFiles,
+                    PermissionFlagsBits.ReadMessageHistory,
+                    PermissionFlagsBits.EmbedLinks
+                ]
+            },
+            {
+                id: client.user.id,
+                allow: [
+                    PermissionFlagsBits.ViewChannel,
+                    PermissionFlagsBits.SendMessages,
+                    PermissionFlagsBits.ManageChannels,
+                    PermissionFlagsBits.ManageMessages,
+                    PermissionFlagsBits.AttachFiles,
+                    PermissionFlagsBits.EmbedLinks
+                ]
+            }
+        ];
+
+        if (cloudStorage.systemSettings.supportRoleId) {
+            permissionOverwrites.push({
+                id: cloudStorage.systemSettings.supportRoleId,
+                allow: [
+                    PermissionFlagsBits.ViewChannel,
+                    PermissionFlagsBits.SendMessages,
+                    PermissionFlagsBits.AttachFiles,
+                    PermissionFlagsBits.ManageMessages,
+                    PermissionFlagsBits.ReadMessageHistory
+                ]
+            });
+        }
+
+        if (cloudStorage.systemSettings.authorizedSupporters) {
+            cloudStorage.systemSettings.authorizedSupporters.forEach(suppId => {
+                if (suppId && suppId !== interaction.guild.id) {
+                    permissionOverwrites.push({
+                        id: suppId,
+                        allow: [
+                            PermissionFlagsBits.ViewChannel,
+                            PermissionFlagsBits.SendMessages,
+                            PermissionFlagsBits.AttachFiles,
+                            PermissionFlagsBits.ManageMessages
+                        ]
+                    });
+                }
+            });
+        }
+
+        let ticketChannel;
+        try {
+            ticketChannel = await interaction.guild.channels.create({
+                name: channelName,
+                type: ChannelType.GuildText,
+                parent: parentCategory ? parentCategory.id : null,
+                topic: 'AeroGuard Ticket #' + numStr + ' | Ersteller: ' + interaction.user.tag + ' (' + interaction.user.id + ') | Kategorie: ' + catLabel,
+                permissionOverwrites: permissionOverwrites
+            });
+        } catch(e) {
+            return await interaction.editReply({ content: '❌ **Fehler beim Erstellen des Kanals:** ' + e.message + '\nBitte prüfe, ob der Bot die Berechtigung Manage Channels besitzt.' });
+        }
+
+        // Save Ticket Data
+        cloudStorage.activeTickets[ticketChannel.id] = {
+            ticketNum: ticketNum,
+            channelId: ticketChannel.id,
+            guildId: interaction.guild.id,
+            userId: interaction.user.id,
+            username: interaction.user.tag,
+            category: catLabel,
+            categoryId: catId,
+            reason: reason,
+            ign: ign,
+            createdAt: Date.now(),
+            claimedBy: null,
+            status: 'OPEN'
+        };
+        saveCloudVaultToDisk();
+
+        // Control Panel inside the Ticket Channel
+        const ticketEmbed = new EmbedBuilder()
+            .setTitle('🛰️ AeroGuard Ticket #' + numStr + ' | ' + catLabel)
+            .setDescription('Willkommen in deinem privaten Support-Kanal! Unser Support-Team wurde alarmiert und wird dir in Kürze zur Seite stehen.')
+            .addFields(
+                { name: '👤 Ersteller', value: interaction.user.toString() + ' (' + interaction.user.tag + ')', inline: true },
+                { name: '📁 Kategorie', value: catLabel, inline: true },
+                { name: '🎮 Roblox / IGN', value: ign, inline: true },
+                { name: '📝 Anliegen / Problem', value: reason },
+                { name: '⚡ Status', value: '🟢 **Offen (Warte auf Support)**', inline: true },
+                { name: '👤 Zuständig', value: '*Noch nicht zugewiesen*', inline: true }
+            )
+            .setColor(0x00f3ff)
+            .setThumbnail(interaction.user.displayAvatarURL({ dynamic: true }))
+            .setFooter({ text: 'AeroGuard High-Tech Support Matrix • Buttons unten zur Steuerung nutzen' })
+            .setTimestamp();
+
+        const controlRow = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('ticket_ch_close_' + ticketChannel.id).setLabel('Ticket schließen').setEmoji('🔒').setStyle(ButtonStyle.Danger),
+            new ButtonBuilder().setCustomId('ticket_ch_claim_' + ticketChannel.id).setLabel('Claimen').setEmoji('👤').setStyle(ButtonStyle.Success),
+            new ButtonBuilder().setCustomId('ticket_ch_transcript_' + ticketChannel.id).setLabel('Transkript').setEmoji('📜').setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder().setCustomId('ticket_ch_ai_' + ticketChannel.id).setLabel('KI-Analyse').setEmoji('🤖').setStyle(ButtonStyle.Primary)
+        );
+
+        const pingRole = cloudStorage.systemSettings.supportRoleId 
+            ? '<@&' + cloudStorage.systemSettings.supportRoleId + '> ' + interaction.user.toString() 
+            : interaction.user.toString();
+
+        const controlMsg = await ticketChannel.send({ content: pingRole, embeds: [ticketEmbed], components: [controlRow] });
+        cloudStorage.activeTickets[ticketChannel.id].controlMessageId = controlMsg.id;
+
+        // Log initial ticket message
+        logTicketMessage(ticketChannel.id, 'System', 'Ticket eröffnet: ' + reason, false);
+
+        // Optional Log to logChannel
+        if (cloudStorage.systemSettings.ticketLogChannelId) {
+            try {
+                const logCh = interaction.guild.channels.cache.get(cloudStorage.systemSettings.ticketLogChannelId);
+                if (logCh) {
+                    const logEmb = new EmbedBuilder()
+                        .setTitle('🎫 Neues Ticket #' + numStr + ' erstellt')
+                        .addFields(
+                            { name: 'Kanal', value: ticketChannel.toString(), inline: true },
+                            { name: 'Ersteller', value: interaction.user.toString() + ' (' + interaction.user.tag + ')', inline: true },
+                            { name: 'Kategorie', value: catLabel, inline: true },
+                            { name: 'Grund', value: reason.slice(0, 200) }
+                        )
+                        .setColor(0x00f3ff)
+                        .setTimestamp();
+                    await logCh.send({ embeds: [logEmb] });
+                }
+            } catch(e) {}
+        }
+
+        saveCloudVaultToDisk();
+        return await interaction.editReply({ content: '✅ **Ticket erfolgreich erstellt!** Wechsle zu deinem Kanal: ' + ticketChannel.toString() });
+    }
+
+    // =========================================================================
+    // AEROGUARD TICKET CHANNEL BUTTON HANDLERS
+    // =========================================================================
+    if (interaction.isButton() && interaction.customId.startsWith('ticket_ch_close_')) {
+        const chId = interaction.customId.replace('ticket_ch_close_', '');
+        const confirmRow = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('ticket_ch_confirm_close_' + chId).setLabel('Ja, schließen & archivieren').setEmoji('✅').setStyle(ButtonStyle.Danger),
+            new ButtonBuilder().setCustomId('ticket_ch_cancel_close_' + chId).setLabel('Abbrechen').setEmoji('❌').setStyle(ButtonStyle.Secondary)
+        );
+        return interaction.reply({
+            content: '⚠️ **Möchtest du dieses Ticket wirklich schließen? Es wird ein Transkript generiert und der Kanal archiviert.**',
+            components: [confirmRow]
+        });
+    }
+
+    if (interaction.isButton() && interaction.customId.startsWith('ticket_ch_cancel_close_')) {
+        return interaction.message.delete().catch(() => {});
+    }
+
+    if (interaction.isButton() && interaction.customId.startsWith('ticket_ch_confirm_close_')) {
+        await interaction.deferUpdate().catch(() => {});
+        const chId = interaction.customId.replace('ticket_ch_confirm_close_', '');
+        const ticket = cloudStorage.activeTickets[chId];
+        if (!ticket) return;
+
+        ticket.status = 'CLOSED';
+        ticket.closedBy = interaction.user.tag;
+        ticket.closedAt = Date.now();
+
+        const htmlContent = generateHtmlTranscript(chId, ticket);
+        const transcriptBuffer = Buffer.from(htmlContent, 'utf-8');
+        const fileName = 'transcript_ticket_' + ticket.ticketNum + '.html';
+
+        // DM to user
+        try {
+            const creator = await client.users.fetch(ticket.userId);
+            if (creator) {
+                const dmEmbed = new EmbedBuilder()
+                    .setTitle('🔒 Dein Ticket #' + ticket.ticketNum + ' wurde geschlossen')
+                    .setDescription('Vielen Dank für deine Kontaktaufnahme mit **AeroGuard Support**!\n\n**Server:** ' + interaction.guild.name + '\n**Geschlossen von:** ' + interaction.user.tag + '\n**Kategorie:** ' + ticket.category)
+                    .setColor(0xff0055)
+                    .setTimestamp();
+                await creator.send({ embeds: [dmEmbed], files: [{ attachment: transcriptBuffer, name: fileName }] });
+            }
+        } catch(e) {}
+
+        // Send to Log channel
+        if (cloudStorage.systemSettings.ticketLogChannelId) {
+            try {
+                const logCh = interaction.guild.channels.cache.get(cloudStorage.systemSettings.ticketLogChannelId);
+                if (logCh) {
+                    const durationMin = Math.max(1, Math.round((Date.now() - ticket.createdAt) / 60000));
+                    const archiveEmbed = new EmbedBuilder()
+                        .setTitle('📦 Ticket #' + ticket.ticketNum + ' Archiviert')
+                        .addFields(
+                            { name: 'Ersteller', value: '<@' + ticket.userId + '> (' + ticket.username + ')', inline: true },
+                            { name: 'Geschlossen von', value: interaction.user.toString() + ' (' + interaction.user.tag + ')', inline: true },
+                            { name: 'Kategorie', value: ticket.category, inline: true },
+                            { name: 'Dauer', value: durationMin + ' Min.', inline: true },
+                            { name: 'Grund', value: ticket.reason }
+                        )
+                        .setColor(0x9d4edd)
+                        .setTimestamp();
+                    await logCh.send({ embeds: [archiveEmbed], files: [{ attachment: transcriptBuffer, name: fileName }] });
+                }
+            } catch(e) {}
+        }
+
+        // Update KPI
+        if (!cloudStorage.supporterKPIs[interaction.user.id]) cloudStorage.supporterKPIs[interaction.user.id] = { claimed: 0, closed: 0 };
+        cloudStorage.supporterKPIs[interaction.user.id].closed += 1;
+
+        await interaction.channel.send('⏳ **Ticket erfolgreich geschlossen.** Der Kanal wird in **5 Sekunden** gelöscht...');
+        setTimeout(async () => {
+            delete cloudStorage.activeTickets[chId];
+            saveCloudVaultToDisk();
+            await interaction.channel.delete().catch(() => {});
+        }, 5000);
+        return;
+    }
+
+    if (interaction.isButton() && interaction.customId.startsWith('ticket_ch_claim_')) {
+        const chId = interaction.customId.replace('ticket_ch_claim_', '');
+        const ticket = cloudStorage.activeTickets[chId];
+        if (!ticket) return interaction.reply({ content: 'Ticket nicht gefunden.', ephemeral: true });
+
+        if (ticket.claimedBy) {
+            return interaction.reply({ content: '⚠️ Dieses Ticket wird bereits von <@' + ticket.claimedBy + '> bearbeitet.', ephemeral: true });
+        }
+
+        ticket.claimedBy = interaction.user.id;
+        ticket.status = 'CLAIMED';
+        if (!cloudStorage.supporterKPIs[interaction.user.id]) cloudStorage.supporterKPIs[interaction.user.id] = { claimed: 0, closed: 0 };
+        cloudStorage.supporterKPIs[interaction.user.id].claimed += 1;
+        saveCloudVaultToDisk();
+
+        // Update control panel message
+        if (ticket.controlMessageId) {
+            try {
+                const ctrlMsg = await interaction.channel.messages.fetch(ticket.controlMessageId);
+                if (ctrlMsg && ctrlMsg.embeds.length > 0) {
+                    const updated = EmbedBuilder.from(ctrlMsg.embeds[0]);
+                    const newFields = ctrlMsg.embeds[0].fields.map(f => {
+                        if (f.name.includes('Status')) {
+                            return { name: '⚡ Status', value: '🟡 **In Bearbeitung**', inline: true };
+                        }
+                        if (f.name.includes('Zuständig')) {
+                            return { name: '👤 Zuständig', value: interaction.user.toString() + ' (' + interaction.user.tag + ')', inline: true };
+                        }
+                        return f;
+                    });
+                    updated.setFields(newFields);
+                    await ctrlMsg.edit({ embeds: [updated] });
+                }
+            } catch(e) {}
+        }
+
+        logTicketMessage(chId, 'System', interaction.user.tag + ' hat das Ticket geclaimt.', true);
+        return interaction.reply({ content: '👤 ' + interaction.user.toString() + ' hat dieses Ticket übernommen und ist ab sofort dein Ansprechpartner!' });
+    }
+
+    if (interaction.isButton() && interaction.customId.startsWith('ticket_ch_transcript_')) {
+        const chId = interaction.customId.replace('ticket_ch_transcript_', '');
+        const ticket = cloudStorage.activeTickets[chId];
+        if (!ticket) return interaction.reply({ content: 'Ticket nicht gefunden.', ephemeral: true });
+
+        const htmlContent = generateHtmlTranscript(chId, ticket);
+        const buffer = Buffer.from(htmlContent, 'utf-8');
+        return interaction.reply({
+            content: '📜 **AeroGuard HTML-Sitzungstranskript (#' + ticket.ticketNum + '):**',
+            files: [{ attachment: buffer, name: 'transcript_ticket_' + ticket.ticketNum + '.html' }],
+            ephemeral: true
+        });
+    }
+
+    if (interaction.isButton() && interaction.customId.startsWith('ticket_ch_ai_')) {
+        const chId = interaction.customId.replace('ticket_ch_ai_', '');
+        const ticket = cloudStorage.activeTickets[chId];
+        if (!ticket) return interaction.reply({ content: 'Ticket nicht gefunden.', ephemeral: true });
+
+        const aiResponse = analyzeTicketWithAI(ticket.reason);
+        const aiEmbed = new EmbedBuilder()
+            .setTitle('🤖 AeroGuard KI-Support-Assistent')
+            .setDescription(aiResponse || 'Für dieses spezifische Problem liegt kein automatisierter Schnelleintrag vor. Ein Supporter hilft dir in Kürze!')
+            .setColor(0x00f3ff)
+            .setFooter({ text: 'Automatisierte Sofortanalyse basierend auf AeroGuard Knowledge Base' })
+            .setTimestamp();
+
+        return interaction.reply({ embeds: [aiEmbed] });
+    }
+
     if (interaction.isChatInputCommand()) {
         const { commandName, guild, channel } = interaction;
         const userId = interaction.user.id;
         const isWhitelisted = cloudStorage.systemSettings.whitelistedUsers.includes(userId);
 
-        const adminCmds = ['status', 'restart', 'clear', 'warn', 'setup-ticketpanel', 'setup-voicesupport', 'setup-infohub', 'poll', 'rbx-shout', 'rbx-serverlogs', 'rbx-shutdown', 'setup-voiceannounce', 'clan-war', 'rbx-savedata', 'rbx-cleardata', 'nuke', 'lockdown', 'unlockdown', 'slowmode', 'addrole', 'removerole', 'set-placeid', 'mute', 'unmute', 'warnlist', 'clearwarns', 'lockchannel', 'unlockchannel', 'dm', 'whitelist', 'supporter', 'setup-modlog', 'backup-server', 'give-premium', 'setup-welcome', 'setup-livestatus', 'setup-autorole', 'blacklist'];
+        const adminCmds = ['status', 'restart', 'clear', 'warn', 'ticket', 'setup-ticketpanel', 'setup-voicesupport', 'setup-infohub', 'poll', 'rbx-shout', 'rbx-serverlogs', 'rbx-shutdown', 'setup-voiceannounce', 'clan-war', 'rbx-savedata', 'rbx-cleardata', 'nuke', 'lockdown', 'unlockdown', 'slowmode', 'addrole', 'removerole', 'set-placeid', 'mute', 'unmute', 'warnlist', 'clearwarns', 'lockchannel', 'unlockchannel', 'dm', 'whitelist', 'supporter', 'setup-modlog', 'backup-server', 'give-premium', 'setup-welcome', 'setup-livestatus', 'setup-autorole', 'blacklist'];
         
         if (adminCmds.includes(commandName) && !isWhitelisted) {
             return interaction.reply({ content: '🔒 **Zugriff verweigert:** Dein Benutzerkonto verfügt nicht über die erforderlichen administrativen Schlüssel.', ephemeral: true });
         }
 
         // 🟢 NEU: BLACKLIST SLASH-COMMAND LOGIK
+        
+        // =========================================================================
+        // AEROGUARD /TICKET SLASH COMMAND
+        // =========================================================================
+        if (commandName === 'ticket') {
+            const sub = interaction.options.getSubcommand();
+            const chId = interaction.channel.id;
+            const ticket = cloudStorage.activeTickets[chId];
+
+            if (sub === 'setup') {
+                if (!isSupporterOrAdmin(interaction.member)) {
+                    return interaction.reply({ content: '⛔ **Zugriff verweigert:** Nur Administratoren können das Ticket-System einrichten.', ephemeral: true });
+                }
+
+                const kategorie = interaction.options.getChannel('kategorie');
+                const supportRolle = interaction.options.getRole('support_rolle');
+                const logKanal = interaction.options.getChannel('log_kanal');
+
+                cloudStorage.systemSettings.ticketCategoryId = kategorie.id;
+                cloudStorage.systemSettings.supportRoleId = supportRolle.id;
+                if (logKanal) cloudStorage.systemSettings.ticketLogChannelId = logKanal.id;
+                saveCloudVaultToDisk();
+
+                const setupEmbed = new EmbedBuilder()
+                    .setTitle('⚙️ AeroGuard Ticket-System Konfiguriert')
+                    .setDescription('Das Ticket-System wurde erfolgreich mit folgenden Parametern eingerichtet:')
+                    .addFields(
+                        { name: '📁 Ticket-Kategorie', value: kategorie.toString() + ' (' + kategorie.name + ')', inline: true },
+                        { name: '🛡️ Support-Rolle', value: supportRolle.toString() + ' (' + supportRolle.name + ')', inline: true },
+                        { name: '📜 Log- & Transkript-Kanal', value: logKanal ? logKanal.toString() : '*Nicht festgelegt*', inline: true },
+                        { name: '🚀 Nächster Schritt', value: 'Nutze /ticket panel oder /setup-ticketpanel, um das interaktive Erstellungs-Panel in einem Kanal zu posten!' }
+                    )
+                    .setColor(0x00ff88)
+                    .setTimestamp();
+
+                return interaction.reply({ embeds: [setupEmbed], ephemeral: true });
+            }
+
+            if (sub === 'panel') {
+                if (!isSupporterOrAdmin(interaction.member)) {
+                    return interaction.reply({ content: '⛔ **Zugriff verweigert:** Nur Administratoren können das Support-Panel projizieren.', ephemeral: true });
+                }
+
+                const targetChannel = interaction.options.getChannel('kanal');
+                if (!targetChannel) return interaction.reply({ content: 'Kanal nicht gefunden.', ephemeral: true });
+
+                const row = new ActionRowBuilder(); 
+                ticketSystemConfig.categories.forEach(cat => { 
+                    row.addComponents(
+                        new ButtonBuilder()
+                            .setCustomId('server_panel_trigger_' + cat.id + '_' + interaction.guild.id)
+                            .setLabel(cat.label)
+                            .setStyle(cat.color)
+                    ); 
+                });
+                
+                const panelEmbed = new EmbedBuilder()
+                    .setTitle('🛰️ AeroGuard Core Support Hub')
+                    .setDescription(ticketSystemConfig.welcomeMessage)
+                    .setColor(0x9d4edd)
+                    .setThumbnail(interaction.guild.iconURL() || client.user.displayAvatarURL())
+                    .setFooter({ text: 'Klicke auf den entsprechenden Button, um dein Ticket zu eröffnen.' })
+                    .setTimestamp();
+
+                await targetChannel.send({ embeds: [panelEmbed], components: [row] });
+                return interaction.reply({ content: '✅ **Support-Panel erfolgreich in ' + targetChannel.toString() + ' gesendet!**', ephemeral: true });
+            }
+
+            // Commands that run INSIDE an active ticket channel:
+            if (!ticket) {
+                return interaction.reply({ content: '❌ Dieser Befehl kann nur innerhalb eines aktiven Ticket-Kanals ausgeführt werden.', ephemeral: true });
+            }
+
+            if (sub === 'close') {
+                const grund = interaction.options.getString('grund') || 'Kein Grund angegeben';
+                logTicketMessage(chId, 'System', 'Ticket geschlossen von ' + interaction.user.tag + '. Grund: ' + grund, true);
+                
+                const confirmRow = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder().setCustomId('ticket_ch_confirm_close_' + chId).setLabel('Ja, schließen & archivieren').setEmoji('✅').setStyle(ButtonStyle.Danger),
+                    new ButtonBuilder().setCustomId('ticket_ch_cancel_close_' + chId).setLabel('Abbrechen').setEmoji('❌').setStyle(ButtonStyle.Secondary)
+                );
+                return interaction.reply({
+                    content: '⚠️ **Möchtest du dieses Ticket schließen?**\n**Grund:** ' + grund,
+                    components: [confirmRow]
+                });
+            }
+
+            if (sub === 'claim') {
+                if (!isSupporterOrAdmin(interaction.member)) {
+                    return interaction.reply({ content: '⛔ Nur Supporter können Tickets claimen.', ephemeral: true });
+                }
+                if (ticket.claimedBy) {
+                    return interaction.reply({ content: '⚠️ Ticket ist bereits von <@' + ticket.claimedBy + '> geclaimt.', ephemeral: true });
+                }
+                ticket.claimedBy = interaction.user.id;
+                ticket.status = 'CLAIMED';
+                saveCloudVaultToDisk();
+                return interaction.reply('👤 ' + interaction.user.toString() + ' hat dieses Ticket übernommen!');
+            }
+
+            if (sub === 'unclaim') {
+                if (!isSupporterOrAdmin(interaction.member)) {
+                    return interaction.reply({ content: '⛔ Nur Supporter können Tickets freigeben.', ephemeral: true });
+                }
+                ticket.claimedBy = null;
+                ticket.status = 'OPEN';
+                saveCloudVaultToDisk();
+                return interaction.reply('🔓 Das Ticket wurde wieder für das gesamte Team freigegeben.');
+            }
+
+            if (sub === 'add') {
+                const nutzer = interaction.options.getUser('nutzer');
+                try {
+                    await interaction.channel.permissionOverwrites.edit(nutzer.id, {
+                        ViewChannel: true,
+                        SendMessages: true,
+                        AttachFiles: true,
+                        ReadMessageHistory: true
+                    });
+                    logTicketMessage(chId, 'System', nutzer.tag + ' wurde von ' + interaction.user.tag + ' zum Ticket hinzugefügt.', true);
+                    return interaction.reply('➕ ' + nutzer.toString() + ' wurde zum Ticket hinzugefügt.');
+                } catch(e) {
+                    return interaction.reply({ content: 'Fehler: ' + e.message, ephemeral: true });
+                }
+            }
+
+            if (sub === 'remove') {
+                const nutzer = interaction.options.getUser('nutzer');
+                if (nutzer.id === ticket.userId) {
+                    return interaction.reply({ content: '❌ Der Ersteller des Tickets kann nicht entfernt werden.', ephemeral: true });
+                }
+                try {
+                    await interaction.channel.permissionOverwrites.delete(nutzer.id);
+                    logTicketMessage(chId, 'System', nutzer.tag + ' wurde von ' + interaction.user.tag + ' aus dem Ticket entfernt.', true);
+                    return interaction.reply('➖ ' + nutzer.toString() + ' wurde aus dem Ticket entfernt.');
+                } catch(e) {
+                    return interaction.reply({ content: 'Fehler: ' + e.message, ephemeral: true });
+                }
+            }
+
+            if (sub === 'rename') {
+                const neuerName = interaction.options.getString('name').toLowerCase().replace(/[^a-z0-9-_]/g, '');
+                try {
+                    await interaction.channel.setName(neuerName);
+                    return interaction.reply('✏️ Ticket-Kanal umbenannt in: ' + neuerName);
+                } catch(e) {
+                    return interaction.reply({ content: 'Fehler: ' + e.message, ephemeral: true });
+                }
+            }
+
+            if (sub === 'transcript') {
+                const htmlContent = generateHtmlTranscript(chId, ticket);
+                const buffer = Buffer.from(htmlContent, 'utf-8');
+                return interaction.reply({
+                    content: '📜 **AeroGuard HTML-Sitzungstranskript (#' + ticket.ticketNum + '):**',
+                    files: [{ attachment: buffer, name: 'transcript_ticket_' + ticket.ticketNum + '.html' }],
+                    ephemeral: true
+                });
+            }
+        }
+
         if (commandName === 'blacklist') {
             const aktion = interaction.options.getString('aktion');
             const target = interaction.options.getUser('target');
@@ -1905,6 +2515,57 @@ client.on('messageCreate', async message => {
 // EXPANDED REGISTER COMMAND DEFINITIONS MATRIX
 // =========================================================================
 const extendedCommandDefinitions = [
+    // =========================================================================
+    // AEROGUARD CHANNEL TICKET SYSTEM COMMANDS
+    // =========================================================================
+    new SlashCommandBuilder()
+        .setName('ticket')
+        .setDescription('AeroGuard Ticket-Management-System')
+        .addSubcommand(sub => 
+            sub.setName('setup')
+               .setDescription('Konfiguriere das Ticket-System (Kategorie, Support-Rolle, Log-Kanal)')
+               .addChannelOption(o => o.setName('kategorie').setDescription('Kategorie, unter der Tickets erstellt werden').addChannelTypes(ChannelType.GuildCategory).setRequired(true))
+               .addRoleOption(o => o.setName('support_rolle').setDescription('Rolle für Support-Mitarbeiter').setRequired(true))
+               .addChannelOption(o => o.setName('log_kanal').setDescription('Kanal für Ticket-Transkripte & Archiv').addChannelTypes(ChannelType.GuildText).setRequired(false))
+        )
+        .addSubcommand(sub => 
+            sub.setName('panel')
+               .setDescription('Sendet das interaktive Ticket-Startpanel in einen spezifischen Kanal')
+               .addChannelOption(o => o.setName('kanal').setDescription('Kanal für das Ticket-Panel').addChannelTypes(ChannelType.GuildText).setRequired(true))
+        )
+        .addSubcommand(sub => 
+            sub.setName('close')
+               .setDescription('Schließt das aktuelle Ticket')
+               .addStringOption(o => o.setName('grund').setDescription('Grund für die Schließung').setRequired(false))
+        )
+        .addSubcommand(sub => 
+            sub.setName('claim')
+               .setDescription('Weist das aktuelle Ticket dir selbst zu')
+        )
+        .addSubcommand(sub => 
+            sub.setName('unclaim')
+               .setDescription('Gibt das Ticket wieder für das gesamte Team frei')
+        )
+        .addSubcommand(sub => 
+            sub.setName('add')
+               .setDescription('Fügt einen weiteren Nutzer zum aktuellen Ticket hinzu')
+               .addUserOption(o => o.setName('nutzer').setDescription('Der hinzuzufügende Nutzer').setRequired(true))
+        )
+        .addSubcommand(sub => 
+            sub.setName('remove')
+               .setDescription('Entfernt einen Nutzer aus dem Ticket')
+               .addUserOption(o => o.setName('nutzer').setDescription('Der zu entfernende Nutzer').setRequired(true))
+        )
+        .addSubcommand(sub => 
+            sub.setName('rename')
+               .setDescription('Benennt den Ticket-Kanal um')
+               .addStringOption(o => o.setName('name').setDescription('Neuer Kanalname').setRequired(true))
+        )
+        .addSubcommand(sub => 
+            sub.setName('transcript')
+               .setDescription('Generiert ein vollständiges HTML-Transkript des Tickets')
+        ),
+
     new SlashCommandBuilder().setName('status').setDescription('AeroGuard Live-Status, Telemetrie & RAM-Auslastung'),
     new SlashCommandBuilder().setName('cloud-inspect').setDescription('Prüft den persistenten Speicherzustand der Cloud-Datenbank'),
     new SlashCommandBuilder().setName('ping').setDescription('Gibt die Websocket-Latenz zurück'),

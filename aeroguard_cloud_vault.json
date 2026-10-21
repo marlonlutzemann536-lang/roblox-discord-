@@ -75,6 +75,10 @@
         "antiSpamInterval": 4000,
         "voiceAnnounceClaimed": "Die Verbindung wurde geschaltet. Der Supporter kommuniziert nun über das Terminal mit dir.",
         "voiceAnnounceWaiting": "Willkommen im Support Warteraum. Ein Leitstellen Mitarbeiter wurde alarmiert. Bitte warte einen kurzen Moment.",
-        "lockdownActive": false
+        "lockdownActive": false,
+        "ticketCategoryId": null,
+        "supportRoleId": null,
+        "ticketLogChannelId": null,
+        "ticketMode": "CHANNEL"
     }
 }
