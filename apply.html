@@ -1,0 +1,1155 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AeroGuard Core — Team-Bewerbung | Offizielles Supporter-Portal</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #07080f;
+            --surface: rgba(14, 18, 34, 0.75);
+            --surface-hover: rgba(22, 28, 52, 0.9);
+            --card-bg: rgba(13, 17, 33, 0.85);
+            --border: rgba(255, 255, 255, 0.08);
+            --border-glow: rgba(0, 243, 255, 0.3);
+            --cyan: #00f3ff;
+            --cyan-glow: rgba(0, 243, 255, 0.4);
+            --purple: #9d4edd;
+            --purple-glow: rgba(157, 78, 221, 0.4);
+            --green: #10b981;
+            --green-glow: rgba(16, 185, 129, 0.35);
+            --amber: #f59e0b;
+            --red: #ef4444;
+            --text-dim: #94a3b8;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background-color: var(--bg);
+            background-image: 
+                radial-gradient(ellipse at 50% 0%, rgba(157, 78, 221, 0.18) 0%, transparent 60%),
+                radial-gradient(circle at 90% 80%, rgba(0, 243, 255, 0.12) 0%, transparent 50%),
+                radial-gradient(circle at 10% 70%, rgba(16, 185, 129, 0.08) 0%, transparent 40%);
+            color: #f1f5f9;
+            font-family: 'Outfit', sans-serif;
+            min-height: 100vh;
+            padding-bottom: 60px;
+        }
+
+        .container {
+            max-width: 1080px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* HEADER NAV */
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 24px 0;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 40px;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+            color: #fff;
+        }
+
+        .brand-icon {
+            width: 44px; height: 44px;
+            background: linear-gradient(135deg, var(--cyan), var(--purple));
+            border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.4rem; font-weight: 800; color: #000;
+            box-shadow: 0 0 20px var(--cyan-glow);
+        }
+
+        .brand-title {
+            font-size: 1.25rem; font-weight: 800; letter-spacing: -0.02em;
+        }
+
+        .nav-actions {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .btn-nav-link {
+            color: var(--text-dim);
+            text-decoration: none;
+            font-size: 0.92rem;
+            font-weight: 600;
+            transition: color 0.2s;
+        }
+        .btn-nav-link:hover { color: var(--cyan); }
+
+        .btn-support-head {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(0, 243, 255, 0.08);
+            border: 1px solid rgba(0, 243, 255, 0.35);
+            color: var(--cyan);
+            text-decoration: none;
+            font-size: 0.88rem;
+            font-weight: 700;
+            padding: 8px 16px;
+            border-radius: 10px;
+            transition: all 0.2s;
+        }
+        .btn-support-head:hover {
+            background: rgba(0, 243, 255, 0.18);
+            transform: translateY(-2px);
+            box-shadow: 0 0 18px var(--cyan-glow);
+        }
+
+        /* HERO HEADER */
+        .hero {
+            text-align: center;
+            margin-bottom: 36px;
+        }
+
+        .badge-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(157, 78, 221, 0.12);
+            border: 1px solid rgba(157, 78, 221, 0.35);
+            color: #d8b4fe;
+            padding: 6px 18px;
+            border-radius: 999px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            margin-bottom: 18px;
+            letter-spacing: 0.05em;
+        }
+
+        .hero h1 {
+            font-size: 2.8rem;
+            font-weight: 900;
+            letter-spacing: -0.03em;
+            line-height: 1.15;
+            margin-bottom: 12px;
+        }
+
+        .hero h1 span {
+            background: linear-gradient(135deg, var(--cyan), var(--purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .hero p {
+            color: var(--text-dim);
+            font-size: 1.1rem;
+            max-width: 680px;
+            margin: 0 auto;
+            line-height: 1.5;
+        }
+
+        /* BOT GUIDANCE CARD ("Der Bot hilft danach und erklärt dir, was brauchen wir von dir") */
+        .bot-guide-card {
+            background: linear-gradient(135deg, rgba(0, 243, 255, 0.08), rgba(20, 26, 48, 0.95));
+            border: 1px solid rgba(0, 243, 255, 0.35);
+            border-radius: 20px;
+            padding: 26px 30px;
+            margin-bottom: 34px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5), 0 0 30px rgba(0, 243, 255, 0.08);
+            display: flex;
+            gap: 22px;
+            align-items: flex-start;
+        }
+
+        .bot-avatar {
+            width: 64px; height: 64px;
+            border-radius: 18px;
+            background: linear-gradient(135deg, var(--cyan), #0284c7);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 2rem;
+            box-shadow: 0 0 25px var(--cyan-glow);
+            flex-shrink: 0;
+        }
+
+        .bot-guide-content h3 {
+            font-size: 1.25rem;
+            font-weight: 800;
+            color: #fff;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .bot-guide-content h3 span {
+            background: rgba(0, 243, 255, 0.15);
+            color: var(--cyan);
+            font-size: 0.72rem;
+            padding: 3px 10px;
+            border-radius: 999px;
+            border: 1px solid rgba(0, 243, 255, 0.3);
+            text-transform: uppercase;
+        }
+
+        .bot-guide-content p {
+            color: #cbd5e1;
+            font-size: 0.95rem;
+            line-height: 1.5;
+            margin-bottom: 16px;
+        }
+
+        .requirements-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+            gap: 14px;
+        }
+
+        .req-item {
+            background: rgba(0, 0, 0, 0.35);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 12px;
+            padding: 12px 14px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .req-icon {
+            font-size: 1.4rem;
+        }
+
+        .req-text-title {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .req-text-sub {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+        }
+
+        /* CARD MAIN CONTAINER */
+        .glass-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 36px;
+            backdrop-filter: blur(20px);
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7);
+            position: relative;
+        }
+
+        .glass-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; height: 3px;
+            background: linear-gradient(90deg, var(--cyan), var(--purple), var(--green));
+            border-radius: 24px 24px 0 0;
+        }
+
+        /* FORM STYLES */
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 22px;
+            margin-bottom: 24px;
+        }
+
+        .form-group-full {
+            grid-column: span 2;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 0.88rem;
+            font-weight: 700;
+            color: #e2e8f0;
+            margin-bottom: 8px;
+        }
+
+        .form-label span.req {
+            color: var(--cyan);
+            margin-left: 4px;
+        }
+
+        .form-control {
+            width: 100%;
+            background: rgba(10, 14, 28, 0.85);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 12px;
+            padding: 13px 16px;
+            color: #fff;
+            font-family: inherit;
+            font-size: 0.95rem;
+            transition: all 0.25s ease;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--cyan);
+            box-shadow: 0 0 15px var(--cyan-glow);
+            background: rgba(15, 22, 45, 0.95);
+        }
+
+        textarea.form-control {
+            min-height: 110px;
+            resize: vertical;
+        }
+
+        .input-hint {
+            font-size: 0.78rem;
+            color: var(--text-dim);
+            margin-top: 5px;
+        }
+
+        .radio-pills {
+            display: flex;
+            gap: 14px;
+        }
+
+        .radio-pill-item {
+            flex: 1;
+            position: relative;
+        }
+
+        .radio-pill-item input {
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .radio-pill-label {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px;
+            background: rgba(10, 14, 28, 0.85);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 12px;
+            font-size: 0.92rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: #cbd5e1;
+        }
+
+        .radio-pill-item input:checked + .radio-pill-label {
+            background: rgba(0, 243, 255, 0.15);
+            border-color: var(--cyan);
+            color: var(--cyan);
+            box-shadow: 0 0 20px rgba(0, 243, 255, 0.25);
+        }
+
+        .btn-submit-app {
+            width: 100%;
+            background: linear-gradient(135deg, var(--cyan), #0284c7);
+            color: #000;
+            border: none;
+            border-radius: 14px;
+            padding: 16px 28px;
+            font-size: 1.1rem;
+            font-weight: 800;
+            cursor: pointer;
+            box-shadow: 0 0 30px var(--cyan-glow);
+            transition: all 0.25s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .btn-submit-app:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 45px var(--cyan-glow);
+        }
+
+        .btn-submit-app:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* STATUS & CHAT VIEW */
+        #status-view {
+            display: none;
+        }
+
+        .status-header-banner {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 16px;
+            background: rgba(10, 14, 28, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 18px;
+            padding: 20px 24px;
+            margin-bottom: 24px;
+        }
+
+        .app-id-pill {
+            font-family: 'JetBrains Mono', monospace;
+            background: rgba(255, 255, 255, 0.08);
+            padding: 4px 10px;
+            border-radius: 8px;
+            color: var(--cyan);
+            font-size: 0.9rem;
+            font-weight: 700;
+        }
+
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 18px;
+            border-radius: 999px;
+            font-size: 0.88rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .status-pending {
+            background: rgba(245, 158, 11, 0.15);
+            border: 1px solid rgba(245, 158, 11, 0.4);
+            color: var(--amber);
+        }
+
+        .status-in-review {
+            background: rgba(0, 243, 255, 0.15);
+            border: 1px solid rgba(0, 243, 255, 0.45);
+            color: var(--cyan);
+        }
+
+        .status-accepted {
+            background: rgba(16, 185, 129, 0.18);
+            border: 1px solid rgba(16, 185, 129, 0.5);
+            color: var(--green);
+            box-shadow: 0 0 20px var(--green-glow);
+        }
+
+        .status-rejected {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.4);
+            color: var(--red);
+        }
+
+        /* STEPPER PROGRESS */
+        .stepper {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin: 20px 0 30px 0;
+            position: relative;
+        }
+
+        .step-item {
+            text-align: center;
+            flex: 1;
+            position: relative;
+            z-index: 2;
+        }
+
+        .step-circle {
+            width: 40px; height: 40px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.08);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            color: #94a3b8;
+            font-weight: 800;
+            display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 8px auto;
+            transition: all 0.3s;
+        }
+
+        .step-item.active .step-circle {
+            background: rgba(0, 243, 255, 0.2);
+            border-color: var(--cyan);
+            color: var(--cyan);
+            box-shadow: 0 0 20px var(--cyan-glow);
+        }
+
+        .step-item.completed .step-circle {
+            background: rgba(16, 185, 129, 0.2);
+            border-color: var(--green);
+            color: var(--green);
+        }
+
+        .step-title {
+            font-size: 0.82rem;
+            font-weight: 700;
+            color: #94a3b8;
+        }
+
+        .step-item.active .step-title {
+            color: #fff;
+        }
+
+        /* CHAT WINDOW */
+        .chat-section {
+            background: rgba(8, 11, 22, 0.9);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            overflow: hidden;
+            margin-top: 24px;
+        }
+
+        .chat-header {
+            background: rgba(14, 18, 36, 0.8);
+            border-bottom: 1px solid var(--border);
+            padding: 14px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chat-header-title {
+            font-size: 0.95rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .chat-messages {
+            padding: 20px;
+            max-height: 420px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .msg-bubble {
+            max-width: 80%;
+            padding: 14px 18px;
+            border-radius: 16px;
+            font-size: 0.92rem;
+            line-height: 1.5;
+            position: relative;
+        }
+
+        .msg-bot {
+            align-self: flex-start;
+            background: rgba(0, 243, 255, 0.08);
+            border: 1px solid rgba(0, 243, 255, 0.3);
+            color: #e0f2fe;
+            border-bottom-left-radius: 4px;
+        }
+
+        .msg-staff {
+            align-self: flex-start;
+            background: rgba(157, 78, 221, 0.14);
+            border: 1px solid rgba(157, 78, 221, 0.4);
+            color: #f3e8ff;
+            border-bottom-left-radius: 4px;
+        }
+
+        .msg-applicant {
+            align-self: flex-end;
+            background: rgba(16, 185, 129, 0.15);
+            border: 1px solid rgba(16, 185, 129, 0.4);
+            color: #ecfdf5;
+            border-bottom-right-radius: 4px;
+        }
+
+        .msg-meta {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            margin-bottom: 6px;
+        }
+
+        .msg-badge {
+            font-size: 0.68rem;
+            font-weight: 800;
+            padding: 2px 8px;
+            border-radius: 999px;
+            text-transform: uppercase;
+        }
+
+        .msg-bot .msg-badge {
+            background: rgba(0, 243, 255, 0.25);
+            color: var(--cyan);
+        }
+
+        .msg-staff .msg-badge {
+            background: rgba(157, 78, 221, 0.3);
+            color: #d8b4fe;
+        }
+
+        .msg-applicant .msg-badge {
+            background: rgba(16, 185, 129, 0.25);
+            color: var(--green);
+        }
+
+        .chat-input-bar {
+            padding: 16px 20px;
+            background: rgba(12, 16, 32, 0.95);
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 12px;
+        }
+
+        .chat-input {
+            flex: 1;
+            background: rgba(7, 9, 18, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 12px;
+            padding: 12px 16px;
+            color: #fff;
+            font-family: inherit;
+            font-size: 0.92rem;
+        }
+
+        .chat-input:focus {
+            outline: none;
+            border-color: var(--cyan);
+        }
+
+        .btn-send-msg {
+            background: linear-gradient(135deg, var(--cyan), #0284c7);
+            color: #000;
+            border: none;
+            border-radius: 12px;
+            padding: 0 20px;
+            font-weight: 800;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-send-msg:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 20px var(--cyan-glow);
+        }
+
+        .details-summary {
+            background: rgba(10, 14, 28, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 14px;
+            padding: 16px 20px;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+        }
+
+        .details-summary h4 {
+            color: var(--cyan);
+            margin-bottom: 10px;
+            font-size: 0.95rem;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
+            color: #cbd5e1;
+        }
+
+        /* TOAST NOTIFICATION */
+        #toast {
+            position: fixed; bottom: 24px; right: 24px;
+            background: #0d1326; border: 1px solid var(--cyan); color: #fff;
+            padding: 14px 24px; border-radius: 12px; font-weight: 700; font-size: 0.9rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 20px var(--cyan-glow);
+            transform: translateY(100px); opacity: 0; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 2000; display: flex; align-items: center; gap: 10px;
+        }
+        #toast.show { transform: translateY(0); opacity: 1; }
+
+        @media (max-width: 768px) {
+            .form-grid { grid-template-columns: 1fr; }
+            .form-group-full { grid-column: span 1; }
+            .hero h1 { font-size: 2.2rem; }
+            .bot-guide-card { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- NAVIGATION -->
+        <nav>
+            <a href="/" class="brand">
+                <div class="brand-icon">AG</div>
+                <div>
+                    <div class="brand-title">AEROGUARD <span style="color:var(--cyan)">CORE</span></div>
+                </div>
+            </a>
+
+            <div class="nav-actions">
+                <a href="/" class="btn-nav-link">🏠 Startseite</a>
+                <a href="https://discord.gg/JvnhWC5Gnu" target="_blank" class="btn-support-head">
+                    <span>🎧</span> Support-Server
+                </a>
+                <a href="/login" class="btn-nav-link" id="nav-login-btn">🔐 Login</a>
+            </div>
+        </nav>
+
+        <!-- HERO SECTION -->
+        <div class="hero">
+            <div class="badge-pill">✨ OFFIZIELLER STAFF-RECRUITMENT HUB</div>
+            <h1>Bewerbung als <span>AeroGuard Supporter</span></h1>
+            <p>Hilf anderen Serverbesitzern und Roblox-Spielern, betreue Support-Tickets und werde Teil des offiziellen AeroGuard Teams!</p>
+        </div>
+
+        <!-- 🤖 BOT GUIDANCE ASSISTANT CARD -->
+        <div class="bot-guide-card">
+            <div class="bot-avatar">🤖</div>
+            <div class="bot-guide-content">
+                <h3>AeroGuard KI-Leitfaden <span>Recruitment Assistent</span></h3>
+                <p>Hey! Ich führe dich durch den Bewerbungsprozess. Unser Team sucht engagierte und freundliche Mitglieder, die Freude am Helfen haben. Beachte bitte folgende Voraussetzungen, bevor du deine Bewerbung einreichst:</p>
+
+                <div class="requirements-grid">
+                    <div class="req-item">
+                        <div class="req-icon">🎂</div>
+                        <div>
+                            <div class="req-text-title">Mindestalter: 14+ Jahre</div>
+                            <div class="req-text-sub">Geistige Reife & Zuverlässigkeit</div>
+                        </div>
+                    </div>
+                    <div class="req-item">
+                        <div class="req-icon">🎙️</div>
+                        <div>
+                            <div class="req-text-title">Headset / Mikrofon</div>
+                            <div class="req-text-sub">Für Voice-Support erwünscht</div>
+                        </div>
+                    </div>
+                    <div class="req-item">
+                        <div class="req-icon">🎫</div>
+                        <div>
+                            <div class="req-text-title">Ticket- & Moderationserfahrung</div>
+                            <div class="req-text-sub">Geduld & Freundlichkeit</div>
+                        </div>
+                    </div>
+                    <div class="req-item">
+                        <div class="req-icon">🎮</div>
+                        <div>
+                            <div class="req-text-title">Roblox & Discord Kenntnisse</div>
+                            <div class="req-text-sub">Erfahrung mit AeroGuard Suites</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MAIN CARD: FORM VIEW -->
+        <div id="form-view" class="glass-card">
+            <h2 style="font-size:1.6rem; font-weight:800; margin-bottom:6px;">📝 Deine Bewerbungsdaten eingeben</h2>
+            <p style="color:var(--text-dim); font-size:0.92rem; margin-bottom:28px;">Fülle bitte alle Felder wahrheitsgemäß aus. Nach dem Absenden leitet das System deine Bewerbung sofort an die Projektleitung weiter.</p>
+
+            <form id="application-form" onsubmit="handleFormSubmit(event)">
+                <div class="form-grid">
+                    <!-- Discord Tag -->
+                    <div>
+                        <label class="form-label">Dein Discord-Tag / Username <span class="req">*</span></label>
+                        <input type="text" id="input-discord-tag" class="form-control" placeholder="z.B. @andre oder Username#1234" required>
+                        <div class="input-hint">Dein genauer Benutzername auf Discord.</div>
+                    </div>
+
+                    <!-- Discord ID -->
+                    <div>
+                        <label class="form-label">Deine Discord User-ID <span class="req">*</span></label>
+                        <input type="text" id="input-discord-id" class="form-control" placeholder="z.B. 1075845857875873852" pattern="[0-9]{17,20}" title="17 bis 20-stellige Zahl" required>
+                        <div class="input-hint">Wird für die automatische Rollenvergabe benötigt (Entwicklermodus -> ID kopieren).</div>
+                    </div>
+
+                    <!-- Alter -->
+                    <div>
+                        <label class="form-label">Wie alt bist du? (Alter in Jahren) <span class="req">*</span></label>
+                        <input type="number" id="input-age" class="form-control" placeholder="z.B. 16" min="12" max="99" required>
+                        <div class="input-hint">Bitte gib dein echtes Alter an (Mindestalter 14 empfohlen).</div>
+                    </div>
+
+                    <!-- Roblox Username -->
+                    <div>
+                        <label class="form-label">Dein Roblox Username (optional)</label>
+                        <input type="text" id="input-roblox" class="form-control" placeholder="z.B. AeroGamer99">
+                        <div class="input-hint">Falls du auch in unseren Roblox-Spielen aktiv bist.</div>
+                    </div>
+
+                    <!-- Headset / Mikrofon -->
+                    <div class="form-group-full">
+                        <label class="form-label">Besitzt du ein funktionierendes Headset / Mikrofon? <span class="req">*</span></label>
+                        <div class="radio-pills">
+                            <div class="radio-pill-item">
+                                <input type="radio" name="mic" id="mic-yes" value="yes" checked>
+                                <label for="mic-yes" class="radio-pill-label">
+                                    <span>🎙️</span> Ja, funktionierendes Mikrofon vorhanden
+                                </label>
+                            </div>
+                            <div class="radio-pill-item">
+                                <input type="radio" name="mic" id="mic-no" value="no">
+                                <label for="mic-no" class="radio-pill-label">
+                                    <span>🔇</span> Nein / Nur Chat-Support
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Online-Zeiten & Verfügbarkeit -->
+                    <div class="form-group-full">
+                        <label class="form-label">Wie viele Stunden pro Woche bist du online? <span class="req">*</span></label>
+                        <input type="text" id="input-availability" class="form-control" placeholder="z.B. Ca. 15-20 Stunden (unter der Woche ab 17 Uhr, am Wochenende ganztägig)" required>
+                    </div>
+
+                    <!-- Support-Erfahrung -->
+                    <div class="form-group-full">
+                        <label class="form-label">Welche Erfahrungen hast du bereits im Support / mit Tickets & Discord? <span class="req">*</span></label>
+                        <textarea id="input-experience" class="form-control" placeholder="Beschreibe kurz, auf welchen Servern oder Projekten du bisher moderiert oder im Support gearbeitet hast..." required></textarea>
+                    </div>
+
+                    <!-- Motivation -->
+                    <div class="form-group-full">
+                        <label class="form-label">Warum möchtest du ins AeroGuard Support-Team? <span class="req">*</span></label>
+                        <textarea id="input-motivation" class="form-control" placeholder="Was motiviert dich? Warum sollten wir genau dich ins Team aufnehmen?" required></textarea>
+                    </div>
+
+                    <!-- Stärken -->
+                    <div class="form-group-full">
+                        <label class="form-label">Deine besonderen Stärken & Fähigkeiten</label>
+                        <input type="text" id="input-strengths" class="form-control" placeholder="z.B. Geduldig, technisch versiert, freundlicher Tonfall, gute Rechtschreibung">
+                    </div>
+                </div>
+
+                <button type="submit" id="btn-submit" class="btn-submit-app">
+                    <span>🚀</span> Bewerbung jetzt absenden
+                </button>
+            </form>
+        </div>
+
+        <!-- MAIN CARD: LIVE STATUS & INTERACTIVE CHAT VIEW -->
+        <div id="status-view" class="glass-card">
+            <div class="status-header-banner">
+                <div>
+                    <div style="font-size:0.8rem; text-transform:uppercase; color:var(--text-dim); margin-bottom:4px;">Bewerbungs-Tracking</div>
+                    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                        <span class="app-id-pill" id="track-app-id">APP-0000</span>
+                        <span style="font-size:0.95rem; font-weight:700;" id="track-applicant-tag">Lade Bewerber...</span>
+                    </div>
+                </div>
+
+                <div>
+                    <span class="status-pill status-pending" id="track-status-pill">🟡 Eingereicht</span>
+                </div>
+            </div>
+
+            <!-- STEPPER PROGRESS -->
+            <div class="stepper">
+                <div class="step-item active" id="step-1">
+                    <div class="step-circle">1</div>
+                    <div class="step-title">Eingereicht</div>
+                </div>
+                <div class="step-item" id="step-2">
+                    <div class="step-circle">2</div>
+                    <div class="step-title">In Prüfung</div>
+                </div>
+                <div class="step-item" id="step-3">
+                    <div class="step-circle">3</div>
+                    <div class="step-title">Entscheidung</div>
+                </div>
+            </div>
+
+            <!-- SUMMARY DETAILS -->
+            <div class="details-summary">
+                <h4>📋 Deine Bewerbungsdaten</h4>
+                <div class="summary-grid">
+                    <div><strong>Alter:</strong> <span id="sum-age">--</span> Jahre</div>
+                    <div><strong>Roblox:</strong> <span id="sum-roblox">--</span></div>
+                    <div><strong>Headset:</strong> <span id="sum-mic">--</span></div>
+                    <div><strong>Verfügbarkeit:</strong> <span id="sum-avail">--</span></div>
+                </div>
+            </div>
+
+            <!-- INTERACTIVE RECRUITMENT CHAT ("kann ich mit dir drüber schreiben") -->
+            <div class="chat-section">
+                <div class="chat-header">
+                    <div class="chat-header-title">
+                        <span>💬</span> Bewerbungs-Chat & Rückfragen mit der Leitung
+                    </div>
+                    <div style="font-size:0.75rem; color:var(--cyan); display:flex; align-items:center; gap:6px;">
+                        <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--cyan);"></span> Live synchronisiert
+                    </div>
+                </div>
+
+                <div class="chat-messages" id="chat-messages-container">
+                    <!-- Dynamic chat bubbles injected here -->
+                </div>
+
+                <form class="chat-input-bar" onsubmit="handleSendChatMessage(event)">
+                    <input type="text" id="chat-msg-input" class="chat-input" placeholder="Schreibe eine Rückfrage oder Nachricht an die Leitung..." autocomplete="off">
+                    <button type="submit" class="btn-send-msg" id="btn-chat-send">Senden</button>
+                </form>
+            </div>
+
+            <div style="margin-top:24px; text-align:center;">
+                <button type="button" onclick="createNewApplication()" style="background:transparent; border:1px solid rgba(255,255,255,0.15); color:var(--text-dim); padding:8px 16px; border-radius:10px; cursor:pointer; font-size:0.85rem;">
+                    ← Neue Bewerbung einreichen
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST -->
+    <div id="toast"></div>
+
+    <script>
+        let currentAppId = null;
+        let currentAppToken = null;
+        let pollInterval = null;
+
+        function showToast(text, duration = 3500) {
+            const t = document.getElementById('toast');
+            t.innerText = text;
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), duration);
+        }
+
+        // Initialize from URL query parameters (e.g. ?id=APP-xxx&token=yyy)
+        window.addEventListener('DOMContentLoaded', () => {
+            const params = new URLSearchParams(window.location.search);
+            const id = params.get('id');
+            const token = params.get('token');
+
+            if (id && token) {
+                loadApplicationStatus(id, token);
+            } else {
+                // Check if user has saved credentials in localStorage or session
+                const savedId = localStorage.getItem('ag_app_id');
+                const savedToken = localStorage.getItem('ag_app_token');
+                if (savedId && savedToken) {
+                    loadApplicationStatus(savedId, savedToken);
+                }
+            }
+        });
+
+        async function handleFormSubmit(e) {
+            e.preventDefault();
+            const btn = document.getElementById('btn-submit');
+            btn.disabled = true;
+            btn.innerHTML = '<span>⏳</span> Wird an Leitung übermittelt...';
+
+            const payload = {
+                discordTag: document.getElementById('input-discord-tag').value.trim(),
+                discordId: document.getElementById('input-discord-id').value.trim(),
+                age: document.getElementById('input-age').value.trim(),
+                robloxUsername: document.getElementById('input-roblox').value.trim(),
+                hasMicrophone: document.getElementById('mic-yes').checked,
+                availability: document.getElementById('input-availability').value.trim(),
+                experience: document.getElementById('input-experience').value.trim(),
+                motivation: document.getElementById('input-motivation').value.trim(),
+                strengths: document.getElementById('input-strengths').value.trim()
+            };
+
+            try {
+                const res = await fetch('/api/apply/submit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+
+                if (!res.ok || !data.success) {
+                    showToast('❌ Fehler: ' + (data.error || 'Bewerbung konnte nicht gesendet werden.'));
+                    btn.disabled = false;
+                    btn.innerHTML = '<span>🚀</span> Bewerbung jetzt absenden';
+                    return;
+                }
+
+                currentAppId = data.appId;
+                currentAppToken = data.secretToken;
+                localStorage.setItem('ag_app_id', currentAppId);
+                localStorage.setItem('ag_app_token', currentAppToken);
+
+                // Update URL query params smoothly without reloading
+                const newUrl = window.location.pathname + '?id=' + encodeURIComponent(currentAppId) + '&token=' + encodeURIComponent(currentAppToken);
+                window.history.pushState({ path: newUrl }, '', newUrl);
+
+                showToast('✅ ' + (data.message || 'Okay, ich habe deine Bewerbung jetzt an die zuständige Ebene weitergeleitet!'));
+                loadApplicationStatus(currentAppId, currentAppToken);
+            } catch (err) {
+                showToast('❌ Verbindungsfehler: ' + err.message);
+                btn.disabled = false;
+                btn.innerHTML = '<span>🚀</span> Bewerbung jetzt absenden';
+            }
+        }
+
+        async function loadApplicationStatus(appId, token) {
+            try {
+                const res = await fetch('/api/apply/' + encodeURIComponent(appId) + '/status?token=' + encodeURIComponent(token));
+                const data = await res.json();
+
+                if (!res.ok || !data.application) {
+                    localStorage.removeItem('ag_app_id');
+                    localStorage.removeItem('ag_app_token');
+                    return;
+                }
+
+                renderApplicationView(data.application, token);
+            } catch (err) {
+                console.error('Error fetching application status:', err);
+            }
+        }
+
+        function renderApplicationView(app, token) {
+            currentAppId = app.id;
+            currentAppToken = token || app.secretToken;
+
+            document.getElementById('form-view').style.display = 'none';
+            document.getElementById('status-view').style.display = 'block';
+
+            document.getElementById('track-app-id').innerText = app.id;
+            document.getElementById('track-applicant-tag').innerText = app.applicantTag + (app.applicantId ? ' (' + app.applicantId + ')' : '');
+
+            document.getElementById('sum-age').innerText = app.age || '--';
+            document.getElementById('sum-roblox').innerText = app.robloxUsername || 'Keine Angabe';
+            document.getElementById('sum-mic').innerText = app.hasMicrophone ? '✅ Ja' : '❌ Nein';
+            document.getElementById('sum-avail').innerText = app.availability || '--';
+
+            // Status Pill & Stepper
+            const pill = document.getElementById('track-status-pill');
+            const step1 = document.getElementById('step-1');
+            const step2 = document.getElementById('step-2');
+            const step3 = document.getElementById('step-3');
+
+            step1.className = 'step-item completed';
+            step2.className = 'step-item';
+            step3.className = 'step-item';
+
+            if (app.status === 'pending') {
+                pill.className = 'status-pill status-pending';
+                pill.innerHTML = '🟡 Eingereicht & Weitergeleitet';
+                step1.className = 'step-item active';
+            } else if (app.status === 'in_review') {
+                pill.className = 'status-pill status-in-review';
+                pill.innerHTML = '🔵 In Prüfung ' + (app.claimedBy ? '(von ' + app.claimedBy.tag + ')' : '');
+                step1.className = 'step-item completed';
+                step2.className = 'step-item active';
+            } else if (app.status === 'accepted') {
+                pill.className = 'status-pill status-accepted';
+                pill.innerHTML = '🟢 Angenommen • Supporter-Rolle aktiv!';
+                step1.className = 'step-item completed';
+                step2.className = 'step-item completed';
+                step3.className = 'step-item completed';
+            } else if (app.status === 'rejected') {
+                pill.className = 'status-pill status-rejected';
+                pill.innerHTML = '🔴 Abgelehnt';
+                step1.className = 'step-item completed';
+                step2.className = 'step-item completed';
+                step3.className = 'step-item active';
+            }
+
+            // Render Messages
+            renderChatMessages(app.messages || []);
+
+            // Start polling for chat messages if not already polling
+            if (!pollInterval) {
+                pollInterval = setInterval(() => {
+                    if (currentAppId && currentAppToken) {
+                        fetch('/api/apply/' + encodeURIComponent(currentAppId) + '/status?token=' + encodeURIComponent(currentAppToken))
+                            .then(r => r.json())
+                            .then(d => {
+                                if (d && d.application) {
+                                    renderChatMessages(d.application.messages || []);
+                                    // Update status pill if changed
+                                    if (d.application.status !== app.status) {
+                                        renderApplicationView(d.application, currentAppToken);
+                                    }
+                                }
+                            }).catch(() => {});
+                    }
+                }, 4000);
+            }
+        }
+
+        function renderChatMessages(messages) {
+            const container = document.getElementById('chat-messages-container');
+            const isScrolledToBottom = container.scrollHeight - container.clientHeight <= container.scrollTop + 50;
+
+            container.innerHTML = messages.map(m => {
+                const typeClass = m.senderType === 'bot' ? 'msg-bot' : (m.senderType === 'staff' ? 'msg-staff' : 'msg-applicant');
+                const badgeLabel = m.senderType === 'bot' ? '🤖 System' : (m.senderType === 'staff' ? '🛡️ Leitung' : '👤 Bewerber');
+                const timeStr = new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+                return `
+                    <div class="msg-bubble ${typeClass}">
+                        <div class="msg-meta">
+                            <span class="msg-badge">${badgeLabel}</span>
+                            <strong>${escapeHtml(m.senderName || '')}</strong>
+                            <span>•</span>
+                            <span>${timeStr}</span>
+                        </div>
+                        <div>${escapeHtml(m.text || '')}</div>
+                    </div>
+                `;
+            }).join('');
+
+            if (isScrolledToBottom) {
+                container.scrollTop = container.scrollHeight;
+            }
+        }
+
+        async function handleSendChatMessage(e) {
+            e.preventDefault();
+            const input = document.getElementById('chat-msg-input');
+            const text = input.value.trim();
+            if (!text || !currentAppId || !currentAppToken) return;
+
+            const btn = document.getElementById('btn-chat-send');
+            btn.disabled = true;
+            input.disabled = true;
+
+            try {
+                const res = await fetch('/api/apply/' + encodeURIComponent(currentAppId) + '/message?token=' + encodeURIComponent(currentAppToken), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: text })
+                });
+                const data = await res.json();
+
+                if (!res.ok || !data.success) {
+                    showToast('❌ Fehler: ' + (data.error || 'Nachricht konnte nicht gesendet werden.'));
+                } else {
+                    input.value = '';
+                    // Immediately re-fetch messages
+                    loadApplicationStatus(currentAppId, currentAppToken);
+                }
+            } catch (err) {
+                showToast('❌ Verbindungsfehler: ' + err.message);
+            } finally {
+                btn.disabled = false;
+                input.disabled = false;
+                input.focus();
+            }
+        }
+
+        function createNewApplication() {
+            if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+            localStorage.removeItem('ag_app_id');
+            localStorage.removeItem('ag_app_token');
+            const newUrl = window.location.pathname;
+            window.history.pushState({ path: newUrl }, '', newUrl);
+            document.getElementById('status-view').style.display = 'none';
+            document.getElementById('form-view').style.display = 'block';
+            document.getElementById('application-form').reset();
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+    </script>
+</body>
+</html>

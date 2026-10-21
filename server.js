@@ -5625,6 +5625,7 @@ app.get('/', (req, res) => {
             <div class="nav-links">
                 <a href="#features" class="nav-link">Features</a>
                 <a href="#telemetry" class="nav-link">Status</a>
+                <a href="/apply" class="nav-link" style="color:var(--cyan);font-weight:700;">📝 Jetzt Bewerben</a>
                 ${user ? `
                 <a href="/dashboard" class="btn-nav btn-nav-owner">👑 Dashboard (${user.username})</a>
                 ` : `
@@ -6198,6 +6199,11 @@ app.get('/dashboard', async (req, res) => {
     template = template.replace(/\{\{TRANSCRIPTS_JSON\}\}/g, JSON.stringify(savedTranscriptsList).replace(/</g, '\\u003c'));
     template = template.replace(/\{\{ACTIVE_TICKETS_JSON\}\}/g, JSON.stringify(activeList).replace(/</g, '\\u003c'));
 
+    const allApplications = Object.values(cloudStorage.activeApplications || {});
+    const pendingAppsCount = allApplications.filter(a => a.status === 'pending').length;
+    template = template.replace(/\{\{APPLICATIONS_PENDING_COUNT\}\}/g, String(pendingAppsCount));
+    template = template.replace(/\{\{APPLICATIONS_JSON\}\}/g, JSON.stringify(allApplications).replace(/</g, '\\u003c'));
+
     res.send(template);
 });
 
@@ -6359,6 +6365,438 @@ app.post('/api/admin/bot/broadcast-status', async (req, res) => {
     } catch(err) {
         res.status(500).json({ error: err.message });
     }
+});
+
+// =========================================================================
+// OFFIZIELLES AEROGUARD TEAM-BEWERBUNGSSYSTEM (WEBPANEL EXKLUSIV)
+// =========================================================================
+
+// Route: Bewerbungsseite (Exklusiv auf der Webseite)
+app.get(['/apply', '/bewerbung'], (req, res) => {
+    const applyPath = path.join(__dirname, 'apply.html');
+    if (fs.existsSync(applyPath)) {
+        return res.sendFile(applyPath);
+    }
+    res.status(404).send('Bewerbungsportal nicht gefunden.');
+});
+
+// API: Neue Bewerbung einreichen
+app.post('/api/apply/submit', async (req, res) => {
+    try {
+        const { discordTag, discordId, age, robloxUsername, hasMicrophone, availability, experience, motivation, strengths } = req.body;
+
+        if (!discordTag || discordTag.trim().length < 2) {
+            return res.status(400).json({ error: 'Bitte gib deinen Discord-Namen an.' });
+        }
+        const parsedAge = parseInt(age, 10);
+        if (isNaN(parsedAge) || parsedAge < 10 || parsedAge > 99) {
+            return res.status(400).json({ error: 'Bitte gib ein gültiges Alter an.' });
+        }
+        if (!experience || experience.trim().length < 10) {
+            return res.status(400).json({ error: 'Bitte beschreibe deine Erfahrungen ausführlicher (mindestens 10 Zeichen).' });
+        }
+        if (!motivation || motivation.trim().length < 10) {
+            return res.status(400).json({ error: 'Bitte beschreibe deine Motivation ausführlicher (mindestens 10 Zeichen).' });
+        }
+
+        const crypto = require('crypto');
+        const appId = 'APP-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
+        const secretToken = crypto.randomBytes(16).toString('hex');
+
+        if (!cloudStorage.activeApplications) cloudStorage.activeApplications = {};
+
+        const newApplication = {
+            id: appId,
+            secretToken: secretToken,
+            applicantTag: discordTag.trim(),
+            applicantId: (discordId && /^\d{17,20}$/.test(discordId.trim())) ? discordId.trim() : null,
+            applicantAvatar: null,
+            age: parsedAge,
+            robloxUsername: (robloxUsername || '').trim(),
+            hasMicrophone: !!hasMicrophone,
+            position: '🎫 AeroGuard Support-Team',
+            availability: (availability || 'Flexibel').trim(),
+            experience: experience.trim(),
+            motivation: motivation.trim(),
+            strengths: (strengths || '').trim(),
+            status: 'pending', // 'pending' | 'in_review' | 'accepted' | 'rejected'
+            claimedBy: null,
+            claimedAt: null,
+            submittedAt: Date.now(),
+            updatedAt: Date.now(),
+            decisionReason: '',
+            messages: [
+                {
+                    id: 'msg_welcome',
+                    senderType: 'bot',
+                    senderName: '🤖 AeroGuard System',
+                    timestamp: Date.now(),
+                    text: 'Okay, ich habe deine Bewerbung jetzt an die zuständige Ebene weitergeleitet! Unser Team wird deine Angaben sorgfältig prüfen.'
+                }
+            ]
+        };
+
+        // If applicant is logged in via session, link avatar
+        if (req.session.applicantUser?.avatar) {
+            newApplication.applicantAvatar = getDiscordAvatarUrl(req.session.applicantUser);
+            if (!newApplication.applicantId) newApplication.applicantId = req.session.applicantUser.id;
+        } else if (req.session.user?.avatar) {
+            newApplication.applicantAvatar = getDiscordAvatarUrl(req.session.user);
+            if (!newApplication.applicantId) newApplication.applicantId = req.session.user.id;
+        }
+
+        cloudStorage.activeApplications[appId] = newApplication;
+        saveCloudVaultToDisk();
+        addLog('info', `Neue Team-Bewerbung eingereicht: ${newApplication.applicantTag} (${appId})`);
+
+        // Notification to Staff / Owner on Discord
+        try {
+            const notifEmbed = new EmbedBuilder()
+                .setTitle('📝 Neue Bewerbung: AeroGuard Support-Team')
+                .setColor(0x00f3ff)
+                .setDescription('Ein Nutzer hat sich soeben über das Webpanel für das **AeroGuard Support-Team** beworben!')
+                .addFields(
+                    { name: '👤 Bewerber', value: `${newApplication.applicantTag} ${newApplication.applicantId ? '(<@' + newApplication.applicantId + '>)' : ''}`, inline: true },
+                    { name: '🎂 Alter', value: `${newApplication.age} Jahre`, inline: true },
+                    { name: '🎙️ Headset/Mic', value: newApplication.hasMicrophone ? '✅ Vorhanden' : '❌ Nicht vorhanden', inline: true },
+                    { name: '🎮 Roblox', value: newApplication.robloxUsername || '*Nicht angegeben*', inline: true },
+                    { name: '⏱️ Onlinezeiten', value: newApplication.availability, inline: true },
+                    { name: '💡 Motivation', value: newApplication.motivation.substring(0, 300) + (newApplication.motivation.length > 300 ? '...' : '') }
+                )
+                .setFooter({ text: `Bewerbungs-ID: ${appId} • AeroGuard Recruitment` })
+                .setTimestamp();
+
+            const row = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setLabel('📝 Im Dashboard ansehen & übernehmen')
+                    .setStyle(ButtonStyle.Link)
+                    .setURL('https://roblox-discord-g44u.onrender.com/dashboard')
+            );
+
+            // Post to staff/mod channels on bot guilds
+            for (const guild of client.guilds.cache.values()) {
+                const staffCh = guild.channels.cache.find(c => 
+                    c.isTextBased() && (c.name.includes('staff') || c.name.includes('team') || c.name.includes('mod-log') || c.name.includes('leitung'))
+                );
+                if (staffCh) {
+                    await staffCh.send({ embeds: [notifEmbed], components: [row] }).catch(() => {});
+                }
+            }
+
+            // Also DM the Bot Owner
+            const owner = await client.users.fetch(OWNER_ID).catch(() => null);
+            if (owner) {
+                await owner.send({ embeds: [notifEmbed], components: [row] }).catch(() => {});
+            }
+        } catch (notifErr) {
+            console.error('Error sending staff notification:', notifErr.message);
+        }
+
+        res.json({
+            success: true,
+            appId: appId,
+            secretToken: secretToken,
+            message: 'Okay, ich habe deine Bewerbung jetzt an die zuständige Ebene weitergeleitet! Unser Team wird deine Angaben sorgfältig prüfen.'
+        });
+    } catch (err) {
+        console.error('Submit application error:', err);
+        res.status(500).json({ error: 'Serverfehler beim Einreichen: ' + err.message });
+    }
+});
+
+// API: Bewerbungs-Status abrufen
+app.get('/api/apply/:id/status', (req, res) => {
+    const appId = req.params.id;
+    const application = cloudStorage.activeApplications ? cloudStorage.activeApplications[appId] : null;
+    if (!application) return res.status(404).json({ error: 'Bewerbung nicht gefunden.' });
+
+    const token = req.query.token || req.headers['x-app-token'];
+    const isStaff = !!req.session.user;
+    const isAuthorized = isStaff || (token && token === application.secretToken);
+
+    if (!isAuthorized) {
+        return res.status(403).json({ error: '⛔ Zugriff verweigert: Ungültiger Sicherheitsschlüssel.' });
+    }
+
+    res.json({
+        success: true,
+        application: {
+            id: application.id,
+            applicantTag: application.applicantTag,
+            applicantId: application.applicantId,
+            age: application.age,
+            robloxUsername: application.robloxUsername,
+            hasMicrophone: application.hasMicrophone,
+            position: application.position,
+            availability: application.availability,
+            experience: application.experience,
+            motivation: application.motivation,
+            strengths: application.strengths,
+            status: application.status,
+            claimedBy: application.claimedBy,
+            submittedAt: application.submittedAt,
+            decisionReason: application.decisionReason,
+            messages: application.messages || []
+        }
+    });
+});
+
+// API: Nachricht im Bewerbungs-Chat senden
+app.post('/api/apply/:id/message', async (req, res) => {
+    const appId = req.params.id;
+    const application = cloudStorage.activeApplications ? cloudStorage.activeApplications[appId] : null;
+    if (!application) return res.status(404).json({ error: 'Bewerbung nicht gefunden.' });
+
+    const text = (req.body.text || '').trim();
+    if (!text) return res.status(400).json({ error: 'Nachricht darf nicht leer sein.' });
+
+    const token = req.query.token || req.body.token || req.headers['x-app-token'];
+    const isStaff = !!req.session.user;
+    const isApplicant = (token && token === application.secretToken) ||
+                        (req.session.applicantUser && req.session.applicantUser.id === application.applicantId) ||
+                        (req.session.user && req.session.user.id === application.applicantId);
+
+    if (!isStaff && !isApplicant) {
+        return res.status(403).json({ error: '⛔ Zugriff verweigert.' });
+    }
+
+    const senderType = isStaff ? 'staff' : 'applicant';
+    const senderName = isStaff ? (req.session.user.username + ' (Leitung)') : application.applicantTag;
+    const senderAvatar = isStaff ? getDiscordAvatarUrl(req.session.user) : (application.applicantAvatar || null);
+
+    const newMsg = {
+        id: 'msg_' + Date.now(),
+        senderType: senderType,
+        senderName: senderName,
+        senderAvatar: senderAvatar,
+        timestamp: Date.now(),
+        text: text
+    };
+
+    if (!Array.isArray(application.messages)) application.messages = [];
+    application.messages.push(newMsg);
+    application.updatedAt = Date.now();
+    saveCloudVaultToDisk();
+
+    // Notify other party
+    if (!isStaff) {
+        // Applicant wrote message -> notify owner
+        try {
+            const owner = await client.users.fetch(OWNER_ID).catch(() => null);
+            if (owner) {
+                await owner.send(`💬 **Bewerbungs-Chat:** **${application.applicantTag}** hat geantwortet:\n> ${text.substring(0, 250)}\n👉 [Im Dashboard ansehen](https://roblox-discord-g44u.onrender.com/dashboard)`).catch(() => {});
+            }
+        } catch(e) {}
+    } else {
+        // Staff wrote message -> notify applicant via DM
+        if (application.applicantId) {
+            try {
+                const applicantUser = await client.users.fetch(application.applicantId).catch(() => null);
+                if (applicantUser) {
+                    await applicantUser.send(`💬 **Nachricht der Leitung:** Zu deiner Bewerbung für das AeroGuard Support-Team gibt es eine neue Nachricht:\n> ${text.substring(0, 250)}\n👉 [Hier antworten](https://roblox-discord-g44u.onrender.com/apply?id=${application.id}&token=${application.secretToken})`).catch(() => {});
+                }
+            } catch(e) {}
+        }
+    }
+
+    res.json({ success: true, message: newMsg });
+});
+
+// =========================================================================
+// MANAGEMENT API: BEWERBUNGEN ÜBERNEHMEN, ANNEHMEN & ABLEHNEN (v3.5)
+// =========================================================================
+
+// API: Alle Bewerbungen abrufen (Nur eingeloggte Staff)
+app.get('/api/applications', (req, res) => {
+    if (!req.session.user) return res.status(401).json({ error: 'Nicht angemeldet.' });
+    const list = Object.values(cloudStorage.activeApplications || {}).sort((a, b) => (b.submittedAt || 0) - (a.submittedAt || 0));
+    res.json({ success: true, applications: list });
+});
+
+// API: Bewerbung übernehmen (In Bearbeitung setzen)
+app.post('/api/applications/:id/claim', async (req, res) => {
+    if (!req.session.user) return res.status(401).json({ error: 'Nicht angemeldet.' });
+    const appId = req.params.id;
+    const application = cloudStorage.activeApplications ? cloudStorage.activeApplications[appId] : null;
+    if (!application) return res.status(404).json({ error: 'Bewerbung nicht gefunden.' });
+
+    application.status = 'in_review';
+    application.claimedBy = { id: req.session.user.id, tag: req.session.user.tag || req.session.user.username };
+    application.claimedAt = Date.now();
+    application.updatedAt = Date.now();
+
+    if (!Array.isArray(application.messages)) application.messages = [];
+    application.messages.push({
+        id: 'msg_' + Date.now(),
+        senderType: 'bot',
+        senderName: '🤖 AeroGuard System',
+        timestamp: Date.now(),
+        text: `👤 **${req.session.user.username}** (Leitung) hat deine Bewerbung übernommen und prüft deine Angaben. Du kannst hier bei Rückfragen direkt antworten!`
+    });
+
+    saveCloudVaultToDisk();
+
+    // Notify applicant on Discord via DM
+    if (application.applicantId) {
+        try {
+            const discordUser = await client.users.fetch(application.applicantId).catch(() => null);
+            if (discordUser) {
+                const claimEmbed = new EmbedBuilder()
+                    .setTitle('🔍 Deine Bewerbung wird geprüft!')
+                    .setColor(0x00f3ff)
+                    .setDescription(`Hey <@${application.applicantId}>!\n\nDeine Bewerbung für das **AeroGuard Support-Team** wurde soeben von **${req.session.user.username}** übernommen und wird geprüft.\n\nFalls Rückfragen bestehen, kannst du direkt auf der Website im Bewerbungs-Portal antworten!`)
+                    .addFields(
+                        { name: '🌐 Bewerbungs-Portal', value: `[Bewerbung öffnen & chatten](https://roblox-discord-g44u.onrender.com/apply?id=${application.id}&token=${application.secretToken})`, inline: false }
+                    )
+                    .setFooter({ text: 'AeroGuard Core • Status-Update' })
+                    .setTimestamp();
+                await discordUser.send({ embeds: [claimEmbed] }).catch(() => {});
+            }
+        } catch(e) {}
+    }
+
+    res.json({ success: true, message: 'Bewerbung erfolgreich übernommen!' });
+});
+
+// API: Bewerbung annehmen & Supporter-Rolle automatisch vergeben
+app.post('/api/applications/:id/accept', async (req, res) => {
+    if (!req.session.user) return res.status(401).json({ error: 'Nicht angemeldet.' });
+    const isBotOwner = (req.session.user.id === OWNER_ID);
+    if (!isBotOwner) {
+        return res.status(403).json({ error: '⛔ Zugriff verweigert: Nur die Projektleitung / der Bot-Owner kann Supporter ins Team aufnehmen.' });
+    }
+
+    const appId = req.params.id;
+    const application = cloudStorage.activeApplications ? cloudStorage.activeApplications[appId] : null;
+    if (!application) return res.status(404).json({ error: 'Bewerbung nicht gefunden.' });
+
+    application.status = 'accepted';
+    application.reviewedAt = Date.now();
+    application.reviewedBy = { id: req.session.user.id, tag: req.session.user.tag || req.session.user.username };
+
+    if (!Array.isArray(application.messages)) application.messages = [];
+    application.messages.push({
+        id: 'msg_' + Date.now(),
+        senderType: 'bot',
+        senderName: '🤖 AeroGuard System',
+        timestamp: Date.now(),
+        text: '🎉 Herzlichen Glückwunsch! Deine Bewerbung wurde von der Projektleitung angenommen. Die Supporter-Rolle wurde dir auf unserem Discord-Server zugewiesen. Willkommen im AeroGuard Team!'
+    });
+
+    let roleAssigned = false;
+    let targetGuildName = '';
+
+    // Assign role on Discord guilds
+    if (application.applicantId) {
+        for (const guild of client.guilds.cache.values()) {
+            try {
+                const member = await guild.members.fetch(application.applicantId).catch(() => null);
+                if (member) {
+                    let supportRole = guild.roles.cache.find(r => 
+                        r.name === '🎫 AeroGuard Support-Team' || 
+                        r.name.toLowerCase().includes('support-team') ||
+                        r.name.toLowerCase().includes('supporter')
+                    );
+                    if (!supportRole) {
+                        supportRole = await guild.roles.create({
+                            name: '🎫 AeroGuard Support-Team',
+                            color: 0x00f3ff,
+                            hoist: true,
+                            reason: 'AeroGuard Automatisches Bewerbungssystem'
+                        }).catch(() => null);
+                    }
+                    if (supportRole) {
+                        await member.roles.add(supportRole).catch(e => console.error('Role add error:', e));
+                        roleAssigned = true;
+                        targetGuildName = guild.name;
+                    }
+                }
+            } catch (err) {
+                console.error('Error assigning role on guild:', err);
+            }
+        }
+
+        // Send Discord DM to applicant
+        try {
+            const discordUser = await client.users.fetch(application.applicantId).catch(() => null);
+            if (discordUser) {
+                const acceptDmEmbed = new EmbedBuilder()
+                    .setTitle('🎉 Willkommen im AeroGuard Support-Team!')
+                    .setColor(0x10b981)
+                    .setDescription(`Hey <@${application.applicantId}>!\n\nDeine Bewerbung für das **AeroGuard Support-Team** wurde soeben von der Projektleitung **angenommen**! 🚀\n\nDu hast soeben die Rolle **🎫 AeroGuard Support-Team** auf unserem Discord-Server erhalten.\n\nWillkommen im Team!`)
+                    .addFields(
+                        { name: '🎫 Deine Aufgaben', value: '• Bearbeitung von Support-Tickets\n• Unterstützung von Spielern und Serverbesitzern\n• Voice-Support im Warteraum (`/support-next`)', inline: false },
+                        { name: '🌐 Web-Dashboard', value: '[Dashboard öffnen](https://roblox-discord-g44u.onrender.com/dashboard)', inline: true },
+                        { name: '🎧 Support-Server', value: `[Server beitreten](${SUPPORT_SERVER_INVITE_URL})`, inline: true }
+                    )
+                    .setFooter({ text: 'AeroGuard Core • Offizielle Team-Aufnahme' })
+                    .setTimestamp();
+
+                await discordUser.send({ embeds: [acceptDmEmbed] }).catch(() => {});
+            }
+        } catch (dmErr) {
+            console.error('Could not send DM to applicant:', dmErr);
+        }
+    }
+
+    saveCloudVaultToDisk();
+    addLog('info', `Bewerbung angenommen: ${application.applicantTag} (${appId}) - Rolle vergeben: ${roleAssigned}`);
+
+    res.json({
+        success: true,
+        message: 'Bewerbung erfolgreich angenommen und Supporter-Rolle vergeben!',
+        roleAssigned,
+        targetGuildName
+    });
+});
+
+// API: Bewerbung ablehnen
+app.post('/api/applications/:id/reject', async (req, res) => {
+    if (!req.session.user) return res.status(401).json({ error: 'Nicht angemeldet.' });
+    const isBotOwner = (req.session.user.id === OWNER_ID);
+    if (!isBotOwner) {
+        return res.status(403).json({ error: '⛔ Zugriff verweigert: Nur die Projektleitung / der Bot-Owner kann Bewerbungen ablehnen.' });
+    }
+
+    const appId = req.params.id;
+    const application = cloudStorage.activeApplications ? cloudStorage.activeApplications[appId] : null;
+    if (!application) return res.status(404).json({ error: 'Bewerbung nicht gefunden.' });
+
+    const reason = (req.body.reason || 'Die Voraussetzungen wurden derzeit leider nicht erfüllt.').trim();
+    application.status = 'rejected';
+    application.decisionReason = reason;
+    application.reviewedAt = Date.now();
+    application.reviewedBy = { id: req.session.user.id, tag: req.session.user.tag || req.session.user.username };
+
+    if (!Array.isArray(application.messages)) application.messages = [];
+    application.messages.push({
+        id: 'msg_' + Date.now(),
+        senderType: 'bot',
+        senderName: '🤖 AeroGuard System',
+        timestamp: Date.now(),
+        text: `Deine Bewerbung wurde leider abgelehnt. Begründung: ${reason}`
+    });
+
+    saveCloudVaultToDisk();
+
+    // Send Discord DM to applicant
+    if (application.applicantId) {
+        try {
+            const discordUser = await client.users.fetch(application.applicantId).catch(() => null);
+            if (discordUser) {
+                const rejectEmbed = new EmbedBuilder()
+                    .setTitle('ℹ️ Status deiner Bewerbung')
+                    .setColor(0xef4444)
+                    .setDescription(`Hey <@${application.applicantId}>!\n\nDeine Bewerbung für das **AeroGuard Support-Team** wurde leider abgelehnt.\n\n**Begründung:** ${reason}\n\nDu kannst dich zu einem späteren Zeitpunkt gerne erneut bewerben!`)
+                    .setFooter({ text: 'AeroGuard Core • Bewerbungs-Portal' })
+                    .setTimestamp();
+                await discordUser.send({ embeds: [rejectEmbed] }).catch(() => {});
+            }
+        } catch(e) {}
+    }
+
+    addLog('info', `Bewerbung abgelehnt: ${application.applicantTag} (${appId})`);
+    res.json({ success: true, message: 'Bewerbung abgelehnt.' });
 });
 
 app.post('/api/webhook/stripe', (req, res) => {

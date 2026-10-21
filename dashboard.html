@@ -320,6 +320,9 @@
                 <button class="tab-btn" id="tabbtn-transcripts" onclick="showDashboardTab('transcripts', this)">
                     📜 Web-Transkripte (<span id="count-transcripts">{{TRANSCRIPTS_COUNT}}</span>)
                 </button>
+                <button class="tab-btn" id="tabbtn-applications" onclick="showDashboardTab('applications', this)">
+                    📝 Bewerbungen (<span id="count-applications">{{APPLICATIONS_PENDING_COUNT}}</span>)
+                </button>
             </div>
 
             <!-- DISCORD USER PROFILE PILL WITH REAL DISCORD AVATAR -->
@@ -718,6 +721,136 @@
                 </table>
             </div>
         </div>
+
+        <!-- TAB 4: BEWERBUNGS-PORTAL & STAFF RECRUITMENT -->
+        <div id="tab-applications" class="tab-content" style="display:none;">
+            <div class="content-panel">
+                <div class="panel-controls" style="flex-wrap:wrap; gap:16px;">
+                    <div>
+                        <div class="panel-title">
+                            <span>📝 AeroGuard Staff Recruitment & Bewerber-Zentrale</span>
+                        </div>
+                        <div style="font-size:0.85rem; color:var(--text-dim); margin-top:4px;">
+                            Bewerbungen sichten, Bewerbungs-Chats führen & mit 1 Klick die Supporter-Rolle vergeben.
+                        </div>
+                    </div>
+
+                    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                        <div style="display:flex; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:4px; gap:4px;">
+                            <button type="button" class="btn-filter active" id="filter-app-all" onclick="filterApplications('all', this)" style="background:rgba(0,243,255,0.15); border:none; color:var(--cyan); padding:6px 14px; border-radius:8px; font-weight:700; font-size:0.82rem; cursor:pointer;">Alle (<span id="cnt-app-all">0</span>)</button>
+                            <button type="button" class="btn-filter" id="filter-app-pending" onclick="filterApplications('pending', this)" style="background:transparent; border:none; color:#cbd5e1; padding:6px 14px; border-radius:8px; font-weight:700; font-size:0.82rem; cursor:pointer;">🟡 Offen (<span id="cnt-app-pending">0</span>)</button>
+                            <button type="button" class="btn-filter" id="filter-app-in_review" onclick="filterApplications('in_review', this)" style="background:transparent; border:none; color:#cbd5e1; padding:6px 14px; border-radius:8px; font-weight:700; font-size:0.82rem; cursor:pointer;">🔵 In Prüfung (<span id="cnt-app-in_review">0</span>)</button>
+                            <button type="button" class="btn-filter" id="filter-app-accepted" onclick="filterApplications('accepted', this)" style="background:transparent; border:none; color:#cbd5e1; padding:6px 14px; border-radius:8px; font-weight:700; font-size:0.82rem; cursor:pointer;">🟢 Angenommen (<span id="cnt-app-accepted">0</span>)</button>
+                            <button type="button" class="btn-filter" id="filter-app-rejected" onclick="filterApplications('rejected', this)" style="background:transparent; border:none; color:#cbd5e1; padding:6px 14px; border-radius:8px; font-weight:700; font-size:0.82rem; cursor:pointer;">🔴 Abgelehnt (<span id="cnt-app-rejected">0</span>)</button>
+                        </div>
+                        <a href="/apply" target="_blank" class="btn-secondary" style="text-decoration:none; display:inline-flex; align-items:center; gap:6px; font-size:0.84rem; padding:8px 14px; border-color:var(--cyan); color:var(--cyan);">
+                            <span>🔗</span> Bewerber-Portal öffnen
+                        </a>
+                    </div>
+                </div>
+
+                <div id="applications-cards-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:18px; margin-top:20px;">
+                    <!-- Dynamically populated cards -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- APPLICATION DETAIL & INTERACTIVE RECRUITMENT CHAT MODAL -->
+    <div class="modal-overlay" id="app-modal-overlay" style="display:none;" onclick="handleAppModalBackdrop(event)">
+        <div class="modal-card" style="max-width:960px; max-height:90vh; display:flex; flex-direction:column;">
+            <div class="modal-header">
+                <div class="modal-title-wrap">
+                    <span id="app-modal-icon" style="font-size:1.6rem;">📝</span>
+                    <div>
+                        <div class="modal-title" id="app-modal-title">Bewerbung prüfen</div>
+                        <div style="font-size:0.75rem; color:var(--text-dim);" id="app-modal-sub">ID: APP-0000 • Status: Offen</div>
+                    </div>
+                </div>
+                <button type="button" class="btn-modal-close" onclick="closeApplicationDetailModal()">✕</button>
+            </div>
+
+            <div class="modal-body" style="padding:24px; overflow-y:auto; flex:1; display:grid; grid-template-columns:1.1fr 1fr; gap:24px;">
+                <!-- LEFT COLUMN: QUESTIONNAIRE & ACTIONS -->
+                <div>
+                    <div style="background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.08); border-radius:14px; padding:18px; margin-bottom:18px;">
+                        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+                            <div style="display:flex; align-items:center; gap:12px;">
+                                <div id="app-detail-avatar" style="width:48px; height:48px; border-radius:14px; background:linear-gradient(135deg, var(--cyan), var(--purple)); display:flex; align-items:center; justify-content:center; font-weight:800; font-size:1.2rem; color:#000;">AG</div>
+                                <div>
+                                    <div id="app-detail-tag" style="font-size:1.05rem; font-weight:800;">Tag</div>
+                                    <div id="app-detail-id" style="font-size:0.75rem; color:var(--text-dim); font-family:'JetBrains Mono',monospace;">ID: 000000000000000000</div>
+                                </div>
+                            </div>
+                            <span id="app-detail-status-pill" class="feature-badge-active badge-on">🟡 Offen</span>
+                        </div>
+
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; font-size:0.86rem; border-top:1px solid rgba(255,255,255,0.06); padding-top:12px;">
+                            <div><span style="color:var(--text-dim);">Alter:</span> <strong id="app-detail-age" style="color:var(--cyan);">-- Jahre</strong></div>
+                            <div><span style="color:var(--text-dim);">Roblox:</span> <strong id="app-detail-roblox">--</strong></div>
+                            <div><span style="color:var(--text-dim);">Headset:</span> <strong id="app-detail-mic">--</strong></div>
+                            <div><span style="color:var(--text-dim);">Verfügbarkeit:</span> <strong id="app-detail-avail">--</strong></div>
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom:16px;">
+                        <div style="font-size:0.8rem; font-weight:700; color:var(--cyan); text-transform:uppercase; margin-bottom:4px;">Erfahrungen im Support:</div>
+                        <div id="app-detail-exp" style="background:rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.06); border-radius:10px; padding:12px; font-size:0.88rem; line-height:1.5; color:#cbd5e1; max-height:120px; overflow-y:auto;">--</div>
+                    </div>
+
+                    <div style="margin-bottom:16px;">
+                        <div style="font-size:0.8rem; font-weight:700; color:var(--purple); text-transform:uppercase; margin-bottom:4px;">Motivation:</div>
+                        <div id="app-detail-mot" style="background:rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.06); border-radius:10px; padding:12px; font-size:0.88rem; line-height:1.5; color:#cbd5e1; max-height:120px; overflow-y:auto;">--</div>
+                    </div>
+
+                    <div style="margin-bottom:20px;" id="app-detail-strengths-wrap">
+                        <div style="font-size:0.8rem; font-weight:700; color:#10b981; text-transform:uppercase; margin-bottom:4px;">Besondere Stärken:</div>
+                        <div id="app-detail-str" style="background:rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.06); border-radius:10px; padding:10px 12px; font-size:0.85rem; color:#cbd5e1;">--</div>
+                    </div>
+
+                    <!-- ACTION BUTTONS -->
+                    <div style="display:flex; flex-direction:column; gap:10px; margin-top:auto;">
+                        <button type="button" id="btn-app-claim" class="btn btn-secondary" onclick="executeClaimApplication()" style="border-color:var(--cyan); color:var(--cyan); font-weight:700; display:flex; align-items:center; justify-content:center; gap:8px;">
+                            <span>🙋‍♂️</span> Bewerbung übernehmen (In Bearbeitung)
+                        </button>
+                        <div style="display:flex; gap:10px;">
+                            <button type="button" id="btn-app-accept" class="btn btn-primary" onclick="executeAcceptApplication()" style="flex:1; background:linear-gradient(135deg, #10b981, #059669); color:#fff; font-weight:800; display:flex; align-items:center; justify-content:center; gap:8px; box-shadow:0 0 20px rgba(16,185,129,0.35);">
+                                <span>🟢</span> Annehmen & Supporter-Rolle
+                            </button>
+                            <button type="button" id="btn-app-reject" class="btn btn-secondary" onclick="executeRejectApplication()" style="border-color:#ef4444; color:#ef4444; font-weight:700; display:flex; align-items:center; justify-content:center; gap:8px;">
+                                <span>🔴</span> Ablehnen
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- RIGHT COLUMN: INTERACTIVE CHAT ("kann ich mit dir drüber schreiben") -->
+                <div style="background:rgba(8,11,22,0.85); border:1px solid rgba(255,255,255,0.08); border-radius:16px; display:flex; flex-direction:column; height:500px;">
+                    <div style="padding:12px 16px; border-bottom:1px solid rgba(255,255,255,0.08); font-size:0.88rem; font-weight:700; display:flex; align-items:center; justify-content:space-between;">
+                        <span>💬 Live Bewerbungs-Chat</span>
+                        <span style="font-size:0.75rem; color:var(--cyan);">● Synchron</span>
+                    </div>
+
+                    <!-- QUICK HELPER QUESTIONS ("Der Bot hilft danach und erklärt dir was brauchen wir von dir") -->
+                    <div style="padding:8px 12px; background:rgba(0,243,255,0.04); border-bottom:1px solid rgba(255,255,255,0.06); display:flex; gap:6px; overflow-x:auto;">
+                        <button type="button" onclick="insertQuickPromptText('Wie alt bist du genau und hast du ein funktionierendes Headset für Voice-Support?')" style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); color:#cbd5e1; font-size:0.72rem; padding:4px 8px; border-radius:6px; cursor:pointer; white-space:nowrap;">➕ Alter & Headset</button>
+                        <button type="button" onclick="insertQuickPromptText('Mit welchen Discord-Ticket-Systemen oder Roblox-Games hast du bisher Support-Erfahrung?')" style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); color:#cbd5e1; font-size:0.72rem; padding:4px 8px; border-radius:6px; cursor:pointer; white-space:nowrap;">➕ Erfahrung</button>
+                        <button type="button" onclick="insertQuickPromptText('Hättest du heute oder morgen Zeit für ein kurzes Gespräch im Support-Warteraum?')" style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); color:#cbd5e1; font-size:0.72rem; padding:4px 8px; border-radius:6px; cursor:pointer; white-space:nowrap;">➕ Talk-Einladung</button>
+                    </div>
+
+                    <!-- CHAT MESSAGES -->
+                    <div id="app-modal-chat-messages" style="flex:1; padding:14px; overflow-y:auto; display:flex; flex-direction:column; gap:10px;">
+                        <!-- Messages dynamically populated -->
+                    </div>
+
+                    <!-- CHAT INPUT -->
+                    <form onsubmit="handleSendAppModalChat(event)" style="padding:12px; border-top:1px solid rgba(255,255,255,0.08); display:flex; gap:8px;">
+                        <input type="text" id="app-modal-chat-input" class="search-box" style="flex:1; margin:0;" placeholder="Nachricht an Bewerber schreiben..." autocomplete="off">
+                        <button type="submit" class="btn btn-primary" style="padding:0 16px;">Senden</button>
+                    </form>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- DYNAMIC CONFIGURATION MODAL (OPENED WHEN CLICKING ANY MODULE) -->
@@ -759,6 +892,10 @@
         const currentUser = {{CURRENT_USER_JSON}};
         const guilds = {{GUILDS_JSON}};
         const allTranscripts = {{TRANSCRIPTS_JSON}};
+        let allApplications = {{APPLICATIONS_JSON}};
+        let currentAppFilter = 'all';
+        let activeModalAppId = null;
+        let appChatPollInterval = null;
         const activeTicketsList = {{ACTIVE_TICKETS_JSON}};
         let activeGuildId = guilds[0] ? guilds[0].id : null;
         let currentOpenModule = null;
@@ -852,6 +989,7 @@
 
             if (tabName === 'tickets') renderLiveTickets();
             if (tabName === 'transcripts') renderWebTranscripts();
+            if (tabName === 'applications') renderApplications();
         }
 
         // =========================================================================

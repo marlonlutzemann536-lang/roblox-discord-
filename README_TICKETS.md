@@ -1,10 +1,51 @@
-# 🚀 AeroGuard Core — Enterprise Discord & Roblox Suite (v3.3)
+# 🚀 AeroGuard Core — Enterprise Discord & Roblox Suite (v3.5)
 
-Willkommen bei **AeroGuard Core v3.3**! Das System wurde mit einem **vollautomatischen Bot-Lifecycle & Status-Monitoring (Online- & Shutdown-Broadcasts)** und der neuen **Server-Vorlagen Engine (inkl. exklusiver AeroGuard Support-Server Vorlage nur für den Bot-Besitzer)** auf ein neues Level gehoben.
+Willkommen bei **AeroGuard Core v3.5**! Diese Version führt das exklusive **Web-Bewerbungssystem für das AeroGuard Support-Team** ein: inklusive eines interaktiven Bewerber-Portals auf der Webseite, Live-Chat zwischen Leitung und Bewerbern, automatischer Weiterleitung und automatischer Supporter-Rollenvergabe bei Annahme.
 
 ---
 
-## 🌟 Neu in Version 3.3
+## 🌟 Neu in Version 3.5
+
+### 📝 1. Web-Exklusives Supporter-Bewerbungssystem (`/apply`)
+* **100% Web-Exklusiv:** Keine unübersichtlichen Discord-Chat-Formulare – Bewerber nutzen das moderne Cyberpunk-Portal unter `/apply` oder `/bewerbung`.
+* **🤖 AeroGuard KI-Recruitment-Leitfaden:**
+  * Der Bot erklärt Bewerbern vorab genau, was benötigt wird:
+    * 🎂 **Mindestalter:** 14+ Jahre (Zuverlässigkeit & geistige Reife)
+    * 🎙️ **Headset & Mikrofon:** Für den Voice-Support & Warteraum (`/support-next`)
+    * 🎫 **Support- & Moderationserfahrung:** Kenntnisse im Ticket- & Chat-Support
+    * 🎮 **Roblox- & Discord-Kenntnisse:** Vertrautheit mit AeroGuard
+* **Bewerbungs-Formular:**
+  * Discord-Tag & Discord User-ID (automatisch verknüpft oder manuelle Eingabe)
+  * Alter & Roblox Username
+  * Headset / Mikrofon-Status
+  * Online-Zeiten & wöchentliche Verfügbarkeit
+  * Bisherige Erfahrungen & persönliche Motivation
+  * Besondere Stärken
+
+### ⚡ 2. Automatische Weiterleitung & Staff-Benachrichtigung
+* **Bestätigung an den Bewerber:** Der Bot bestätigt nach dem Absenden sofort:
+  > *"Okay, ich habe deine Bewerbung jetzt an die zuständige Ebene weitergeleitet! Unser Team wird deine Angaben sorgfältig prüfen."*
+* **Echtzeit-Meldung an Staff & Bot-Owner:**
+  * Discord-Embed mit allen Bewerberdaten in `#🔐・staff-chat` bzw. `#🚨・mod-logs`.
+  * Direkte Discord-DM an den Bot-Owner mit Direktlink ins Dashboard.
+
+### 💬 3. Interaktiver Bewerbungs-Chat ("Drüber schreiben vor Entscheidung")
+* **Bewerbung übernehmen (Claim):** Die Leitung klickt im Dashboard auf **`🙋‍♂️ Bewerbung übernehmen`**. Der Status wechselt auf `🔵 In Prüfung`.
+* **Echtzeit-Chat im Webpanel:** Bewerber und Leitung können direkt über die Website miteinander schreiben.
+* **Schnellfragen:** Ein-Klick Vorlagen für die Leitung:
+  * *„Wie alt bist du genau und hast du ein funktionierendes Headset?“*
+  * *„Mit welchen Systemen hast du bisher gearbeitet?“*
+  * *„Einladung zum Gespräch im Support-Warteraum.“*
+
+### 🟢 4. Annahme & Automatische Supporter-Rolle
+* **1-Klick Annahme durch die Leitung:**
+  * Weist dem Bewerber auf dem Discord-Server vollautomatisch die offizielle Rolle **`🎫 AeroGuard Support-Team`** zu.
+  * Sendet eine stylische Willkommens-DM mit Aufgabenübersicht an den Bewerber auf Discord.
+  * Aktualisiert den Status im Webportal auf **`🟢 Angenommen`**.
+* **Ablehnung mit Begründung:** Sendet eine freundliche Begründung an den Bewerber.
+
+---
+## 🌟 Vorherige Updates (v3.3)
 
 ### 📡 1. Bot-Lifecycle & Status Monitor (Online & Pre-Shutdown Alerts)
 * **Pre-Shutdown Broadcasts:** Fährt der Bot aus irgendeinem Grund herunter (geplante Wartungsarbeiten, Host-Neustart, `SIGINT`/`SIGTERM` oder manueller Shutdown), sendet er **unmittelbar vor dem eigentlichen Herunterfahren** eine offizielle Statusmeldung mit Grund und Zeitstempel an die konfigurierten Status-Kanäle aller Server.
