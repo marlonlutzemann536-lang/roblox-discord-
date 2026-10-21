@@ -740,6 +740,28 @@
             </div>
         </div>
 
+        <!-- FALLBACK VIEW: WHEN NO JOBS ARE ACTIVE -->
+        <div id="no-jobs-view" class="glass-card" style="display:none; text-align:center; padding: 50px 24px; border: 1px solid rgba(239, 68, 68, 0.35); background: rgba(14, 18, 36, 0.9); box-shadow: 0 0 35px rgba(239, 68, 68, 0.15); border-radius: 20px; margin-bottom: 24px;">
+            <div style="font-size: 3.5rem; margin-bottom: 16px;">🛑</div>
+            <h2 style="font-size: 2rem; font-weight: 900; color: #fff; margin-bottom: 12px; letter-spacing: -0.5px;">
+                We are sorry!
+            </h2>
+            <p style="font-size: 1.15rem; color: #cbd5e1; max-width: 620px; margin: 0 auto 16px auto; line-height: 1.6;">
+                Aktuell sind leider keine Stellen oder Bewerbungen offen. Wir öffnen demnächst vielleicht wieder neue Stellen!
+            </p>
+            <p style="font-size: 0.95rem; color: #94a3b8; max-width: 580px; margin: 0 auto 28px auto; line-height: 1.5;">
+                Tritt in der Zwischenzeit gerne unserem offiziellen Support-Server bei, um zukünftige Ausschreibungen und Ankündigungen neuer Stellen nicht zu verpassen:
+            </p>
+            <div style="display: flex; justify-content: center; gap: 14px; flex-wrap: wrap;">
+                <a href="https://discord.gg/JvnhWC5Gnu" target="_blank" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 10px; background: linear-gradient(135deg, #5865F2, #4752c4); color: #fff; text-decoration: none; padding: 14px 32px; border-radius: 12px; font-weight: 800; font-size: 1.05rem; box-shadow: 0 0 25px rgba(88, 101, 242, 0.4);">
+                    <span>🎧</span> Offiziellem Support-Server beitreten
+                </a>
+                <a href="/" class="btn btn-secondary" style="display: inline-flex; align-items: center; gap: 8px; text-decoration: none; padding: 14px 24px; border-radius: 12px; font-weight: 700;">
+                    <span>🏠</span> Zur Startseite
+                </a>
+            </div>
+        </div>
+
         <!-- MAIN CARD: FORM VIEW -->
         <div id="form-view" class="glass-card">
             <h2 style="font-size:1.6rem; font-weight:800; margin-bottom:6px;">📝 Deine Bewerbungsdaten eingeben</h2>
@@ -907,10 +929,16 @@
         <!-- FOOTER WITH RENDER HOSTING & IMPRESSUM -->
         <footer style="margin-top:60px; padding:24px 0; border-top:1px solid var(--border); text-align:center; font-size:0.85rem; color:var(--text-dim);">
             <div>AeroGuard Core • Offizielles Support- & Recruiting-Portal</div>
-            <div style="margin-top:6px;">
-                Gehostet auf <a href="https://render.com" target="_blank" style="color:var(--cyan); text-decoration:none; font-weight:700;">Render.com</a> Cloud Platform • 
-                <a href="/impressum" target="_blank" style="color:#cbd5e1; text-decoration:none; margin-left:8px;">⚖️ Impressum & Hosting-Info</a> • 
-                <a href="https://discord.gg/JvnhWC5Gnu" target="_blank" style="color:var(--cyan); text-decoration:none; margin-left:8px;">🎧 Support-Server</a>
+            <div style="margin: 16px 0; display: flex; justify-content: center; gap: 12px; flex-wrap: wrap;">
+                <a href="/impressum" target="_blank" style="display: inline-flex; align-items: center; gap: 8px; background: rgba(0, 243, 255, 0.08); border: 1px solid rgba(0, 243, 255, 0.4); color: #00f3ff; text-decoration: none; padding: 10px 22px; border-radius: 12px; font-weight: 700; font-size: 0.92rem; box-shadow: 0 0 15px rgba(0, 243, 255, 0.15);">
+                    <span>⚖️</span> Impressum & Hosting (Render.com)
+                </a>
+                <a href="https://discord.gg/JvnhWC5Gnu" target="_blank" style="display: inline-flex; align-items: center; gap: 8px; background: rgba(88, 101, 242, 0.12); border: 1px solid rgba(88, 101, 242, 0.35); color: #8599ff; text-decoration: none; padding: 10px 22px; border-radius: 12px; font-weight: 700; font-size: 0.92rem;">
+                    <span>🎧</span> Support-Server
+                </a>
+            </div>
+            <div style="margin-top:6px; color:#64748b; font-size:0.8rem;">
+                Gehostet auf <a href="https://render.com" target="_blank" style="color:var(--cyan); text-decoration:none; font-weight:700;">Render.com</a> Cloud Platform
             </div>
         </footer>
     </div>
@@ -936,13 +964,31 @@
             try {
                 const res = await fetch('/api/job-postings');
                 const data = await res.json();
+                const formView = document.getElementById('form-view');
+                const noJobsView = document.getElementById('no-jobs-view');
+
                 if (data.success && Array.isArray(data.jobPostings)) {
                     availableJobs = data.jobPostings.filter(j => j.active !== false);
+
+                    if (availableJobs.length === 0) {
+                        // Alle Ausschreibungen sind deaktiviert oder gelöscht!
+                        if (formView) formView.style.display = 'none';
+                        if (noJobsView) noJobsView.style.display = 'block';
+                        return;
+                    }
+
+                    // Mindestens eine Stelle ist aktiv
+                    if (formView) formView.style.display = 'block';
+                    if (noJobsView) noJobsView.style.display = 'none';
+
                     const sel = document.getElementById('select-position');
                     if (sel && availableJobs.length > 0) {
-                        sel.innerHTML = availableJobs.map(j => `<option value="${escapeHtml(j.title)}">${escapeHtml(j.title)}</option>`).join('');
+                        sel.innerHTML = availableJobs.map(j => `<option value="${escapeHtml(j.title)}">${escapeHtml(j.title)} (${escapeHtml(j.category || 'Allgemein')})</option>`).join('');
                         onPositionSelect(availableJobs[0].title);
                     }
+                } else {
+                    if (formView) formView.style.display = 'none';
+                    if (noJobsView) noJobsView.style.display = 'block';
                 }
             } catch(e) {
                 console.error('Error loading job postings:', e);

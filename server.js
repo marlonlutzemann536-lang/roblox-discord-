@@ -5892,10 +5892,22 @@ app.get('/', (req, res) => {
 
         <footer>
             <p>AeroGuard Core Enterprise v3.0 • Entwickelt für maximale Sicherheit & Performance</p>
-            <p style="margin-top:6px;">
+            <div style="margin: 20px 0; display: flex; justify-content: center; gap: 14px; flex-wrap: wrap;">
+                <a href="/impressum" class="btn-impressum-badge" style="display: inline-flex; align-items: center; gap: 8px; background: rgba(0, 243, 255, 0.08); border: 1px solid rgba(0, 243, 255, 0.4); color: #00f3ff; text-decoration: none; padding: 11px 24px; border-radius: 12px; font-weight: 800; font-size: 0.95rem; box-shadow: 0 0 20px rgba(0, 243, 255, 0.2); transition: all 0.3s ease;">
+                    <span>⚖️</span> Impressum & Hosting (Render.com)
+                </a>
+                <a href="https://discord.gg/JvnhWC5Gnu" target="_blank" style="display: inline-flex; align-items: center; gap: 8px; background: rgba(88, 101, 242, 0.15); border: 1px solid rgba(88, 101, 242, 0.4); color: #8599ff; text-decoration: none; padding: 11px 22px; border-radius: 12px; font-weight: 700; font-size: 0.95rem; transition: all 0.3s ease;">
+                    <span>🎧</span> Support-Server
+                </a>
+                <a href="/apply" style="display: inline-flex; align-items: center; gap: 8px; background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.35); color: #34d399; text-decoration: none; padding: 11px 22px; border-radius: 12px; font-weight: 700; font-size: 0.95rem; transition: all 0.3s ease;">
+                    <span>📝</span> Bewerbungsportal
+                </a>
+            </div>
+            <p style="margin-top:6px; color:#64748b; font-size:0.85rem;">
                 <a href="/login" style="color:var(--cyan);text-decoration:none;">Team Dashboard Login</a> • 
-                <a href="${inviteUrl}" target="_blank" style="color:#fff;text-decoration:none;">Bot zu Discord hinzufügen</a> • 
-                <a href="javascript:void(0)" onclick="openCookieSettings()" style="color:#94a3b8;text-decoration:none;">🍪 Cookie-Einstellungen</a>
+                <a href="${inviteUrl}" target="_blank" style="color:#94a3b8;text-decoration:none;">Bot zu Discord hinzufügen</a> • 
+                <a href="javascript:void(0)" onclick="openCookieSettings()" style="color:#94a3b8;text-decoration:none;">🍪 Cookie-Einstellungen</a> • 
+                <a href="/impressum" style="color:#00f3ff;text-decoration:underline;">Impressum</a>
             </p>
         </footer>
     <!-- ========================================================================= -->
@@ -6613,6 +6625,39 @@ app.post('/api/job-postings/ai-generate', async (req, res) => {
             targetRole
         }
     });
+});
+
+// API: Stellenausschreibung bearbeiten / aktualisieren (Owner Exklusiv)
+app.post('/api/job-postings/:id/update', (req, res) => {
+    if (!req.session.user || req.session.user.id !== OWNER_ID) {
+        return res.status(403).json({ error: '⛔ Zugriff verweigert: Nur der Bot-Besitzer kann Ausschreibungen bearbeiten.' });
+    }
+
+    const jobId = req.params.id;
+    if (!cloudStorage.jobPostings || !cloudStorage.jobPostings[jobId]) {
+        return res.status(404).json({ error: 'Ausschreibung nicht gefunden.' });
+    }
+
+    const { title, category, description, requirements, tasks, perks, targetRole, active } = req.body;
+    if (!title || title.trim().length < 3) {
+        return res.status(400).json({ error: 'Bitte gib einen aussagekräftigen Titel an.' });
+    }
+
+    const job = cloudStorage.jobPostings[jobId];
+    job.title = title.trim();
+    if (category !== undefined) job.category = category.trim();
+    if (description !== undefined) job.description = description.trim();
+    if (requirements !== undefined) job.requirements = requirements.trim();
+    if (tasks !== undefined) job.tasks = tasks.trim();
+    if (perks !== undefined) job.perks = perks.trim();
+    if (targetRole !== undefined) job.targetRole = targetRole.trim();
+    if (active !== undefined) job.active = Boolean(active);
+    job.updatedAt = Date.now();
+
+    saveCloudVaultToDisk();
+    addLog('info', `Stellenausschreibung aktualisiert: ${job.title} (${jobId})`);
+
+    res.json({ success: true, jobPosting: job, message: 'Stellenausschreibung erfolgreich aktualisiert!' });
 });
 
 // API: Neue Stellenausschreibung erstellen (Owner Exklusiv)
