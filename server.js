@@ -853,6 +853,10 @@ client.on('messageCreate', async message => {
         lowerContent.startsWith('/ticket setup') || 
         lowerContent.startsWith('/ticket panel')
     ) {
+        const gSettings = getGuildSettings(message.guild.id);
+        if (gSettings && gSettings.modules && gSettings.modules.tickets === false) {
+            return message.reply('⚠️ **Funktion deaktiviert:** Das Ticket-System ist auf diesem Server aktuell über das Web-Dashboard abgeschaltet.\n👉 *Bitte aktiviere es im Dashboard wieder:* `http://localhost:3000/dashboard`');
+        }
         if (!isSupp) {
             return message.reply('⛔ **Zugriff verweigert:** Nur Administratoren und Supporter können das Ticket-System einrichten.');
         }
@@ -901,6 +905,10 @@ client.on('messageCreate', async message => {
 
     // In-Ticket Channel Commands (!close, !claim, !transcript, !add, !remove)
     if (cloudStorage.activeTickets[message.channel.id]) {
+        const gSettings = getGuildSettings(message.guild.id);
+        if (gSettings && gSettings.modules && gSettings.modules.tickets === false) {
+            return message.reply('⚠️ **Funktion deaktiviert:** Ticket-Funktionen sind auf diesem Server aktuell über das Web-Dashboard abgeschaltet.\n👉 *Bitte aktiviere es im Dashboard wieder:* `http://localhost:3000/dashboard`');
+        }
         const ticket = cloudStorage.activeTickets[message.channel.id];
 
         // IN-TICKET COMMAND: !add @user
@@ -1438,6 +1446,12 @@ client.on('interactionCreate', async interaction => {
     // AEROGUARD TICKET CHANNEL BUTTON HANDLERS
     // =========================================================================
     if (interaction.isButton() && interaction.customId.startsWith('ticket_ch_close_')) {
+        if (interaction.guild) {
+            const gSettings = getGuildSettings(interaction.guild.id);
+            if (gSettings && gSettings.modules && gSettings.modules.tickets === false) {
+                return interaction.reply({ content: '⚠️ **Funktion deaktiviert:** Ticket-Aktionen sind aktuell über das Web-Dashboard abgeschaltet.\n👉 *Bitte aktiviere es im Dashboard wieder:* `http://localhost:3000/dashboard`', ephemeral: true });
+            }
+        }
         const chId = interaction.customId.replace('ticket_ch_close_', '');
         const confirmRow = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('ticket_ch_confirm_close_' + chId).setLabel('Ja, schließen & archivieren').setEmoji('✅').setStyle(ButtonStyle.Danger),
@@ -1602,6 +1616,12 @@ client.on('interactionCreate', async interaction => {
         // AEROGUARD /TICKET SLASH COMMAND
         // =========================================================================
         if (commandName === 'ticket') {
+            if (interaction.guild) {
+                const gSettings = getGuildSettings(interaction.guild.id);
+                if (gSettings && gSettings.modules && gSettings.modules.tickets === false) {
+                    return interaction.reply({ content: '⚠️ **Funktion deaktiviert:** Das Ticket-System ist auf diesem Server aktuell über das Web-Dashboard abgeschaltet.\n👉 *Bitte aktiviere es im Dashboard wieder:* `http://localhost:3000/dashboard`', ephemeral: true });
+                }
+            }
             const sub = interaction.options.getSubcommand();
             const chId = interaction.channel.id;
             const ticket = cloudStorage.activeTickets[chId];
@@ -2093,11 +2113,23 @@ client.on('interactionCreate', async interaction => {
         }
 
         if (commandName === 'setup-voicesupport') {
+            if (interaction.guild) {
+                const gSettings = getGuildSettings(interaction.guild.id);
+                if (gSettings && gSettings.modules && gSettings.modules.voiceSupport === false) {
+                    return interaction.reply({ content: '⚠️ **Funktion deaktiviert:** Der Voice-Support ist auf diesem Server aktuell über das Web-Dashboard abgeschaltet.\n👉 *Bitte aktiviere es im Dashboard wieder:* `http://localhost:3000/dashboard`', ephemeral: true });
+                }
+            }
             const channelSelect = new ChannelSelectMenuBuilder().setCustomId('voice_support_text_channel_select').setPlaceholder('Kanal wählen...').addChannelTypes(ChannelType.GuildText);
             return interaction.reply({ content: '🔮 **AeroGuard Leitstelle:** Definiere den Log-Textkanal für Voice-Warteräume:', components: [new ActionRowBuilder().addComponents(channelSelect)], ephemeral: true });
         }
 
         if (commandName === 'setup-infohub') {
+            if (interaction.guild) {
+                const gSettings = getGuildSettings(interaction.guild.id);
+                if (gSettings && gSettings.modules && gSettings.modules.robloxHub === false) {
+                    return interaction.reply({ content: '⚠️ **Funktion deaktiviert:** Der Roblox Info-Hub ist auf diesem Server aktuell über das Web-Dashboard abgeschaltet.\n👉 *Bitte aktiviere es im Dashboard wieder:* `http://localhost:3000/dashboard`', ephemeral: true });
+                }
+            }
             const channelSelect = new ChannelSelectMenuBuilder().setCustomId('roblox_info_hub_channel_select').setPlaceholder('Kanal wählen...').addChannelTypes(ChannelType.GuildText);
             return interaction.reply({ content: '🎮 **AeroGuard Open Cloud Gateway:** Bitte wähle über das Menü den Textkanal für den Info-Hub aus:', components: [new ActionRowBuilder().addComponents(channelSelect)], ephemeral: true });
         }
@@ -2387,13 +2419,14 @@ client.once('ready', async () => {
 
 // =========================================================================
 // =========================================================================
+// =========================================================================
 // WEBPANEL OAUTH2 UTILITIES & MULTI-SERVER CONTROL LAYER
 // =========================================================================
 
-// Route: Login Page with Discord OAuth2 & Owner Quick-Access
+// Route: Login Page with Discord OAuth2 (Strictly Discord Login Only)
 app.get('/login', (req, res) => {
-    const clientId = process.env.CLIENT_ID;
-    const redirectUri = encodeURIComponent(process.env.REDIRECT_URI || 'http://localhost:3000/api/auth/callback');
+    const clientId = process.env.CLIENT_ID || '1522570826610774016';
+    const redirectUri = encodeURIComponent(process.env.REDIRECT_URI || 'https://roblox-discord-g44u.onrender.com/api/auth/callback');
     const discordAuthUrl = clientId 
         ? `https://discord.com/api/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=identify%20guilds`
         : '#';
@@ -2403,12 +2436,12 @@ app.get('/login', (req, res) => {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AeroGuard Core — Login</title>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+    <title>AeroGuard Core — Discord Anmeldung</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg: #07080d;
-            --card: rgba(16, 19, 32, 0.75);
+            --bg: #07080f;
+            --card: rgba(14, 18, 32, 0.85);
             --border: rgba(255, 255, 255, 0.08);
             --cyan: #00f3ff;
             --cyan-glow: rgba(0, 243, 255, 0.35);
@@ -2433,24 +2466,24 @@ app.get('/login', (req, res) => {
         .login-card {
             background: var(--card);
             border: 1px solid var(--border);
-            border-radius: 20px;
-            padding: 45px 35px;
+            border-radius: 24px;
+            padding: 50px 38px;
             max-width: 460px;
             width: 100%;
             text-align: center;
             backdrop-filter: blur(20px);
-            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.8), 0 0 30px rgba(0, 243, 255, 0.08);
+            box-shadow: 0 30px 70px rgba(0, 0, 0, 0.8), 0 0 40px rgba(0, 243, 255, 0.06);
             position: relative;
-            overflow: hidden;
         }
         .login-card::before {
             content: '';
             position: absolute;
             top: 0; left: 0; right: 0; height: 3px;
             background: linear-gradient(90deg, var(--cyan), var(--purple), var(--gold));
+            border-radius: 24px 24px 0 0;
         }
         .brand-icon {
-            width: 70px; height: 70px;
+            width: 68px; height: 68px;
             background: linear-gradient(135deg, var(--cyan), var(--purple));
             border-radius: 18px;
             display: flex; align-items: center; justify-content: center;
@@ -2458,37 +2491,28 @@ app.get('/login', (req, res) => {
             margin: 0 auto 20px auto;
             box-shadow: 0 0 30px var(--cyan-glow);
         }
-        h1 { font-size: 1.8rem; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 8px; }
-        p { color: #94a3b8; font-size: 0.95rem; margin-bottom: 30px; line-height: 1.5; }
-        .btn {
-            display: flex; align-items: center; justify-content: center; gap: 12px;
-            width: 100%; padding: 14px 20px; border-radius: 12px;
-            font-size: 1rem; font-weight: 600; text-decoration: none;
-            transition: all 0.25s ease; cursor: pointer; border: none; margin-bottom: 14px;
-        }
+        h1 { font-size: 1.85rem; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 8px; }
+        p { color: #94a3b8; font-size: 0.95rem; margin-bottom: 28px; line-height: 1.5; }
         .btn-discord {
+            display: flex; align-items: center; justify-content: center; gap: 12px;
+            width: 100%; padding: 15px 20px; border-radius: 12px;
+            font-size: 1.05rem; font-weight: 700; text-decoration: none;
             background: #5865F2; color: #fff;
-            box-shadow: 0 5px 20px rgba(88, 101, 242, 0.35);
+            box-shadow: 0 8px 25px rgba(88, 101, 242, 0.4);
+            transition: all 0.25s ease; border: none; cursor: pointer;
         }
         .btn-discord:hover {
             background: #4752c4;
             transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(88, 101, 242, 0.5);
+            box-shadow: 0 12px 30px rgba(88, 101, 242, 0.6);
         }
-        .btn-owner {
-            background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(245, 158, 11, 0.25));
-            border: 1px solid rgba(245, 158, 11, 0.5);
-            color: #fbbf24;
+        .back-link {
+            display: inline-block; margin-top: 24px; color: #64748b; font-size: 0.88rem; text-decoration: none; transition: color 0.2s;
         }
-        .btn-owner:hover {
-            background: linear-gradient(135deg, #f59e0b, #d97706);
-            color: #000;
-            box-shadow: 0 0 25px rgba(245, 158, 11, 0.4);
-            transform: translateY(-2px);
-        }
-        .footer-note {
-            font-size: 0.8rem; color: #64748b; margin-top: 25px;
-            font-family: 'JetBrains Mono', monospace;
+        .back-link:hover { color: var(--cyan); }
+        .notice-box {
+            background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); color: #fbbf24;
+            padding: 14px; border-radius: 12px; font-size: 0.85rem; text-align: left; margin-bottom: 20px; line-height: 1.4;
         }
     </style>
 </head>
@@ -2496,42 +2520,25 @@ app.get('/login', (req, res) => {
     <div class="login-card">
         <div class="brand-icon">AG</div>
         <h1>AeroGuard <span style="color:var(--cyan)">Core</span></h1>
-        <p>Enterprise Multi-Server Steuerung & Leitstellen-Dashboard</p>
+        <p>Melde dich mit deinem Discord-Account an, um auf das Management-Dashboard zuzugreifen.</p>
 
-        ${clientId ? `
-        <a href="${discordAuthUrl}" class="btn btn-discord">
+        ${!clientId ? `
+        <div class="notice-box">
+            ⚙️ <strong>Konfiguration erforderlich:</strong> Bitte trage <code>CLIENT_ID</code> und <code>CLIENT_SECRET</code> in deine <code>.env</code> ein, um die Discord OAuth2-Anmeldung zu aktivieren.
+        </div>
+        ` : ''}
+
+        <a href="${discordAuthUrl}" class="btn-discord">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.929 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.893.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>
             Mit Discord anmelden
         </a>
-        ` : `
-        <div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:#fca5a5;padding:12px;border-radius:10px;font-size:0.85rem;margin-bottom:14px;">
-            Hinweis: CLIENT_ID in .env nicht konfiguriert.
-        </div>
-        `}
 
-        <a href="/api/auth/dev-login" class="btn btn-owner">
-            👑 Schnell-Login als Bot-Owner (Root)
-        </a>
-
-        <div class="footer-note">
-            Owner ID: ${OWNER_ID} • AeroGuard Core v2.4
+        <div>
+            <a href="/" class="back-link">← Zurück zur Startseite</a>
         </div>
     </div>
 </body>
 </html>`);
-});
-
-// Route: Fast Dev-Login for Owner
-app.get('/api/auth/dev-login', (req, res) => {
-    req.session.user = {
-        id: OWNER_ID,
-        username: 'AeroGuard Owner',
-        tag: '2003MarlonL',
-        avatar: null,
-        isOwner: true
-    };
-    addLog('info', 'Web-Dashboard Login als Owner (Dev-Bypass)');
-    res.redirect('/');
 });
 
 // Route: Discord OAuth2 Callback
@@ -2554,16 +2561,27 @@ app.get('/api/auth/callback', async (req, res) => {
         const isOwner = (userData.id === OWNER_ID) || 
             (cloudStorage.systemSettings.whitelistedUsers && cloudStorage.systemSettings.whitelistedUsers.includes(userData.id));
 
+        if (!isOwner) {
+            return res.send(`<!DOCTYPE html>
+<html lang="de">
+<body style="background:#07080f;color:#fff;font-family:sans-serif;text-align:center;padding:80px 20px;">
+    <h1 style="color:#ef4444;font-size:2rem;">⛔ Zugriff verweigert</h1>
+    <p style="color:#94a3b8;margin-top:12px;">Dein Discord-Account (${userData.username}) ist nicht als Bot-Owner oder Administrator autorisiert.</p>
+    <a href="/" style="display:inline-block;margin-top:20px;color:#00f3ff;text-decoration:none;">← Zur Startseite</a>
+</body>
+</html>`);
+        }
+
         req.session.user = {
             id: userData.id,
             username: userData.username,
             tag: userData.discriminator !== '0' ? `${userData.username}#${userData.discriminator}` : userData.username,
             avatar: userData.avatar,
-            isOwner: isOwner
+            isOwner: true
         };
 
-        addLog('info', `Web-Dashboard Login von: ${userData.username} (Owner: ${isOwner})`);
-        return res.redirect('/');
+        addLog('info', `Dashboard-Login erfolgreich: ${userData.username} (Owner: true)`);
+        return res.redirect('/dashboard');
     } catch (e) {
         addLog('error', 'OAuth2 Fehler: ' + e.message);
         return res.redirect('/login');
@@ -2573,7 +2591,7 @@ app.get('/api/auth/callback', async (req, res) => {
 // Route: Logout
 app.get('/logout', (req, res) => {
     req.session.destroy(() => {
-        res.redirect('/login');
+        res.redirect('/');
     });
 });
 
@@ -2604,7 +2622,7 @@ app.get('/api/tickets', (req, res) => {
     res.json(list);
 });
 
-// API: List of all Guilds for the Multi-Server Switcher
+// API: List of all Guilds for Multi-Server Switcher
 app.get('/api/guilds', (req, res) => {
     const guilds = client.guilds.cache.map(g => ({
         id: g.id,
@@ -2618,38 +2636,9 @@ app.get('/api/guilds', (req, res) => {
     res.json(guilds);
 });
 
-// API: Get specific Guild Channels & Settings
-app.get('/api/guild/:guildId', (req, res) => {
-    const guild = client.guilds.cache.get(req.params.guildId);
-    if (!guild) return res.status(404).json({ error: 'Server nicht gefunden' });
-
-    const categories = guild.channels.cache
-        .filter(c => c.type === ChannelType.GuildCategory)
-        .map(c => ({ id: c.id, name: c.name }));
-
-    const textChannels = guild.channels.cache
-        .filter(c => c.type === ChannelType.GuildText)
-        .map(c => ({ id: c.id, name: c.name }));
-
-    const roles = guild.roles.cache
-        .filter(r => r.name !== '@everyone')
-        .map(r => ({ id: r.id, name: r.name, color: r.hexColor }));
-
-    res.json({
-        id: guild.id,
-        name: guild.name,
-        icon: guild.iconURL() || '',
-        memberCount: guild.memberCount,
-        categories,
-        textChannels,
-        roles,
-        settings: getGuildSettings(guild.id)
-    });
-});
-
 // API: Update Server Modules & Config
 app.post('/api/guild/:guildId/settings', (req, res) => {
-    if (!req.session.user || (!req.session.user.isOwner && req.session.user.id !== OWNER_ID)) {
+    if (!req.session.user || !req.session.user.isOwner) {
         return res.status(403).json({ error: 'Zugriff verweigert. Nur der Bot-Owner kann Module verwalten.' });
     }
 
@@ -2676,7 +2665,7 @@ app.post('/api/guild/:guildId/settings', (req, res) => {
 
 // API: Deploy Ticket Panel to Channel from Web
 app.post('/api/guild/:guildId/deploy-panel', async (req, res) => {
-    if (!req.session.user || (!req.session.user.isOwner && req.session.user.id !== OWNER_ID)) {
+    if (!req.session.user || !req.session.user.isOwner) {
         return res.status(403).json({ error: 'Zugriff verweigert.' });
     }
 
@@ -2707,7 +2696,7 @@ app.post('/api/guild/:guildId/deploy-panel', async (req, res) => {
             .setTimestamp();
 
         await targetChannel.send({ embeds: [panelEmbed], components: [row] });
-        addLog('info', `Dashboard: Support-Panel erfolgreich in #${targetChannel.name} auf ${guild.name} bereitgestellt.`);
+        addLog('info', `Dashboard: Support-Panel in #${targetChannel.name} auf ${guild.name} bereitgestellt.`);
         return res.json({ success: true, channelName: targetChannel.name });
     } catch(e) {
         return res.status(500).json({ error: e.message });
@@ -2725,8 +2714,303 @@ app.get('/transcript/:ticketId', (req, res) => {
     res.send(html);
 });
 
-// Route: Main Enterprise Web Dashboard (Multi-Server Controller)
-app.get('/', async (req, res) => {
+// =========================================================================
+// ROUTE: PUBLIC LANDING PAGE (/)
+// =========================================================================
+app.get('/', (req, res) => {
+    const user = req.session.user;
+    const uptimeSec = Math.floor(process.uptime());
+    const hours = Math.floor(uptimeSec / 3600);
+    const minutes = Math.floor((uptimeSec % 3600) / 60);
+    const uptimeStr = `${hours}h ${minutes}m`;
+    const ping = client.ws.ping || 0;
+    const guildsCount = client.guilds.cache.size;
+    const ticketsDone = cloudStorage.systemSettings.ticketCounter || 0;
+
+    const clientId = process.env.CLIENT_ID || (client.user ? client.user.id : '');
+    const defaultInviteLink = 'https://discord.com/oauth2/authorize?client_id=1522570826610774016&permissions=8&response_type=code&redirect_uri=https%3A%2F%2Froblox-discord-g44u.onrender.com%2Fapi%2Fauth%2Fcallback&integration_type=0&scope=identify+connections+guilds.join+applications.commands.permissions.update+gdm.join+rpc+applications.commands+rpc.activities.write+messages.read+rpc.screenshare.read+rpc.video.read+rpc.voice.read+applications.store.update+openid+applications.builds.read+webhook.incoming+email+guilds+guilds.members.read+bot+rpc.notifications.read+rpc.voice.write+rpc.video.write+rpc.screenshare.write';
+    const inviteUrl = process.env.BOT_INVITE_URL || defaultInviteLink;
+
+    res.send(`<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AeroGuard Core — High-End Discord & Roblox Suite</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #07080f;
+            --surface: rgba(14, 18, 34, 0.7);
+            --surface-hover: rgba(22, 28, 52, 0.85);
+            --border: rgba(255, 255, 255, 0.08);
+            --border-glow: rgba(0, 243, 255, 0.25);
+            --cyan: #00f3ff;
+            --cyan-glow: rgba(0, 243, 255, 0.4);
+            --purple: #9d4edd;
+            --purple-glow: rgba(157, 78, 221, 0.4);
+            --green: #10b981;
+            --gold: #f59e0b;
+            --text-dim: #94a3b8;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background-color: var(--bg);
+            background-image: 
+                radial-gradient(ellipse at 50% 0%, rgba(157, 78, 221, 0.16) 0%, transparent 60%),
+                radial-gradient(circle at 90% 80%, rgba(0, 243, 255, 0.1) 0%, transparent 50%);
+            color: #f1f5f9;
+            font-family: 'Outfit', sans-serif;
+            min-height: 100vh;
+            overflow-x: hidden;
+            line-height: 1.6;
+        }
+        .container { max-width: 1240px; margin: 0 auto; padding: 0 24px; }
+        
+        /* NAVBAR */
+        nav {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 24px 0; border-bottom: 1px solid var(--border);
+        }
+        .brand { display: flex; align-items: center; gap: 14px; text-decoration: none; color: #fff; }
+        .brand-icon {
+            width: 44px; height: 44px; border-radius: 12px;
+            background: linear-gradient(135deg, var(--cyan), var(--purple));
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.5rem; font-weight: 800; color: #000;
+            box-shadow: 0 0 25px var(--cyan-glow);
+        }
+        .brand-title { font-size: 1.35rem; font-weight: 800; letter-spacing: -0.02em; }
+        .nav-links { display: flex; align-items: center; gap: 28px; }
+        .nav-link { color: var(--text-dim); text-decoration: none; font-size: 0.95rem; font-weight: 500; transition: color 0.2s; }
+        .nav-link:hover { color: var(--cyan); }
+        .btn-nav {
+            background: linear-gradient(135deg, var(--cyan), #00b4d8); color: #000;
+            padding: 10px 22px; border-radius: 10px; font-weight: 700; text-decoration: none; font-size: 0.92rem;
+            box-shadow: 0 0 20px var(--cyan-glow); transition: all 0.2s ease; display: inline-flex; align-items: center; gap: 8px;
+        }
+        .btn-nav:hover { transform: translateY(-2px); box-shadow: 0 0 30px var(--cyan-glow); }
+        .btn-nav-owner {
+            background: linear-gradient(135deg, var(--gold), #d97706);
+            box-shadow: 0 0 20px rgba(245, 158, 11, 0.4);
+        }
+
+        /* HERO SECTION */
+        .hero {
+            padding: 90px 0 70px 0; text-align: center; position: relative;
+        }
+        .hero-badge {
+            display: inline-flex; align-items: center; gap: 8px;
+            background: rgba(0, 243, 255, 0.1); border: 1px solid rgba(0, 243, 255, 0.3);
+            padding: 6px 18px; border-radius: 999px; font-size: 0.85rem; font-weight: 700; color: var(--cyan);
+            margin-bottom: 24px;
+        }
+        .hero-title {
+            font-size: 3.6rem; font-weight: 900; letter-spacing: -0.03em; line-height: 1.15;
+            max-width: 900px; margin: 0 auto 24px auto;
+        }
+        .hero-title span {
+            background: linear-gradient(135deg, var(--cyan), var(--purple));
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        .hero-desc {
+            font-size: 1.2rem; color: #94a3b8; max-width: 720px; margin: 0 auto 40px auto;
+        }
+        .hero-actions { display: flex; justify-content: center; gap: 18px; flex-wrap: wrap; }
+        .btn-cta-primary {
+            background: linear-gradient(135deg, var(--cyan), #0284c7); color: #000;
+            padding: 16px 36px; border-radius: 14px; font-size: 1.1rem; font-weight: 800;
+            text-decoration: none; box-shadow: 0 0 30px var(--cyan-glow); transition: all 0.25s ease;
+            display: inline-flex; align-items: center; gap: 10px;
+        }
+        .btn-cta-primary:hover { transform: translateY(-3px); box-shadow: 0 0 45px var(--cyan-glow); }
+        .btn-cta-secondary {
+            background: var(--surface); border: 1px solid var(--border); color: #fff;
+            padding: 16px 32px; border-radius: 14px; font-size: 1.1rem; font-weight: 700;
+            text-decoration: none; backdrop-filter: blur(12px); transition: all 0.25s ease;
+            display: inline-flex; align-items: center; gap: 10px;
+        }
+        .btn-cta-secondary:hover { border-color: var(--purple); background: var(--surface-hover); transform: translateY(-3px); }
+
+        /* LIVE TELEMETRY BAR */
+        .telemetry-bar {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px;
+            margin: 40px 0 80px 0;
+        }
+        .telemetry-item {
+            background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 22px;
+            backdrop-filter: blur(14px); text-align: center;
+        }
+        .tel-val { font-size: 2.3rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; color: var(--cyan); margin-top: 4px; }
+        .tel-label { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); }
+
+        /* WHAT IS AEROGUARD / FEATURES */
+        .section-headline { text-align: center; margin-bottom: 50px; }
+        .section-headline h2 { font-size: 2.3rem; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 10px; }
+        .section-headline p { color: var(--text-dim); font-size: 1.05rem; }
+
+        .features-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 24px;
+            margin-bottom: 80px;
+        }
+        .feature-card {
+            background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 32px;
+            backdrop-filter: blur(16px); transition: all 0.3s ease; position: relative; overflow: hidden;
+        }
+        .feature-card:hover { transform: translateY(-5px); border-color: var(--border-glow); box-shadow: 0 15px 40px rgba(0,0,0,0.6); }
+        .feature-icon {
+            width: 56px; height: 56px; border-radius: 14px;
+            background: rgba(0, 243, 255, 0.1); border: 1px solid rgba(0, 243, 255, 0.3);
+            display: flex; align-items: center; justify-content: center; font-size: 1.8rem; margin-bottom: 20px;
+        }
+        .feature-title { font-size: 1.35rem; font-weight: 700; margin-bottom: 12px; }
+        .feature-desc { color: #94a3b8; font-size: 0.95rem; line-height: 1.6; }
+
+        /* FOOTER */
+        footer {
+            border-top: 1px solid var(--border); padding: 40px 0; text-align: center; color: #64748b; font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- NAVIGATION -->
+        <nav>
+            <a href="/" class="brand">
+                <div class="brand-icon">AG</div>
+                <div>
+                    <div class="brand-title">AEROGUARD <span style="color:var(--cyan)">CORE</span></div>
+                </div>
+            </a>
+            
+            <div class="nav-links">
+                <a href="#features" class="nav-link">Features</a>
+                <a href="#telemetry" class="nav-link">Status</a>
+                ${user ? `
+                <a href="/dashboard" class="btn-nav btn-nav-owner">👑 Dashboard (${user.username})</a>
+                ` : `
+                <a href="/login" class="btn-nav">🔑 Anmelden mit Discord</a>
+                `}
+            </div>
+        </nav>
+
+        <!-- HERO SECTION -->
+        <section class="hero">
+            <div class="hero-badge">⚡ DIE ULTIMATIVE DISCORD & ROBLOX AUTOMATION</div>
+            <h1 class="hero-title">
+                Sicherer Support & Moderation für <span>deine Community</span>.
+            </h1>
+            <p class="hero-desc">
+                AeroGuard Core ersetzt veraltete DM-Tickets durch private Server-Kanäle mit Modal-Popups, schützt deinen Chat mit KI-gestütztem AutoMod und verbindet deine Discord-Community nahtlos mit deinen Roblox-Spielen.
+            </p>
+            <div class="hero-actions">
+                <a href="${inviteUrl}" target="_blank" class="btn-cta-primary">
+                    🤖 Bot einladen
+                </a>
+                <a href="/dashboard" class="btn-cta-secondary">
+                    📊 Zum Dashboard
+                </a>
+            </div>
+        </section>
+
+        <!-- LIVE TELEMETRY BAR -->
+        <div class="telemetry-bar" id="telemetry">
+            <div class="telemetry-item">
+                <div class="tel-label">Online Status</div>
+                <div class="tel-val" style="color:var(--green)">ONLINE</div>
+            </div>
+            <div class="telemetry-item">
+                <div class="tel-label">Verbundene Server</div>
+                <div class="tel-val">${guildsCount}</div>
+            </div>
+            <div class="telemetry-item">
+                <div class="tel-label">Tickets Bearbeitet</div>
+                <div class="tel-val">${ticketsDone}</div>
+            </div>
+            <div class="telemetry-item">
+                <div class="tel-label">Latenz (Ping)</div>
+                <div class="tel-val">${ping} <span style="font-size:1rem;color:var(--text-dim)">ms</span></div>
+            </div>
+        </div>
+
+        <!-- WHAT IS AEROGUARD? / FEATURES -->
+        <section id="features">
+            <div class="section-headline">
+                <h2>Was ist AeroGuard Core?</h2>
+                <p>Eine allumfassende Enterprise-Suite für professionelle Discord-Server und Roblox-Studios.</p>
+            </div>
+
+            <div class="features-grid">
+                <!-- Feature 1 -->
+                <div class="feature-card">
+                    <div class="feature-icon">🎫</div>
+                    <div class="feature-title">Kanal-Ticketsystem 2.0</div>
+                    <div class="feature-desc">
+                        Keine unübersichtlichen Direktnachrichten (DMs) mehr! Nutzer öffnen per Discord-Modal ein Ticket, woraufhin ein privater Kanal mit vollen Rollenrechten, Supporter-Claiming und automatischer HTML-Archivierung erstellt wird.
+                    </div>
+                </div>
+
+                <!-- Feature 2 -->
+                <div class="feature-card">
+                    <div class="feature-icon">🛡️</div>
+                    <div class="feature-title">AutoMod & Anti-Raid Schutzschild</div>
+                    <div class="feature-desc">
+                        Echtzeit-Erkennung von Spam, Phishing-Links, Massen-Pings und toxischen Begriffen. Verdächtige Alt-Accounts werden geblockt und Täter automatisch mit Timeouts belegt.
+                    </div>
+                </div>
+
+                <!-- Feature 3 -->
+                <div class="feature-card">
+                    <div class="feature-icon">🎙️</div>
+                    <div class="feature-title">Voice-Support mit Google Cloud TTS</div>
+                    <div class="feature-desc">
+                        Unterstützt intelligente Leitstellen-Warteräume. Sobald ein Supporter ein Voice-Ticket übernimmt, kündigt der Bot die Schaltung mit Premium Neural2 Text-to-Speech an.
+                    </div>
+                </div>
+
+                <!-- Feature 4 -->
+                <div class="feature-card">
+                    <div class="feature-icon">🎮</div>
+                    <div class="feature-title">Roblox Live-Integration</div>
+                    <div class="feature-desc">
+                        Synchronisiere deinen Spielserver in Echtzeit mit Discord. Erhalte Live-Spielerzahlen, führe Ingame-Befehle aus und synchronisiere Gruppenränge nahtlos.
+                    </div>
+                </div>
+
+                <!-- Feature 5 -->
+                <div class="feature-card">
+                    <div class="feature-icon">⭐</div>
+                    <div class="feature-title">Level- & Economy-System</div>
+                    <div class="feature-desc">
+                        Belohne deine aktivsten Community-Mitglieder. Chat-Nachrichten generieren XP, schalten neue Ränge frei und belohnen Nutzer mit virtuellen AeroCoins.
+                    </div>
+                </div>
+
+                <!-- Feature 6 -->
+                <div class="feature-card">
+                    <div class="feature-icon">🎛️</div>
+                    <div class="feature-title">Multi-Server Web-Dashboard</div>
+                    <div class="feature-desc">
+                        Behalte die volle Kontrolle über jeden Server, auf dem der Bot installiert ist. Schalte einzelne Module per Klick an oder aus und konfiguriere Kanäle direkt im Browser.
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- FOOTER -->
+        <footer>
+            <p>AeroGuard Core Enterprise v2.4 • Entwickelt für maximale Sicherheit & Performance</p>
+            <p style="margin-top:6px;"><a href="/login" style="color:var(--cyan);text-decoration:none;">Team Dashboard Login</a> • <a href="${inviteUrl}" target="_blank" style="color:#fff;text-decoration:none;">Bot zu Discord hinzufügen</a></p>
+        </footer>
+    </div>
+</body>
+</html>`);
+});
+
+// =========================================================================
+// ROUTE: MASTER CONTROL DASHBOARD (/dashboard)
+// =========================================================================
+app.get('/dashboard', async (req, res) => {
     if (!req.session.user) {
         return res.redirect('/login');
     }
@@ -2737,8 +3021,6 @@ app.get('/', async (req, res) => {
     const minutes = Math.floor((uptimeSec % 3600) / 60);
     const uptimeStr = `${hours}h ${minutes}m`;
     const ping = client.ws.ping || 0;
-    const botUser = client.user ? client.user.tag : 'AeroGuard#0000';
-    const botAvatar = client.user ? client.user.displayAvatarURL() : '';
 
     const guildsList = client.guilds.cache.map(g => ({
         id: g.id,
@@ -2771,7 +3053,7 @@ app.get('/', async (req, res) => {
             '</tr>';
         }).join('');
 
-    const guildsDataJson = JSON.stringify(guildsList).replace(/</g, '\u003c');
+    const guildsDataJson = JSON.stringify(guildsList).replace(/</g, '\\u003c');
 
     const fullHtml = `<!DOCTYPE html>
 <html lang="de">
@@ -2793,7 +3075,6 @@ app.get('/', async (req, res) => {
             --purple-glow: rgba(157, 78, 221, 0.35);
             --green: #10b981;
             --gold: #f59e0b;
-            --danger: #ef4444;
             --text-dim: #94a3b8;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -2809,13 +3090,12 @@ app.get('/', async (req, res) => {
         }
         .container { max-width: 1300px; margin: 0 auto; padding: 25px 24px; }
         
-        /* HEADER */
         header {
             display: flex; justify-content: space-between; align-items: center;
             padding-bottom: 24px; border-bottom: 1px solid var(--border);
             margin-bottom: 30px; flex-wrap: wrap; gap: 20px;
         }
-        .brand { display: flex; align-items: center; gap: 14px; }
+        .brand { display: flex; align-items: center; gap: 14px; text-decoration: none; color: #fff; }
         .brand-icon {
             width: 48px; height: 48px; border-radius: 14px;
             background: linear-gradient(135deg, var(--cyan), var(--purple));
@@ -2850,7 +3130,6 @@ app.get('/', async (req, res) => {
         }
         .logout-link:hover { text-decoration: underline; }
 
-        /* TELEMETRY STATS */
         .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 18px; margin-bottom: 35px; }
         .stat-card {
             background: var(--surface); border: 1px solid var(--border);
@@ -2861,7 +3140,6 @@ app.get('/', async (req, res) => {
         .stat-title { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); }
         .stat-val { font-size: 2.1rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; color: var(--cyan); line-height: 1.1; margin-top: 6px; }
 
-        /* MULTI SERVER SELECTOR */
         .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
         .section-title { font-size: 1.25rem; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px; }
         
@@ -2891,7 +3169,6 @@ app.get('/', async (req, res) => {
         .server-name { font-size: 1.05rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .server-meta { font-size: 0.8rem; color: var(--text-dim); margin-top: 2px; }
 
-        /* SERVER CONTROL PANEL */
         .control-panel {
             background: var(--surface); border: 1px solid var(--border);
             border-radius: 20px; padding: 32px; margin-bottom: 35px; backdrop-filter: blur(16px);
@@ -2908,7 +3185,6 @@ app.get('/', async (req, res) => {
             padding: 6px 16px; border-radius: 999px; font-weight: 700; color: var(--cyan);
         }
 
-        /* TOGGLE MODULES MATRIX */
         .modules-grid {
             display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px;
             margin-bottom: 30px;
@@ -2923,7 +3199,6 @@ app.get('/', async (req, res) => {
         .module-title { font-size: 1rem; font-weight: 700; display: flex; align-items: center; gap: 8px; }
         .module-desc { font-size: 0.82rem; color: var(--text-dim); margin-top: 4px; line-height: 1.4; }
 
-        /* MODERN SWITCH */
         .switch {
             position: relative; display: inline-block; width: 52px; height: 28px; flex-shrink: 0;
         }
@@ -2945,19 +3220,18 @@ app.get('/', async (req, res) => {
             background-color: #000;
         }
 
-        /* CONFIG SELECTORS */
         .config-grid {
             display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;
             border-top: 1px solid var(--border); padding-top: 25px; margin-bottom: 25px;
         }
         .form-group { display: flex; flex-direction: column; gap: 8px; }
         label { font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); }
-        select, input[type="text"] {
+        select {
             background: #0b0f19; border: 1px solid var(--border); border-radius: 10px;
             padding: 12px 14px; color: #fff; font-family: 'Outfit', sans-serif; font-size: 0.92rem;
             outline: none; transition: border-color 0.2s;
         }
-        select:focus, input[type="text"]:focus { border-color: var(--cyan); }
+        select:focus { border-color: var(--cyan); }
 
         .actions-bar {
             display: flex; gap: 14px; flex-wrap: wrap; justify-content: flex-end;
@@ -2977,7 +3251,6 @@ app.get('/', async (req, res) => {
             background: var(--purple); color: #fff; box-shadow: 0 0 20px var(--purple-glow);
         }
 
-        /* TICKET TABLE */
         table { width: 100%; border-collapse: collapse; text-align: left; }
         th { font-size: 0.8rem; text-transform: uppercase; color: var(--text-dim); padding: 12px 14px; border-bottom: 1px solid var(--border); }
         td { padding: 14px; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 0.92rem; }
@@ -2986,7 +3259,6 @@ app.get('/', async (req, res) => {
         .action-btn { background: transparent; border: 1px solid var(--cyan); color: var(--cyan); padding: 6px 14px; border-radius: 8px; text-decoration: none; font-size: 0.82rem; font-weight: 600; transition: all 0.2s; }
         .action-btn:hover { background: var(--cyan); color: #000; box-shadow: 0 0 14px var(--cyan-glow); }
 
-        /* TOAST NOTIFICATION */
         #toast {
             position: fixed; bottom: 30px; right: 30px; background: #10b981; color: #000;
             padding: 14px 24px; border-radius: 12px; font-weight: 700; box-shadow: 0 10px 30px rgba(16,185,129,0.4);
@@ -2998,13 +3270,13 @@ app.get('/', async (req, res) => {
 <body>
     <div class="container">
         <header>
-            <div class="brand">
+            <a href="/" class="brand">
                 <div class="brand-icon">AG</div>
                 <div>
                     <div class="brand-name">AEROGUARD <span style="color:var(--cyan)">CORE</span></div>
                     <div class="brand-sub">Enterprise Multi-Server Control & Leitstelle</div>
                 </div>
-            </div>
+            </a>
             
             <div class="user-panel">
                 <div class="user-avatar">${currentUser.username.substring(0, 2).toUpperCase()}</div>
@@ -3016,7 +3288,6 @@ app.get('/', async (req, res) => {
             </div>
         </header>
 
-        <!-- TELEMETRY BAR -->
         <div class="stats-grid">
             <div class="stat-card">
                 <div class="stat-title">Verbundene Server</div>
@@ -3036,16 +3307,12 @@ app.get('/', async (req, res) => {
             </div>
         </div>
 
-        <!-- SERVER AUSWAHL -->
         <div class="section-header">
             <div class="section-title">🌐 Server-Auswahl (Verbundene Discord-Gilden)</div>
             <span style="font-size:0.85rem;color:var(--text-dim);">Wähle einen Server zum Steuern der Module</span>
         </div>
-        <div class="server-grid" id="server-grid">
-            <!-- Dynamisch über JS gerendert -->
-        </div>
+        <div class="server-grid" id="server-grid"></div>
 
-        <!-- ACTIVE SERVER CONTROL PANEL -->
         <div class="control-panel" id="control-panel">
             <div class="panel-heading">
                 <div>
@@ -3059,7 +3326,6 @@ app.get('/', async (req, res) => {
 
             <h3 style="font-size:1.1rem;margin-bottom:16px;">⚡ Modul-Steuerung (Einzeln Aktivieren / Deaktivieren)</h3>
             <div class="modules-grid">
-                <!-- MODUL: TICKETS -->
                 <div class="module-card">
                     <div class="module-info">
                         <div class="module-title">🎫 Ticket-System</div>
@@ -3071,7 +3337,6 @@ app.get('/', async (req, res) => {
                     </label>
                 </div>
 
-                <!-- MODUL: AUTOMOD -->
                 <div class="module-card">
                     <div class="module-info">
                         <div class="module-title">🛡️ AutoMod & Wortfilter</div>
@@ -3083,7 +3348,6 @@ app.get('/', async (req, res) => {
                     </label>
                 </div>
 
-                <!-- MODUL: ANTI-RAID -->
                 <div class="module-card">
                     <div class="module-info">
                         <div class="module-title">🚨 Anti-Raid / Alt-Schutz</div>
@@ -3095,7 +3359,6 @@ app.get('/', async (req, res) => {
                     </label>
                 </div>
 
-                <!-- MODUL: VOICE SUPPORT -->
                 <div class="module-card">
                     <div class="module-info">
                         <div class="module-title">🎙️ Voice-Support & TTS</div>
@@ -3107,7 +3370,6 @@ app.get('/', async (req, res) => {
                     </label>
                 </div>
 
-                <!-- MODUL: LEVEL SYSTEM -->
                 <div class="module-card">
                     <div class="module-info">
                         <div class="module-title">⭐ Level- & Economy-System</div>
@@ -3119,7 +3381,6 @@ app.get('/', async (req, res) => {
                     </label>
                 </div>
 
-                <!-- MODUL: ROBLOX HUB -->
                 <div class="module-card">
                     <div class="module-info">
                         <div class="module-title">🎮 Roblox Info-Hub</div>
@@ -3131,7 +3392,6 @@ app.get('/', async (req, res) => {
                     </label>
                 </div>
 
-                <!-- MODUL: LOCKDOWN -->
                 <div class="module-card" style="border-color:rgba(239,68,68,0.3);">
                     <div class="module-info">
                         <div class="module-title" style="color:#fca5a5;">🔒 Server Lockdown</div>
@@ -3144,7 +3404,6 @@ app.get('/', async (req, res) => {
                 </div>
             </div>
 
-            <!-- CHANNELS & ROLES BINDING -->
             <div class="config-grid">
                 <div class="form-group">
                     <label>📁 Ticket-Kategorie</label>
@@ -3176,7 +3435,6 @@ app.get('/', async (req, res) => {
             </div>
         </div>
 
-        <!-- TICKETS MATRIX -->
         <div class="control-panel">
             <div class="section-title" style="margin-bottom:18px;">
                 <span>🎫 Aktuelle Live-Tickets</span>
@@ -3210,7 +3468,7 @@ app.get('/', async (req, res) => {
             grid.innerHTML = '';
             
             if (guilds.length === 0) {
-                grid.innerHTML = '<div style="color:var(--text-dim);padding:20px;">Der Bot befindet sich aktuell auf keinem Server. Lade ihn mit Administrator-Rechten ein!</div>';
+                grid.innerHTML = '<div style="color:var(--text-dim);padding:20px;">Der Bot befindet sich aktuell auf keinem Server. Lade ihn über die Startseite mit dem "Bot einladen"-Button ein!</div>';
                 return;
             }
 
@@ -3246,7 +3504,6 @@ app.get('/', async (req, res) => {
             document.getElementById('active-server-name').innerText = guild.name;
             document.getElementById('active-server-desc').innerText = 'Server ID: ' + guild.id + ' • ' + guild.memberCount + ' Mitglieder';
 
-            // Load Modules
             const modules = guild.settings.modules || {};
             document.getElementById('mod-tickets').checked = modules.tickets !== false;
             document.getElementById('mod-autoMod').checked = modules.autoMod !== false;
@@ -3256,7 +3513,6 @@ app.get('/', async (req, res) => {
             document.getElementById('mod-robloxHub').checked = modules.robloxHub !== false;
             document.getElementById('mod-lockdown').checked = modules.lockdown === true;
 
-            // Populate Categories
             const catSel = document.getElementById('select-category');
             catSel.innerHTML = '<option value="">Standard (Automatisch erstellen)</option>';
             guild.categories.forEach(c => {
@@ -3267,7 +3523,6 @@ app.get('/', async (req, res) => {
                 catSel.appendChild(opt);
             });
 
-            // Populate Roles
             const roleSel = document.getElementById('select-role');
             roleSel.innerHTML = '<option value="">Keine spezielle Rolle</option>';
             guild.roles.forEach(r => {
@@ -3278,7 +3533,6 @@ app.get('/', async (req, res) => {
                 roleSel.appendChild(opt);
             });
 
-            // Populate Log Channels
             const logSel = document.getElementById('select-logchannel');
             logSel.innerHTML = '<option value="">Kein separater Log-Kanal</option>';
             guild.textChannels.forEach(ch => {
@@ -3364,7 +3618,6 @@ app.get('/', async (req, res) => {
             setTimeout(() => t.classList.remove('show'), 3500);
         }
 
-        // Initialize on load
         if (guilds.length > 0) {
             renderGuilds();
             loadGuildData(activeGuildId);

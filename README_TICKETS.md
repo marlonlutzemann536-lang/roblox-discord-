@@ -1,72 +1,63 @@
-# 🚀 AeroGuard Core — Enterprise Multi-Server & Ticket Suite
+# 🚀 AeroGuard Core — Enterprise Discord & Roblox Suite
 
-Willkommen bei **AeroGuard Core v2.4**! Diese Version bietet dir ein vollständiges **Web-Dashboard mit Discord-Login & Multi-Server-Steuerung**, ein **kanal-basiertes Ticket-System** und ein **modernisiertes DM-Hilfe-Terminal**.
-
----
-
-## 🌐 1. Web-Dashboard & Multi-Server-Steuerung (`http://localhost:3000`)
-
-### 👑 Discord-Login & Owner-Erkennung
-- **Anmeldung:** Öffne `http://localhost:3000/login` im Browser.
-  - **Option A (Discord OAuth2):** Melde dich direkt mit deinem Discord-Account an.
-  - **Option B (Owner-Express-Login):** Klicke auf *"👑 Schnell-Login als Bot-Owner"*, um dich sofort mit voller Root-Berechtigung anzumelden (ideal für lokales Testen ohne OAuth2-Redirect-Konfiguration).
-- **Owner-Rolle:** Wenn du mit deiner ID (`1075845857875873852`) eingeloggt bist, vergibt das Dashboard automatisch die **👑 SYSTEM OWNER (ROOT)**-Rolle mit Vollzugriff auf alle Server.
-
-### 🎛️ Einzelne Module pro Server aktivieren / deaktivieren
-Oben im Dashboard siehst du eine **Server-Auswahl** mit allen Discord-Servern, auf denen der Bot installiert ist. Wähle einen Server an, um seine Module einzeln per Leuchtschalter (Toggle-Switch) ein- oder auszuschalten:
-1. 🎫 **Ticket-System:** Aktiviert/deaktiviert das Erstellen von Tickets und Panels.
-2. 🛡️ **AutoMod & Wortfilter:** Beleidigungsfilter, Link-Sperre & Spam-Schutz.
-3. 🚨 **Anti-Raid / Alt-Schutz:** Blockiert verdächtige Neu-Accounts.
-4. 🎙️ **Voice-Support & TTS:** Sprach-Warteräume und Google Cloud Sprachsynthese.
-5. ⭐ **Level- & Economy-System:** XP-Punkte und Belohnungen durch Chatten.
-6. 🎮 **Roblox Info-Hub:** Synchronisation mit Live-Servern.
-7. 🔒 **Emergency Server Lockdown:** Notfall-Sperre des Chats bei Raids.
-
-### ⚙️ Kanal- & Rollen-Zuweisung im Web
-- Wähle direkt im Dropdown-Menü die gewünschte **Ticket-Kategorie**, **Support-Rolle** und den **Log-Kanal** aus.
-- Klicke auf **💾 Einstellungen speichern** – die Änderungen werden ohne Neuladen sofort live wirksam!
-- Klicke auf **🚀 Support-Panel in Kanal posten**, um das Ticket-Panel direkt aus dem Browser in einen beliebigen Textkanal des Servers zu projizieren.
+Willkommen bei **AeroGuard Core v2.4**! Diese Version bietet dir eine **öffentliche Startseite**, **strikte Anmeldung ausschließlich über Discord**, ein **Multi-Server Dashboard** und **echte Funktions-Deaktivierung**.
 
 ---
 
-## 💬 2. Modernisiertes DM-Hilfe-Terminal
+## 🌐 1. Öffentliche Startseite & Bot-Einladung (`http://localhost:3000/`)
 
-Wenn dir oder dem Bot jemand eine private Nachricht (DM) schreibt (z. B. *"hi"*, *"hilfe"*, *"help"*):
-- Das alte, fehlerhafte DM-System wurde **vollständig entfernt**.
-- Der Bot antwortet mit einem **Cyberpunk AeroGuard Hilfe-Terminal Embed**:
-  - Klare Erklärung, dass Support-Tickets sicher auf dem Server im Kanal geführt werden.
-  - Schritt-für-Schritt-Anleitung zur Ticket-Erstellung.
-  - Wichtige Schnellbefehle.
-  - **Interaktive Buttons:**
-    - 🌐 **Web-Dashboard öffnen** (Direktlink zur Website)
-    - ❓ **Häufige Fragen (FAQ)** (Öffnet ein interaktives Fragen- & Antwortmenü)
-    - 📋 **Bewerbung starten** (Startet den Bewerbungsprozess für Supporter)
+- **Öffentlich zugänglich (Kein Login nötig):**
+  - Jeder Besucher sieht direkt: **Was ist AeroGuard?**
+  - Übersicht der 6 Kern-Module (Kanal-Tickets, AutoMod, Voice-Warteräume mit TTS, Roblox-Live-Sync, Level-System, Web-Dashboard).
+  - Live-Telemetrie (Bot-Status, Server-Anzahl, Ping, bearbeitete Tickets).
+  - **🤖 Bot einladen:** Direkter Button, um den Bot mit Administrator-Rechten auf den eigenen Discord-Server einzuladen.
+  - **Oben rechts:**
+    - Wenn nicht eingeloggt: **🔑 Anmelden mit Discord** (führt zu `/login`).
+    - Wenn eingeloggt: **👑 Dashboard** (führt zu `/dashboard`).
 
 ---
 
-## 🎫 3. Befehle auf dem Discord-Server
+## 🔑 2. Anmeldung nur mit Discord (`/login`)
 
-| Befehl | Wer? | Beschreibung |
-| :--- | :--- | :--- |
-| **`!setup`** oder **`!panel`** | Admins | Stellt das Support-Panel mit Kategorie-Buttons im Kanal auf. |
-| **`!close`** | Supporter/User | Schließt das Ticket, erzeugt das HTML-Transkript und löscht den Kanal nach 5s. |
-| **`!claim`** | Supporter | Weist das Ticket dem Supporter zu (*In Bearbeitung*). |
-| **`!transcript`** | Supporter | Generiert sofort das HTML-Transkript und sendet es als Datei. |
-| **`!add @Nutzer`** | Supporter | Lädt einen weiteren Nutzer oder Zeugen in den Ticket-Kanal ein. |
-| **`!remove @Nutzer`** | Supporter | Entfernt einen Nutzer wieder aus dem Ticket-Kanal. |
+- **Kein Dev-Bypass / Schnell-Login:** Die Anmeldung erfolgt **ausschließlich sicher über Discord OAuth2**.
+- **Owner-Prüfung:** Nach der Discord-Anmeldung prüft der Bot deine Discord-ID (`1075845857875873852`).
+  - Nur du als Owner (bzw. autorisierte Whitelist-Admins) erhältst Zugriff auf das Steuerungs-Dashboard.
+  - Nicht-autorisierte Nutzer erhalten eine klare Zugriff-Verweigert-Meldung.
 
 ---
 
-## 🚀 Schnellanleitung zum Starten
+## 🎛️ 3. Multi-Server-Dashboard & Echte Modul-Deaktivierung (`/dashboard`)
+
+### Server auswählen & Module umschalten
+Oben im Dashboard wählst du deinen Discord-Server aus. Jeder Server hat eigene Schalter:
+1. 🎫 **Ticket-System**
+2. 🛡️ **AutoMod & Wortfilter**
+3. 🚨 **Anti-Raid / Alt-Schutz**
+4. 🎙️ **Voice-Support & TTS**
+5. ⭐ **Level- & Economy-System**
+6. 🎮 **Roblox Info-Hub**
+7. 🔒 **Emergency Server Lockdown**
+
+### ⚠️ Was passiert, wenn eine Funktion abgeschaltet wird?
+Der Bot führt die Funktion **wirklich nicht mehr aus** und weist den Nutzer/Supporter direkt darauf hin:
+> *"⚠️ **Funktion deaktiviert:** Das Ticket-System ist auf diesem Server aktuell über das Web-Dashboard abgeschaltet.*  
+> *👉 Bitte aktiviere es im Dashboard wieder: http://localhost:3000/dashboard"*
+
+* Dies gilt für Chat-Befehle (`!setup`, `!panel`, `!close`, `!claim`, `!transcript`), Slash-Commands (`/ticket`, `/setup-voicesupport`, `/setup-infohub`) und Panel-Buttons!
+
+---
+
+## 🚀 Schnellanleitung
 
 1. **Bot & Webserver starten:**
    ```bash
    node server.js
    ```
 
-2. **Web-Dashboard aufrufen:**
-   Öffne im Browser:
+2. **Startseite öffnen:**
    ```text
    http://localhost:3000/
    ```
-   Klicke auf den Owner-Login, wähle deinen Server und steuere alle Module live!
+
+3. **Anmelden:**
+   Klicke oben rechts auf **Anmelden**, autorisiere dich über Discord und steuere deine Server im Dashboard!
