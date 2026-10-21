@@ -1,14 +1,45 @@
-# 🚀 AeroGuard Core — Enterprise Discord & Roblox Suite (v3.0)
+# 🚀 AeroGuard Core — Enterprise Discord & Roblox Suite (v3.1)
 
-Willkommen bei **AeroGuard Core v3.0**! Das System wurde massiv erweitert mit einem **vollwertigen Vorschläge-System mit Abstimmungs-Buttons & Threads**, einem **automatischen Server-Kanal Emoji-Verschönerer** und einer **High-End Giveaway-Suite mit Countdown, 1-Klick-Teilnahme und Roblox-Pflicht**.
+Willkommen bei **AeroGuard Core v3.1**! Das System wurde mit einem **vollwertigen Cookie- & Datenschutz-Consent-Banner (mit granularer Anpassung)** und der **Web-Exklusivität für Giveaway-Starts** weiter verfeinert.
 
 ---
 
-## 🌟 Neu in Version 3.0
+## 🌟 Neu in Version 3.1
 
-### 💡 1. Community-Vorschläge & Feedback-System
+### 🍪 1. Enterprise Cookie- & Datenschutz-Banner
+* **Einmaliges Consent-Erlebnis:** Beim ersten Besuch der Website oder des Dashboards erscheint ein eleganter Cyberpunk Glassmorphism-Banner in der rechten unteren Ecke.
+* **3 Auswahlmöglichkeiten:**
+  * **Alle akzeptieren:** Schaltet alle Cookies frei und speichert die Auswahl dauerhaft in `localStorage`.
+  * **Nur essenzielle:** Erlaubt nur technisch notwendige Cookies (Sitzungsstatus, Discord-Login, CSRF-Schutz).
+  * **⚙️ Anpassen (Granulare Kontrolle):** Klappt detaillierte Einstellungsoptionen mit Checkboxen aus:
+    * 🔒 *Essenziell & Sicherheit:* Immer aktiv (Discord OAuth2, Authentifizierung, Cloud-Security).
+    * ⚙️ *Funktionale Cookies:* Speichert ausgewählte Server, aktive Filter und Interface-Präferenzen.
+    * 📊 *Leistungs- & Telemetrie-Messung:* Anonyme Messung von Ping-Latenzen und API-Performance.
+* **Jederzeit wieder aufrufbar:** Über den Footer-Link `🍪 Cookie-Einstellungen` auf der Startseite oder den `🍪`-Button im Dashboard-Profilheader kann der Banner jederzeit erneut geöffnet und die Einstellungen angepasst werden.
+
+---
+
+### 🔒 2. Web-Exklusive Giveaway-Erstellung ("Nur über die Webseite startbar")
+* **Maximale Sicherheit & Manipulationsschutz:** Giveaways können **ausschließlich über das offizielle Web-Dashboard** gestartet werden!
+* **Schutz im Discord-Chat:**
+  * Tippt jemand `/giveaway start` oder `!giveaway` im Discord-Chat, verweigert der Bot den Chat-Start und antwortet mit einem Button **🚀 Zum Web-Dashboard** und einer Anleitung.
+* **Web-Dashboard Giveaway-Manager:**
+  * Ziel-Server & Ziel-Textkanal auswählen
+  * Preis (z. B. `1.000 Robux` oder `VIP-Rang`) festlegen
+  * Dauer wählen (`10m`, `30m`, `1h`, `6h`, `12h`, `24h`, `3d`, `7d`)
+  * Anzahl der Gewinner (`1-20`)
+  * Optionale **Roblox-Pflicht** aktivieren
+  * Mit 1 Klick auf **🚀 Giveaway jetzt im Discord-Server starten** live schalten!
+* **Discord-Befehle für Verwaltung:**
+  * `/giveaway reroll [nachricht_id]` — Neue Gewinner für ein beendetes Giveaway auslosen.
+  * `/giveaway end [nachricht_id]` — Ein laufendes Giveaway vorzeitig beenden.
+  * `/giveaway list` — Alle aktiven Giveaways auf dem Server auflisten.
+
+---
+
+### 💡 3. Community-Vorschläge & Feedback-System
 * **Dedizierter Vorschlagskanal:** Jede Nachricht in `#💡・vorschläge` wird automatisch gelöscht und in ein strukturiertes Cyberpunk-Abstimmungs-Embed umgewandelt.
-* **Interaktive Live-Stimmen:** Mitglieder können direkt per Button mit **👍 Zustimmen** oder **👎 Ablehnen** abstimmen. Stimmen und Prozentbalken aktualisieren sich in Echtzeit!
+* **Interaktive Live-Stimmen:** Mitglieder stimmen per Button mit **👍 Zustimmen** oder **👎 Ablehnen** ab. Stimmen und Prozentbalken aktualisieren sich in Echtzeit!
 * **Automatische Diskussions-Threads:** Unter jedem Vorschlag wird automatisch ein separater Forum-Thread eröffnet, damit der Hauptkanal sauber bleibt.
 * **Team-Statuskontrolle:** Supporter und Administratoren können über den Button `⚙️ Status verwalten` oder im Web-Dashboard den Vorschlag auf:
   * ⏳ **In Prüfung** (Cyan)
@@ -20,55 +51,17 @@ Willkommen bei **AeroGuard Core v3.0**! Das System wurde massiv erweitert mit ei
   * Slash-Commands: `/suggest [vorschlag] [anonym: true/false]` & `/vorschlag`
   * Admin-Setup: `/suggest-setup [kanal]`
   * Text-Commands: `!suggest <Idee>` & `!vorschlag <Idee>`
-* **Dashboard-Modul:** 1-Klick-Erstellung des Kanals `#💡・vorschläge` mit optimalen Rechten sowie Web-Status-Manager.
 
 ---
 
-### 🎨 2. Server-Kanal Emoji-Verschönerer ("Emojis überarbeiten")
-* **1-Klick Cyberpunk-Styling:** Analysiert alle Chat-Kanäle, Sprachkanäle und Kategorien auf dem Server und formatiert sie mit passenden, modernen Cyberpunk-Emojis!
-* **Intelligentes semantisches Mapping:**
-  * Regeln & Gesetze: `📜・regeln`
-  * Willkommen & Intro: `👋・willkommen`
-  * Ankündigungen & News: `📢・ankündigungen`
-  * Hauptchat & Allgemein: `💬・hauptchat`
-  * Medien, Bilder & Clips: `📸・medien`
-  * Memes & Humor: `🤣・memes`
-  * Bot-Befehle: `🤖・bot-befehle`
-  * Giveaways & Drops: `🎉・giveaways`
-  * Vorschläge & Feedback: `💡・vorschläge`
-  * Support & Tickets: `🎫・support-tickets`
-  * Updates & Patchnotes: `🚀・changelog`
-  * Level & Leaderboard: `🏆・level-up`
-  * Roblox & Gaming: `🎮・roblox-game`
-  * Mod-Logs & Sicherheit: `🛡️・sicherheits-logs`
-  * Voice-Talks: `🔊・talk` & `🎵・musik` & `💤・afk`
-  * Kategorien: `📌 ┃ INFO`, `💬 ┃ COMMUNITY`, `🎫 ┃ SUPPORT`, `📁 ┃ ALLGEMEIN`
-* **Intelligente Bereinigung:** Entfernt alte Emojis und Sonderzeichen vor dem Neubenennen, sodass Emojis niemals doppelt gestapelt werden.
-* **Rate-Limit-Schutz:** Sanfte Pause zwischen Umbenennungen, um Discord-Limits sicher einzuhalten.
-* **Bedienung:**
-  * Web-Dashboard: Leuchtender Button **🎨 Kanäle mit Emojis stylen** im Dashboard-Header!
-  * Slash-Command: `/style-channels` (Nur Admins)
-  * Text-Command: `!style-channels` oder `!emojis`
+### 🎨 4. Server-Kanal Emoji-Verschönerer ("Emojis überarbeiten")
+* **1-Klick Cyberpunk-Styling:** Analysiert alle Chat-Kanäle, Sprachkanäle und Kategorien auf dem Server und formatiert sie mit passenden, modernen Cyberpunk-Emojis (z. B. `📜・regeln`, `💬・hauptchat`, `🔊・talk`, `📁 ┃ ALLGEMEIN`).
+* **Intelligente Bereinigung & Schutz:** Entfernt alte Emojis vor dem Neubenennen (keine Doppel-Emojis) und schützt vor Discord-Rate-Limits.
+* **Bedienung:** Button **🎨 Kanäle mit Emojis stylen** im Dashboard-Header oder per Chatbefehl `/style-channels` / `!style-channels`.
 
 ---
 
-### 🎉 3. High-End Giveaway-Suite ("Giveaways sind sehr wichtig")
-* **Echtzeit-Verlosungen:** Startet Giveaways mit Live-Discord-Countdown (`<t:TIMESTAMP:R>`), Teilnehmerzähler und manipulationssicherer Cloud-Auslosung.
-* **1-Klick-Teilnahmebutton:** Mitglieder klicken auf **🎉 Teilnehmen (X)**, um beizutreten oder ihre Teilnahme zu widerrufen.
-* **Roblox-Verknüpfungs-Pflicht:** Optionale Bedingung, dass nur Mitglieder mit verifiziertem Roblox-Konto (`/verify`) teilnehmen dürfen!
-* **Automatischer Background-Draw-Worker:** Ein Hintergrund-Thread prüft alle 10 Sekunden abgelaufene Giveaways, wählt zufällige Gewinner aus, benachrichtigt sie im Kanal mit Mention und setzt das Embed auf **🎊 BEENDET 🎊**.
-* **Gewinner neu auslosen (Reroll):** Lost blitzschnell neue Gewinner aus, falls ein Gewinner inaktiv ist.
-* **Befehle:**
-  * `/giveaway start [preis] [dauer: 10m, 1h, 24h, 3d] [gewinner: 1-20] [roblox_pflicht: true/false] [kanal]`
-  * `/giveaway reroll [nachricht_id]`
-  * `/giveaway end [nachricht_id]`
-  * `/giveaway list`
-  * Text-Befehl: `!giveaway 1h 1 1000 Robux`
-* **Dashboard-Modul:** Giveaways direkt im Browser starten, aktive Giveaways einsehen, vorzeitig beenden oder rerollen!
-
----
-
-## 🎛️ 4. Übersicht aller Dashboard-Module (8 Module)
+## 🎛️ 5. Übersicht aller Dashboard-Module (8 Module)
 
 1. **🎫 Support- & Ticket-System:** Vollautomatisches Kanal-Ticket-System, Kategorien-Builder, 1-Klick Support-Panel Bereitstellung.
 2. **🎮 Roblox-Verifizierung & Open Cloud:** Offizielle Roblox Users API, 3D Thumbnails, Auto-Rollen & Nickname-Sync.
@@ -77,7 +70,7 @@ Willkommen bei **AeroGuard Core v3.0**! Das System wurde massiv erweitert mit ei
 5. **🚨 Notfall-Sperre & Server-Sicherheit:** 1-Klick Notfall-Lockdown, Account-Mindestalter & Anti-Raid Schutz.
 6. **📜 Enterprise Audit & Log-System:** Kanal-Routing für Mod-Logs, Begrüßungen & Cloud-Backups.
 7. **💡 Vorschläge & Community-Feedback:** Dedizierter Kanal mit Abstimmungs-Buttons, Threads & Review-Status.
-8. **🎉 Giveaway- & Event-Suite:** Verlosungs-Manager mit Countdown, Auto-Draw & Roblox-Check.
+8. **🎉 Giveaway- & Event-Suite (Web-Exklusiv):** Verlosungs-Manager mit Countdown, Auto-Draw & Roblox-Check.
 
 ---
 

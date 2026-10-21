@@ -899,19 +899,10 @@ client.on('messageCreate', async message => {
         return statusMsg.edit('✨ **Fertig!** ' + result.changed + ' von ' + result.total + ' Kanälen wurden erfolgreich mit passenden Emojis neu formatiert. (' + result.skipped + ' unverändert).');
     }
 
-    // Prefix-Befehl: !giveaway <dauer> <gewinner> <preis>
-    if (lowerContent.startsWith('!giveaway ')) {
-        if (!isSupp) return message.reply('⛔ **Zugriff verweigert:** Nur Teammitglieder können Giveaways starten.');
-        const args = rawContent.substring(10).trim().split(/\s+/);
-        if (args.length < 3) {
-            return message.reply('ℹ️ Syntax: `!giveaway <Dauer, z.B. 1h oder 30m> <Gewinneranzahl, z.B. 1> <Preis>`\n*Beispiel:* `!giveaway 1h 1 1000 Robux`');
-        }
-        const durStr = args[0];
-        const winCount = parseInt(args[1], 10) || 1;
-        const prize = args.slice(2).join(' ');
-        const durMs = parseDuration(durStr);
-        await startGiveaway(message.guild, message.channel, message.author, { prize, durationMs: durMs, winnerCount: winCount, robloxRequired: false });
-        return;
+    // Prefix-Befehl: !giveaway (Web-Exklusiv Sperre)
+    if (lowerContent.startsWith('!giveaway')) {
+        const dashUrl = process.env.DASHBOARD_URL || 'https://roblox-discord-g44u.onrender.com/dashboard';
+        return message.reply('🔒 **Web-Exklusiv:** Giveaways können aus Sicherheits- und Konfigurationsgründen ausschließlich über das offizielle **Web-Dashboard** gestartet werden!\n👉 **Hier starten:** ' + dashUrl + ' (Modul: *Giveaway- & Event-Suite*)');
     }
         logTicketMessage(message.channel.id, message.author.tag, message.content, isSupp);
     }
@@ -2032,6 +2023,103 @@ client.on('interactionCreate', async interaction => {
         // =========================================================================
         // AEROGUARD /TICKET SLASH COMMAND
         // =========================================================================
+        // =========================================================================
+        // NEU: VORSCHLÄGE SLASH-COMMANDS (/suggest & /vorschlag & /suggest-setup)
+        // =========================================================================
+        if (commandName === 'suggest' || commandName === 'vorschlag') {
+            const gSettings = getGuildSettings(interaction.guild.id);
+            if (gSettings && gSettings.suggestions && gSettings.suggestions.enabled === false) {
+                return interaction.reply({ content: '⚠️ Das Vorschläge-System ist auf diesem Server aktuell über das Web-Dashboard deaktiviert.', ephemeral: true });
+            }
+            const idea = interaction.options.getString('vorschlag') || interaction.options.getString('idee');
+            const isAnon = interaction.options.getBoolean('anonym') || false;
+
+            const targetChannel = (gSettings.suggestions && gSettings.suggestions.channelId)
+                ? interaction.guild.channels.cache.get(gSettings.suggestions.channelId) || interaction.channel
+                : interaction.channel;
+
+            await postSuggestionEmbed(interaction.guild, targetChannel, interaction.user, idea, isAnon);
+            return interaction.reply({
+                content: '✅ **Vorschlag erfolgreich eingereicht!** Er wurde in ' + targetChannel.toString() + ' zur Abstimmung freigegeben.',
+                ephemeral: true
+            });
+        }
+
+        if (commandName === 'suggest-setup') {
+            if (!isSupporterOrAdmin(interaction.member)) {
+                return interaction.reply({ content: '⛔ Nur Administratoren können den Vorschlagskanal festlegen.', ephemeral: true });
+            }
+            const ch = interaction.options.getChannel('kanal');
+            const gSettings = getGuildSettings(interaction.guild.id);
+            if (!gSettings.suggestions) gSettings.suggestions = { enabled: true, channelId: null, autoVote: true, autoThread: true };
+            gSettings.suggestions.channelId = ch.id;
+            saveCloudVaultToDisk();
+            return interaction.reply({ content: '✅ ' + ch.toString() + ' wurde erfolgreich als offizieller Vorschlags-Kanal eingerichtet!', ephemeral: true });
+        }
+
+        // =========================================================================
+        // NEU: KANAL-EMOJIS ÜBERARBEITEN (/style-channels)
+        // =========================================================================
+        if (commandName === 'style-channels') {
+            if (!isSupporterOrAdmin(interaction.member)) {
+                return interaction.reply({ content: '⛔ Nur Administratoren können die Kanäle mit Emojis überarbeiten.', ephemeral: true });
+            }
+            await interaction.deferReply({ ephemeral: true });
+            const result = await styleGuildChannels(interaction.guild);
+            return interaction.editReply('🎨 **Server-Kanäle überarbeitet!**\n• **' + result.changed + '** Kanäle mit passenden Cyberpunk-Emojis formatiert\n• **' + result.skipped + '** übersprungen (bereits passend)\n• Gesamt analysiert: **' + result.total + '** Kanäle');
+        }
+
+        // =========================================================================
+        // NEU: GIVEAWAY SUITE (/giveaway start [WEB-EXKLUSIV] | reroll | end | list)
+        // =========================================================================
+        if (commandName === 'giveaway') {
+            const sub = interaction.options.getSubcommand();
+
+            if (sub === 'start') {
+                const dashUrl = process.env.DASHBOARD_URL || 'https://roblox-discord-g44u.onrender.com/dashboard';
+                const webRow = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder()
+                        .setLabel('🚀 Zum Web-Dashboard')
+                        .setStyle(ButtonStyle.Link)
+                        .setURL(dashUrl)
+                );
+
+                const webOnlyEmbed = new EmbedBuilder()
+                    .setTitle('🔒 Giveaway-Erstellung ist Web-Exklusiv')
+                    .setDescription('Giveaways können aus Sicherheits- und Konfigurationsgründen **ausschließlich über das offizielle Web-Dashboard** gestartet werden!\n\n👉 **So startest du dein Giveaway:**\n1. Klicke unten auf **🚀 Zum Web-Dashboard**.\n2. Öffne die Modul-Karte **🎉 Giveaway- & Event-Suite**.\n3. Lege Zielkanal, Preis, Dauer und optional die **Roblox-Pflicht** fest.\n4. Klicke auf **Giveaway jetzt im Server starten**!')
+                    .setColor(0x9d4edd)
+                    .setFooter({ text: 'AeroGuard Security Protocol • Web Dashboard Exclusive' });
+
+                return interaction.reply({ embeds: [webOnlyEmbed], components: [webRow], ephemeral: true });
+            }
+
+            if (!isSupporterOrAdmin(interaction.member)) {
+                return interaction.reply({ content: '⛔ Nur Administratoren und Supporter können Giveaways verwalten.', ephemeral: true });
+            }
+
+            if (sub === 'reroll') {
+                const msgId = interaction.options.getString('nachricht_id');
+                const res = await rerollGiveaway(msgId);
+                if (res.error) return interaction.reply({ content: '❌ ' + res.error, ephemeral: true });
+                return interaction.reply({ content: '🔄 Neues Gewinner-Reroll für Giveaway ' + msgId + ' erfolgreich durchgeführt!', ephemeral: true });
+            }
+
+            if (sub === 'end') {
+                const msgId = interaction.options.getString('nachricht_id');
+                const res = await endGiveaway(msgId);
+                if (!res) return interaction.reply({ content: '❌ Giveaway nicht gefunden.', ephemeral: true });
+                return interaction.reply({ content: '🛑 Giveaway ' + msgId + ' wurde vorzeitig beendet und die Gewinner ermittelt.', ephemeral: true });
+            }
+
+            if (sub === 'list') {
+                const active = Object.values(cloudStorage.activeGiveaways || {}).filter(g => g.guildId === interaction.guild.id && !g.ended);
+                if (active.length === 0) return interaction.reply({ content: '✨ Aktuell laufen keine Giveaways auf diesem Server.', ephemeral: true });
+
+                const listStr = active.map(g => '• **' + g.prize + '** in <#' + g.channelId + '> (ID: `' + g.id + '`) – Endet: <t:' + Math.floor(g.endTime / 1000) + ':R> – Teilnehmer: **' + g.participants.length + '**').join('\n');
+                return interaction.reply({ content: '🎉 **Laufende Giveaways auf ' + interaction.guild.name + ':**\n' + listStr, ephemeral: true });
+            }
+        }
+
         if (commandName === 'ticket') {
             if (interaction.guild) {
                 const gSettings = getGuildSettings(interaction.guild.id);
@@ -4049,9 +4137,264 @@ app.get('/', (req, res) => {
         </section>
 
         <footer>
-            <p>AeroGuard Core Enterprise v2.4 • Entwickelt für maximale Sicherheit & Performance</p>
-            <p style="margin-top:6px;"><a href="/login" style="color:var(--cyan);text-decoration:none;">Team Dashboard Login</a> • <a href="${inviteUrl}" target="_blank" style="color:#fff;text-decoration:none;">Bot zu Discord hinzufügen</a></p>
+            <p>AeroGuard Core Enterprise v3.0 • Entwickelt für maximale Sicherheit & Performance</p>
+            <p style="margin-top:6px;">
+                <a href="/login" style="color:var(--cyan);text-decoration:none;">Team Dashboard Login</a> • 
+                <a href="${inviteUrl}" target="_blank" style="color:#fff;text-decoration:none;">Bot zu Discord hinzufügen</a> • 
+                <a href="javascript:void(0)" onclick="openCookieSettings()" style="color:#94a3b8;text-decoration:none;">🍪 Cookie-Einstellungen</a>
+            </p>
         </footer>
+    <!-- ========================================================================= -->
+    <!-- AEROGUARD ENTERPRISE COOKIE CONSENT BANNER & MANAGER -->
+    <!-- ========================================================================= -->
+    <div id="ag-cookie-banner" class="ag-cookie-overlay" style="display:none;">
+        <div class="ag-cookie-card">
+            <div class="ag-cookie-header">
+                <div class="ag-cookie-icon">🍪</div>
+                <div style="flex:1;">
+                    <div class="ag-cookie-title">Cookie- & Datenschutzeinstellungen</div>
+                    <div class="ag-cookie-subtitle">AeroGuard Core verwendet Cookies, um dein Erlebnis sicher, personalisiert und performant zu gestalten.</div>
+                </div>
+            </div>
+
+            <div class="ag-cookie-body">
+                <p style="color:#94a3b8; font-size:0.88rem; margin-bottom:12px; line-height:1.5;">
+                    Wir verwenden essenzielle Cookies für deine Discord-Anmeldung und Serversicherheit sowie funktionale Cookies zur Speicherung deiner Dashboard-Einstellungen. Du kannst selbst entscheiden, welche Cookies du zulassen möchtest.
+                </p>
+
+                <!-- ACCORDION / CUSTOMIZE SECTION -->
+                <div id="ag-cookie-details" style="display:none; margin-bottom:14px; border-top:1px solid rgba(255,255,255,0.08); padding-top:12px;">
+                    <div class="ag-cookie-option">
+                        <div style="flex:1;">
+                            <div style="font-weight:700; color:#fff; font-size:0.9rem; display:flex; align-items:center; gap:8px;">
+                                <span>🔒 Essenziell & Sicherheit</span>
+                                <span style="background:rgba(0,243,255,0.15); color:#00f3ff; font-size:0.68rem; padding:2px 7px; border-radius:10px; font-weight:700;">IMMER AKTIV</span>
+                            </div>
+                            <div style="color:#94a3b8; font-size:0.78rem; margin-top:2px;">Erforderlich für Discord OAuth2-Login, Sitzungsstatus, Server-Autorisierung und Schutz vor CSRF-Angriffen.</div>
+                        </div>
+                        <input type="checkbox" checked disabled style="width:18px; height:18px; accent-color:#00f3ff; cursor:not-allowed;">
+                    </div>
+
+                    <div class="ag-cookie-option" style="margin-top:10px;">
+                        <div style="flex:1;">
+                            <div style="font-weight:700; color:#fff; font-size:0.9rem;">⚙️ Funktionale Cookies & Einstellungen</div>
+                            <div style="color:#94a3b8; font-size:0.78rem; margin-top:2px;">Speichert deinen zuletzt ausgewählten Server, aktive Filter und UI-Präferenzen im Web-Dashboard.</div>
+                        </div>
+                        <input type="checkbox" id="cookie-opt-functional" checked style="width:18px; height:18px; accent-color:#00f3ff; cursor:pointer;">
+                    </div>
+
+                    <div class="ag-cookie-option" style="margin-top:10px;">
+                        <div style="flex:1;">
+                            <div style="font-weight:700; color:#fff; font-size:0.9rem;">📊 Leistungs- & Telemetrie-Messung</div>
+                            <div style="color:#94a3b8; font-size:0.78rem; margin-top:2px;">Hilft uns, Server-Latenzen (Ping) und API-Verbindungen zu optimieren (anonymisiert).</div>
+                        </div>
+                        <input type="checkbox" id="cookie-opt-analytics" checked style="width:18px; height:18px; accent-color:#00f3ff; cursor:pointer;">
+                    </div>
+                </div>
+            </div>
+
+            <div class="ag-cookie-footer">
+                <button type="button" id="btn-cookie-customize" class="ag-cookie-btn ag-btn-secondary" onclick="toggleCookieDetails()">⚙️ Anpassen</button>
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                    <button type="button" class="ag-cookie-btn ag-btn-reject" onclick="rejectNonEssentialCookies()">Nur essenzielle</button>
+                    <button type="button" id="btn-cookie-accept-all" class="ag-cookie-btn ag-btn-accept" onclick="acceptAllCookies()">Alle akzeptieren</button>
+                    <button type="button" id="btn-cookie-save-custom" class="ag-cookie-btn ag-btn-accept" style="display:none;" onclick="saveCustomCookies()">Auswahl speichern</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .ag-cookie-overlay {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 999999;
+            max-width: 500px;
+            width: calc(100% - 48px);
+            animation: agSlideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        @keyframes agSlideUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes agSlideDown {
+            from { opacity: 1; transform: translateY(0); }
+            to { opacity: 0; transform: translateY(30px); }
+        }
+        .ag-cookie-card {
+            background: rgba(14, 18, 34, 0.95);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(0, 243, 255, 0.3);
+            box-shadow: 0 16px 48px rgba(0, 0, 0, 0.7), 0 0 24px rgba(0, 243, 255, 0.15);
+            border-radius: 16px;
+            padding: 20px;
+            color: #fff;
+            font-family: 'Outfit', sans-serif;
+        }
+        .ag-cookie-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+        .ag-cookie-icon {
+            font-size: 2rem;
+            filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.5));
+        }
+        .ag-cookie-title {
+            font-weight: 800;
+            font-size: 1.1rem;
+            color: #fff;
+            letter-spacing: -0.01em;
+        }
+        .ag-cookie-subtitle {
+            font-size: 0.8rem;
+            color: #94a3b8;
+            margin-top: 2px;
+        }
+        .ag-cookie-option {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 8px;
+            padding: 8px 12px;
+        }
+        .ag-cookie-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+        .ag-cookie-btn {
+            border: none;
+            border-radius: 8px;
+            font-family: inherit;
+            font-weight: 700;
+            font-size: 0.85rem;
+            padding: 8px 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .ag-btn-accept {
+            background: linear-gradient(135deg, #00f3ff, #00bbff);
+            color: #07080f;
+            box-shadow: 0 0 14px rgba(0, 243, 255, 0.35);
+        }
+        .ag-btn-accept:hover {
+            box-shadow: 0 0 20px rgba(0, 243, 255, 0.55);
+            transform: translateY(-1px);
+        }
+        .ag-btn-reject {
+            background: rgba(255, 255, 255, 0.06);
+            color: #cbd5e1;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+        .ag-btn-reject:hover {
+            background: rgba(255, 255, 255, 0.12);
+            color: #fff;
+        }
+        .ag-btn-secondary {
+            background: transparent;
+            color: #94a3b8;
+            border: 1px dashed rgba(255, 255, 255, 0.2);
+        }
+        .ag-btn-secondary:hover {
+            color: #00f3ff;
+            border-color: #00f3ff;
+        }
+    </style>
+
+    <script>
+        function initCookieConsent() {
+            try {
+                const saved = localStorage.getItem('aeroguard_cookie_consent');
+                if (!saved) {
+                    const banner = document.getElementById('ag-cookie-banner');
+                    if (banner) banner.style.display = 'block';
+                }
+            } catch(e) {}
+        }
+
+        function acceptAllCookies() {
+            try {
+                const consent = { essential: true, functional: true, analytics: true, timestamp: Date.now() };
+                localStorage.setItem('aeroguard_cookie_consent', JSON.stringify(consent));
+            } catch(e) {}
+            closeCookieBanner();
+        }
+
+        function rejectNonEssentialCookies() {
+            try {
+                const consent = { essential: true, functional: false, analytics: false, timestamp: Date.now() };
+                localStorage.setItem('aeroguard_cookie_consent', JSON.stringify(consent));
+            } catch(e) {}
+            closeCookieBanner();
+        }
+
+        function toggleCookieDetails() {
+            const details = document.getElementById('ag-cookie-details');
+            const btnCustom = document.getElementById('btn-cookie-customize');
+            const btnSave = document.getElementById('btn-cookie-save-custom');
+            if (!details) return;
+
+            if (details.style.display === 'none') {
+                details.style.display = 'block';
+                if (btnCustom) btnCustom.innerText = '▲ Einklappen';
+                if (btnSave) btnSave.style.display = 'inline-block';
+            } else {
+                details.style.display = 'none';
+                if (btnCustom) btnCustom.innerText = '⚙️ Anpassen';
+                if (btnSave) btnSave.style.display = 'none';
+            }
+        }
+
+        function saveCustomCookies() {
+            try {
+                const consent = {
+                    essential: true,
+                    functional: document.getElementById('cookie-opt-functional')?.checked === true,
+                    analytics: document.getElementById('cookie-opt-analytics')?.checked === true,
+                    timestamp: Date.now()
+                };
+                localStorage.setItem('aeroguard_cookie_consent', JSON.stringify(consent));
+            } catch(e) {}
+            closeCookieBanner();
+        }
+
+        function closeCookieBanner() {
+            const banner = document.getElementById('ag-cookie-banner');
+            if (!banner) return;
+            banner.style.animation = 'agSlideDown 0.3s forwards';
+            setTimeout(() => { banner.style.display = 'none'; }, 300);
+        }
+
+        function openCookieSettings() {
+            const banner = document.getElementById('ag-cookie-banner');
+            if (!banner) return;
+            banner.style.display = 'block';
+            banner.style.animation = 'agSlideUp 0.35s forwards';
+            const details = document.getElementById('ag-cookie-details');
+            if (details) details.style.display = 'block';
+            const btnCustom = document.getElementById('btn-cookie-customize');
+            if (btnCustom) btnCustom.innerText = '▲ Einklappen';
+            const btnSave = document.getElementById('btn-cookie-save-custom');
+            if (btnSave) btnSave.style.display = 'inline-block';
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initCookieConsent);
+        } else {
+            initCookieConsent();
+        }
+    </script>
+
     </div>
 </body>
 </html>`);

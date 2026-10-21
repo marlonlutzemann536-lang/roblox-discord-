@@ -332,6 +332,7 @@
                     <div class="user-name-tag">{{USER_TAG}}</div>
                     <div class="user-role-badge" id="header-user-role">{{USER_ROLE_LABEL}}</div>
                 </div>
+                <button type="button" onclick="openCookieSettings()" style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); color:#cbd5e1; font-size:1.05rem; cursor:pointer; padding:6px 10px; border-radius:8px; display:flex; align-items:center; justify-content:center; transition:all 0.2s;" onmouseover="this.style.borderColor='var(--cyan)'; this.style.color='var(--cyan)';" onmouseout="this.style.borderColor='rgba(255,255,255,0.12)'; this.style.color='#cbd5e1';" title="Cookie- & Datenschutzeinstellungen">🍪</button>
                 <a href="/logout" class="logout-link" title="Abmelden">🚪</a>
             </div>
         </header>
@@ -1245,6 +1246,423 @@
             renderWebTranscripts();
         }
 
+        
+        // --- HTML BUILDER FOR SUGGESTIONS MODAL ---
+        function buildSuggestionsModalHtml(guild) {
+            const s = guild.settings || {};
+            const textChs = guild.textChannels || [];
+            const sugConfig = s.suggestions || { enabled: true, channelId: null, autoVote: true, autoThread: true };
+
+            let chOpts = '<option value="">-- Kein Kanal ausgewählt --</option>';
+            textChs.forEach(ch => {
+                const sel = ch.id === sugConfig.channelId ? 'selected' : '';
+                chOpts += '<option value="' + ch.id + '" ' + sel + '>#' + ch.name + '</option>';
+            });
+
+            return '<div class="config-grid">' +
+                '<div class="config-section">' +
+                    '<div class="section-title">💡 Vorschlags-Kanal & Automation</div>' +
+                    '<div class="form-group">' +
+                        '<label class="form-label">Offizieller Vorschlags-Kanal</label>' +
+                        '<select id="cfg-sug-channel" class="form-control">' + chOpts + '</select>' +
+                        '<span class="form-hint">Nachrichten in diesem Kanal werden automatisch in saubere Abstimmungs-Embeds umgewandelt.</span>' +
+                    '</div>' +
+                    '<div style="margin-top:14px; margin-bottom:18px;">' +
+                        '<button type="button" class="btn btn-secondary" onclick="autoSetupSuggestionsChannel()" style="background:rgba(0,243,255,0.08);border:1px solid var(--cyan);color:var(--cyan);font-weight:700;padding:10px 18px;border-radius:8px;cursor:pointer;width:100%;display:flex;align-items:center;justify-content:center;gap:8px;">' +
+                            '<span>⚡</span> Vorschlagskanal (#💡・vorschläge) automatisch erstellen & verknüpfen' +
+                        '</button>' +
+                    '</div>' +
+                    '<div class="checkbox-group">' +
+                        '<input type="checkbox" id="cfg-sug-autovote" ' + (sugConfig.autoVote !== false ? 'checked' : '') + '>' +
+                        '<label for="cfg-sug-autovote">Automatisch interaktive 👍 / 👎 Abstimmungs-Buttons einfügen</label>' +
+                    '</div>' +
+                    '<div class="checkbox-group" style="margin-top:10px;">' +
+                        '<input type="checkbox" id="cfg-sug-autothread" ' + (sugConfig.autoThread !== false ? 'checked' : '') + '>' +
+                        '<label for="cfg-sug-autothread">Automatisch Diskussions-Thread unter jedem Vorschlag eröffnen</label>' +
+                    '</div>' +
+                '</div>' +
+
+                '<div class="config-section">' +
+                    '<div class="section-title">📊 Vorschläge-Verwaltung & Moderation</div>' +
+                    '<p style="color:#94a3b8; font-size:0.88rem; margin-bottom:14px;">' +
+                        'Teammitglieder können den Status direkt über Discord ändern oder hier im Dashboard verwalten:' +
+                    '</p>' +
+                    '<div id="modal-suggestions-list" style="max-height:280px; overflow-y:auto; border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:10px; background:rgba(0,0,0,0.2);">' +
+                        '<div style="text-align:center; padding:20px; color:#64748b;">Lade Vorschläge...</div>' +
+                    '</div>' +
+                '</div>' +
+            '</div>';
+        }
+
+        // --- HTML BUILDER FOR GIVEAWAYS MODAL (WEB-EXKLUSIV) ---
+        function buildGiveawaysModalHtml(guild) {
+            const textChs = guild.textChannels || [];
+            let chOpts = '';
+            textChs.forEach(ch => {
+                chOpts += '<option value="' + ch.id + '">#' + ch.name + '</option>';
+            });
+
+            return '<div class="config-grid">' +
+                '<div class="config-section">' +
+                    '<div class="section-title" style="display:flex; justify-content:space-between; align-items:center;">' +
+                        '<span>🚀 Neues Giveaway starten</span>' +
+                        '<span style="background:rgba(157,78,221,0.2); color:#c084fc; border:1px solid rgba(157,78,221,0.4); padding:3px 10px; border-radius:20px; font-size:0.75rem; font-weight:700;">🔒 WEB-EXKLUSIV</span>' +
+                    '</div>' +
+                    '<p style="color:#94a3b8; font-size:0.85rem; margin-bottom:14px;">' +
+                        'Aus Sicherheits- und Manipulationsschutz-Gründen können Giveaways <strong>ausschließlich über dieses Web-Dashboard</strong> gestartet werden.' +
+                    '</p>' +
+                    '<div class="form-group">' +
+                        '<label class="form-label">🎁 Preis / Gewinn</label>' +
+                        '<input type="text" id="cfg-giveaway-prize" class="form-control" placeholder="z. B. 1.000 Robux oder VIP-Rang">' +
+                    '</div>' +
+                    '<div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">' +
+                        '<div class="form-group">' +
+                            '<label class="form-label">⏱️ Dauer</label>' +
+                            '<select id="cfg-giveaway-duration" class="form-control">' +
+                                '<option value="10m">10 Minuten</option>' +
+                                '<option value="30m">30 Minuten</option>' +
+                                '<option value="1h" selected>1 Stunde</option>' +
+                                '<option value="6h">6 Stunden</option>' +
+                                '<option value="12h">12 Stunden</option>' +
+                                '<option value="24h">24 Stunden (1 Tag)</option>' +
+                                '<option value="3d">3 Tage</option>' +
+                                '<option value="7d">7 Tage (1 Woche)</option>' +
+                            '</select>' +
+                        '</div>' +
+                        '<div class="form-group">' +
+                            '<label class="form-label">🏆 Anzahl Gewinner</label>' +
+                            '<input type="number" id="cfg-giveaway-winners" class="form-control" value="1" min="1" max="20">' +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="form-group">' +
+                        '<label class="form-label">📢 Zielkanal</label>' +
+                        '<select id="cfg-giveaway-channel" class="form-control">' + chOpts + '</select>' +
+                    '</div>' +
+                    '<div class="checkbox-group" style="margin-top:8px;">' +
+                        '<input type="checkbox" id="cfg-giveaway-roblox">' +
+                        '<label for="cfg-giveaway-roblox">🔒 <strong>Roblox-Pflicht:</strong> Nur verifizierte Accounts dürfen teilnehmen</label>' +
+                    '</div>' +
+                    '<div style="margin-top:16px;">' +
+                        '<button type="button" class="btn btn-primary" onclick="launchGiveawayFromModal()" style="width:100%; justify-content:center; padding:12px; font-size:1rem;">' +
+                            '🚀 Giveaway jetzt im Discord-Server starten' +
+                        '</button>' +
+                    '</div>' +
+                '</div>' +
+
+                '<div class="config-section">' +
+                    '<div class="section-title">📋 Aktive & Vergangene Giveaways</div>' +
+                    '<div id="modal-giveaways-list" style="max-height:340px; overflow-y:auto; border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:10px; background:rgba(0,0,0,0.2);">' +
+                        '<div style="text-align:center; padding:20px; color:#64748b;">Lade Giveaways...</div>' +
+                    '</div>' +
+                '</div>' +
+            '</div>';
+        }
+
+        // --- STYLIZER CLIENT FUNCTION ---
+        async function triggerStyleChannels() {
+            if (!activeGuildId) return;
+            const guild = guilds.find(g => g.id === activeGuildId);
+            const serverName = guild ? guild.name : 'Server';
+            if (!confirm("Möchtest du alle Chat-, Voice- und Kategorie-Kanäle auf dem Server '" + serverName + "' analysieren und mit passenden Cyberpunk-Emojis überarbeiten?\n\nBeispiele:\n• rules -> 📜・regeln\n• general -> 💬・chat\n• voice -> 🔊・voice\n• giveaways -> 🎉・giveaways")) return;
+
+            showToast('🎨 Analysiere Kanäle und formatiere Emojis... Bitte kurz warten!');
+            try {
+                const res = await fetch('/api/guild/' + activeGuildId + '/style-channels', { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('✨ ' + data.changed + ' von ' + data.total + ' Kanälen erfolgreich mit Emojis neu formatiert! (' + data.skipped + ' unverändert)');
+                } else {
+                    alert('Fehler: ' + (data.error || 'Konnte Kanäle nicht stylen'));
+                }
+            } catch(e) {
+                alert('Netzwerkfehler: ' + e.message);
+            }
+        }
+
+        // --- SUGGESTIONS CLIENT FUNCTIONS ---
+        async function autoSetupSuggestionsChannel() {
+            if (!activeGuildId) return;
+            showToast('💡 Erstelle #💡・vorschläge...');
+            try {
+                const res = await fetch('/api/guild/' + activeGuildId + '/suggestions/setup-channel', { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('✅ Kanal #' + data.channelName + ' erfolgreich erstellt und eingerichtet!');
+                    const guild = guilds.find(g => g.id === activeGuildId);
+                    if (guild) {
+                        if (!guild.settings.suggestions) guild.settings.suggestions = {};
+                        guild.settings.suggestions.channelId = data.channelId;
+                        const sel = document.getElementById('cfg-sug-channel');
+                        if (sel) {
+                            let found = false;
+                            for (let opt of sel.options) {
+                                if (opt.value === data.channelId) { opt.selected = true; found = true; break; }
+                            }
+                            if (!found) {
+                                const newOpt = document.createElement('option');
+                                newOpt.value = data.channelId;
+                                newOpt.text = '#' + data.channelName;
+                                newOpt.selected = true;
+                                sel.appendChild(newOpt);
+                            }
+                        }
+                    }
+                } else {
+                    alert('Fehler: ' + data.error);
+                }
+            } catch(e) {
+                alert('Netzwerkfehler: ' + e.message);
+            }
+        }
+
+        async function loadSuggestionsListModal() {
+            const listEl = document.getElementById('modal-suggestions-list');
+            if (!listEl || !activeGuildId) return;
+            try {
+                const res = await fetch('/api/guild/' + activeGuildId + '/suggestions');
+                const list = await res.json();
+                if (!Array.isArray(list) || list.length === 0) {
+                    listEl.innerHTML = '<div style="text-align:center; padding:20px; color:#64748b;">✨ Noch keine Vorschläge auf diesem Server vorhanden.</div>';
+                    return;
+                }
+                list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+                listEl.innerHTML = list.map(sug => {
+                    let badgeBg = 'rgba(0,243,255,0.15)';
+                    let badgeColor = '#00f3ff';
+                    let statusLabel = 'In Prüfung';
+                    if (sug.status === 'ACCEPTED') { badgeBg = 'rgba(0,255,136,0.15)'; badgeColor = '#00ff88'; statusLabel = 'Angenommen'; }
+                    else if (sug.status === 'REJECTED') { badgeBg = 'rgba(239,68,68,0.15)'; badgeColor = '#ef4444'; statusLabel = 'Abgelehnt'; }
+                    else if (sug.status === 'PROGRESS') { badgeBg = 'rgba(157,78,221,0.15)'; badgeColor = '#c084fc'; statusLabel = 'In Umsetzung'; }
+
+                    const upCount = (sug.upvotes || []).length;
+                    const downCount = (sug.downvotes || []).length;
+
+                    return '<div style="padding:10px; margin-bottom:8px; border-radius:6px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06);">' +
+                        '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">' +
+                            '<span style="font-weight:700; color:#fff; font-size:0.9rem;">#' + String(sug.num).padStart(4, '0') + ' von ' + (sug.isAnonymous ? 'Anonym' : (sug.authorTag || 'User')) + '</span>' +
+                            '<span style="background:' + badgeBg + '; color:' + badgeColor + '; padding:2px 8px; border-radius:12px; font-size:0.75rem; font-weight:700;">' + statusLabel + '</span>' +
+                        '</div>' +
+                        '<div style="font-size:0.85rem; color:#cbd5e1; margin-bottom:8px;">' + sug.text + '</div>' +
+                        '<div style="display:flex; justify-content:space-between; align-items:center;">' +
+                            '<span style="font-size:0.8rem; color:#94a3b8;">👍 ' + upCount + '  •  👎 ' + downCount + '</span>' +
+                            '<div style="display:flex; gap:6px;">' +
+                                '<button type="button" onclick="setSuggestionStatus(\'' + sug.id + '\', \'ACCEPTED\')" style="background:rgba(0,255,136,0.1); border:1px solid #00ff88; color:#00ff88; padding:3px 8px; border-radius:4px; font-size:0.75rem; cursor:pointer;">✓ Annehmen</button>' +
+                                '<button type="button" onclick="setSuggestionStatus(\'' + sug.id + '\', \'REJECTED\')" style="background:rgba(239,68,68,0.1); border:1px solid #ef4444; color:#ef4444; padding:3px 8px; border-radius:4px; font-size:0.75rem; cursor:pointer;">✗ Ablehnen</button>' +
+                            '</div>' +
+                        '</div>' +
+                    '</div>';
+                }).join('');
+            } catch(e) {
+                listEl.innerHTML = '<div style="color:#ef4444; padding:10px;">Fehler beim Laden: ' + e.message + '</div>';
+            }
+        }
+
+        async function setSuggestionStatus(sugId, status) {
+            if (!activeGuildId) return;
+            try {
+                const res = await fetch('/api/guild/' + activeGuildId + '/suggestions/' + sugId + '/status', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('✅ Status des Vorschlags aktualisiert!');
+                    loadSuggestionsListModal();
+                } else {
+                    alert('Fehler: ' + data.error);
+                }
+            } catch(e) {
+                alert('Netzwerkfehler: ' + e.message);
+            }
+        }
+
+        // --- GIVEAWAYS CLIENT FUNCTIONS ---
+        async function launchGiveawayFromModal() {
+            if (!activeGuildId) return;
+            const prize = document.getElementById('cfg-giveaway-prize')?.value.trim();
+            if (!prize) {
+                alert('Bitte gib einen Preis an (z. B. 1.000 Robux)!');
+                return;
+            }
+            const duration = document.getElementById('cfg-giveaway-duration')?.value || '1h';
+            const winners = document.getElementById('cfg-giveaway-winners')?.value || 1;
+            const channelId = document.getElementById('cfg-giveaway-channel')?.value;
+            const robloxRequired = document.getElementById('cfg-giveaway-roblox')?.checked === true;
+
+            if (!channelId) {
+                alert('Bitte wähle einen Zielkanal für das Giveaway aus!');
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/guild/' + activeGuildId + '/giveaways/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prize, duration, winnerCount: winners, channelId, robloxRequired })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('🎉 Giveaway erfolgreich im Discord gestartet!');
+                    document.getElementById('cfg-giveaway-prize').value = '';
+                    loadGiveawaysListModal();
+                } else {
+                    alert('Fehler: ' + data.error);
+                }
+            } catch(e) {
+                alert('Netzwerkfehler: ' + e.message);
+            }
+        }
+
+        async function loadGiveawaysListModal() {
+            const listEl = document.getElementById('modal-giveaways-list');
+            if (!listEl || !activeGuildId) return;
+            try {
+                const res = await fetch('/api/guild/' + activeGuildId + '/giveaways');
+                const list = await res.json();
+                if (!Array.isArray(list) || list.length === 0) {
+                    listEl.innerHTML = '<div style="text-align:center; padding:20px; color:#64748b;">✨ Keine aktiven oder vergangenen Giveaways gefunden. Starte links dein erstes Giveaway!</div>';
+                    return;
+                }
+                list.sort((a, b) => (b.endTime || 0) - (a.endTime || 0));
+                listEl.innerHTML = list.map(g => {
+                    const isEnded = g.ended === true;
+                    const statusColor = isEnded ? '#ef4444' : '#00ff88';
+                    const statusLabel = isEnded ? 'Beendet' : 'Aktiv';
+                    const pCount = (g.participants || []).length;
+
+                    return '<div style="padding:10px; margin-bottom:8px; border-radius:6px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06);">' +
+                        '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">' +
+                            '<span style="font-weight:700; color:#fff; font-size:0.95rem;">🎁 ' + g.prize + '</span>' +
+                            '<span style="color:' + statusColor + '; font-size:0.75rem; font-weight:700;">● ' + statusLabel + '</span>' +
+                        '</div>' +
+                        '<div style="font-size:0.8rem; color:#94a3b8; margin-bottom:8px;">' +
+                            'Kanal: <span style="color:#cbd5e1;">#' + g.channelId + '</span> • Teilnehmer: <strong>' + pCount + '</strong> • Gewinner: <strong>' + g.winnerCount + '</strong>' +
+                            (g.robloxRequired ? ' • <span style="color:#00f3ff;">🔒 Roblox-Pflicht</span>' : '') +
+                        '</div>' +
+                        '<div style="display:flex; justify-content:flex-end; gap:6px;">' +
+                            (!isEnded ? '<button type="button" onclick="endGiveawayModal(\'' + g.id + '\')" style="background:rgba(239,68,68,0.15); border:1px solid #ef4444; color:#ef4444; padding:4px 10px; border-radius:4px; font-size:0.75rem; cursor:pointer;">🛑 Jetzt beenden</button>' : '') +
+                            (isEnded && pCount > 0 ? '<button type="button" onclick="rerollGiveawayModal(\'' + g.id + '\')" style="background:rgba(0,243,255,0.15); border:1px solid #00f3ff; color:#00f3ff; padding:4px 10px; border-radius:4px; font-size:0.75rem; cursor:pointer;">🔄 Reroll</button>' : '') +
+                        '</div>' +
+                    '</div>';
+                }).join('');
+            } catch(e) {
+                listEl.innerHTML = '<div style="color:#ef4444; padding:10px;">Fehler beim Laden: ' + e.message + '</div>';
+            }
+        }
+
+        async function endGiveawayModal(gId) {
+            if (!activeGuildId) return;
+            try {
+                const res = await fetch('/api/guild/' + activeGuildId + '/giveaways/' + gId + '/end', { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('🛑 Giveaway beendet & Gewinner ausgelost!');
+                    loadGiveawaysListModal();
+                } else {
+                    alert('Fehler: ' + data.error);
+                }
+            } catch(e) {
+                alert('Netzwerkfehler: ' + e.message);
+            }
+        }
+
+        async function rerollGiveawayModal(gId) {
+            if (!activeGuildId) return;
+            try {
+                const res = await fetch('/api/guild/' + activeGuildId + '/giveaways/' + gId + '/reroll', { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('🔄 Neuer Gewinner erfolgreich im Discord ausgelost!');
+                    loadGiveawaysListModal();
+                } else {
+                    alert('Fehler: ' + data.error);
+                }
+            } catch(e) {
+                alert('Netzwerkfehler: ' + e.message);
+            }
+        }
+
+        // --- COOKIE CONSENT FUNCTIONS ---
+        function initCookieConsent() {
+            try {
+                const saved = localStorage.getItem('aeroguard_cookie_consent');
+                if (!saved) {
+                    const banner = document.getElementById('ag-cookie-banner');
+                    if (banner) banner.style.display = 'block';
+                }
+            } catch(e) {}
+        }
+
+        function acceptAllCookies() {
+            try {
+                const consent = { essential: true, functional: true, analytics: true, timestamp: Date.now() };
+                localStorage.setItem('aeroguard_cookie_consent', JSON.stringify(consent));
+            } catch(e) {}
+            closeCookieBanner();
+            showToast('🍪 Alle Cookies erfolgreich akzeptiert!');
+        }
+
+        function rejectNonEssentialCookies() {
+            try {
+                const consent = { essential: true, functional: false, analytics: false, timestamp: Date.now() };
+                localStorage.setItem('aeroguard_cookie_consent', JSON.stringify(consent));
+            } catch(e) {}
+            closeCookieBanner();
+            showToast('🔒 Nur essenzielle Cookies aktiviert.');
+        }
+
+        function toggleCookieDetails() {
+            const details = document.getElementById('ag-cookie-details');
+            const btnCustom = document.getElementById('btn-cookie-customize');
+            const btnSave = document.getElementById('btn-cookie-save-custom');
+            if (!details) return;
+
+            if (details.style.display === 'none') {
+                details.style.display = 'block';
+                if (btnCustom) btnCustom.innerText = '▲ Einklappen';
+                if (btnSave) btnSave.style.display = 'inline-block';
+            } else {
+                details.style.display = 'none';
+                if (btnCustom) btnCustom.innerText = '⚙️ Anpassen';
+                if (btnSave) btnSave.style.display = 'none';
+            }
+        }
+
+        function saveCustomCookies() {
+            try {
+                const consent = {
+                    essential: true,
+                    functional: document.getElementById('cookie-opt-functional')?.checked === true,
+                    analytics: document.getElementById('cookie-opt-analytics')?.checked === true,
+                    timestamp: Date.now()
+                };
+                localStorage.setItem('aeroguard_cookie_consent', JSON.stringify(consent));
+            } catch(e) {}
+            closeCookieBanner();
+            showToast('✅ Cookie-Präferenzen gespeichert!');
+        }
+
+        function closeCookieBanner() {
+            const banner = document.getElementById('ag-cookie-banner');
+            if (!banner) return;
+            banner.style.animation = 'agSlideDown 0.3s forwards';
+            setTimeout(() => { banner.style.display = 'none'; }, 300);
+        }
+
+        function openCookieSettings() {
+            const banner = document.getElementById('ag-cookie-banner');
+            if (!banner) return;
+            banner.style.display = 'block';
+            banner.style.animation = 'agSlideUp 0.35s forwards';
+            const details = document.getElementById('ag-cookie-details');
+            if (details) details.style.display = 'block';
+            const btnCustom = document.getElementById('btn-cookie-customize');
+            if (btnCustom) btnCustom.innerText = '▲ Einklappen';
+            const btnSave = document.getElementById('btn-cookie-save-custom');
+            if (btnSave) btnSave.style.display = 'inline-block';
+        }
+
         function showToast(msg) {
             const toast = document.getElementById('toast');
             if (!toast) return;
@@ -1253,5 +1671,173 @@
             setTimeout(() => toast.classList.remove('show'), 3500);
         }
     </script>
+
+    <!-- ========================================================================= -->
+    <!-- AEROGUARD ENTERPRISE COOKIE CONSENT BANNER & MANAGER -->
+    <!-- ========================================================================= -->
+    <div id="ag-cookie-banner" class="ag-cookie-overlay" style="display:none;">
+        <div class="ag-cookie-card">
+            <div class="ag-cookie-header">
+                <div class="ag-cookie-icon">🍪</div>
+                <div style="flex:1;">
+                    <div class="ag-cookie-title">Cookie- & Datenschutzeinstellungen</div>
+                    <div class="ag-cookie-subtitle">AeroGuard Core verwendet Cookies, um dein Dashboard sicher, personalisiert und performant zu halten.</div>
+                </div>
+            </div>
+
+            <div class="ag-cookie-body">
+                <p style="color:#94a3b8; font-size:0.88rem; margin-bottom:12px; line-height:1.5;">
+                    Wir verwenden essenzielle Cookies für deine Discord-Sitzung und Serversicherheit sowie funktionale Cookies zur Speicherung deiner Serverauswahl. Du hast die volle Kontrolle.
+                </p>
+
+                <!-- ACCORDION / CUSTOMIZE SECTION -->
+                <div id="ag-cookie-details" style="display:none; margin-bottom:14px; border-top:1px solid rgba(255,255,255,0.08); padding-top:12px;">
+                    <div class="ag-cookie-option">
+                        <div style="flex:1;">
+                            <div style="font-weight:700; color:#fff; font-size:0.9rem; display:flex; align-items:center; gap:8px;">
+                                <span>🔒 Essenziell & Sicherheit</span>
+                                <span style="background:rgba(0,243,255,0.15); color:#00f3ff; font-size:0.68rem; padding:2px 7px; border-radius:10px; font-weight:700;">IMMER AKTIV</span>
+                            </div>
+                            <div style="color:#94a3b8; font-size:0.78rem; margin-top:2px;">Erforderlich für Discord OAuth2-Login, Sitzungsstatus, Server-Autorisierung und Schutz vor CSRF-Angriffen.</div>
+                        </div>
+                        <input type="checkbox" checked disabled style="width:18px; height:18px; accent-color:#00f3ff; cursor:not-allowed;">
+                    </div>
+
+                    <div class="ag-cookie-option" style="margin-top:10px;">
+                        <div style="flex:1;">
+                            <div style="font-weight:700; color:#fff; font-size:0.9rem;">⚙️ Funktionale Cookies & Einstellungen</div>
+                            <div style="color:#94a3b8; font-size:0.78rem; margin-top:2px;">Speichert deinen zuletzt ausgewählten Server, aktive Filter und UI-Präferenzen im Web-Dashboard.</div>
+                        </div>
+                        <input type="checkbox" id="cookie-opt-functional" checked style="width:18px; height:18px; accent-color:#00f3ff; cursor:pointer;">
+                    </div>
+
+                    <div class="ag-cookie-option" style="margin-top:10px;">
+                        <div style="flex:1;">
+                            <div style="font-weight:700; color:#fff; font-size:0.9rem;">📊 Leistungs- & Telemetrie-Messung</div>
+                            <div style="color:#94a3b8; font-size:0.78rem; margin-top:2px;">Hilft uns, Server-Latenzen (Ping) und API-Verbindungen zu optimieren (anonymisiert).</div>
+                        </div>
+                        <input type="checkbox" id="cookie-opt-analytics" checked style="width:18px; height:18px; accent-color:#00f3ff; cursor:pointer;">
+                    </div>
+                </div>
+            </div>
+
+            <div class="ag-cookie-footer">
+                <button type="button" id="btn-cookie-customize" class="ag-cookie-btn ag-btn-secondary" onclick="toggleCookieDetails()">⚙️ Anpassen</button>
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                    <button type="button" class="ag-cookie-btn ag-btn-reject" onclick="rejectNonEssentialCookies()">Nur essenzielle</button>
+                    <button type="button" id="btn-cookie-accept-all" class="ag-cookie-btn ag-btn-accept" onclick="acceptAllCookies()">Alle akzeptieren</button>
+                    <button type="button" id="btn-cookie-save-custom" class="ag-cookie-btn ag-btn-accept" style="display:none;" onclick="saveCustomCookies()">Auswahl speichern</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .ag-cookie-overlay {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 999999;
+            max-width: 500px;
+            width: calc(100% - 48px);
+            animation: agSlideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        @keyframes agSlideUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes agSlideDown {
+            from { opacity: 1; transform: translateY(0); }
+            to { opacity: 0; transform: translateY(30px); }
+        }
+        .ag-cookie-card {
+            background: rgba(14, 18, 34, 0.95);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(0, 243, 255, 0.3);
+            box-shadow: 0 16px 48px rgba(0, 0, 0, 0.7), 0 0 24px rgba(0, 243, 255, 0.15);
+            border-radius: 16px;
+            padding: 20px;
+            color: #fff;
+            font-family: 'Outfit', sans-serif;
+        }
+        .ag-cookie-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+        .ag-cookie-icon {
+            font-size: 2rem;
+            filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.5));
+        }
+        .ag-cookie-title {
+            font-weight: 800;
+            font-size: 1.1rem;
+            color: #fff;
+            letter-spacing: -0.01em;
+        }
+        .ag-cookie-subtitle {
+            font-size: 0.8rem;
+            color: #94a3b8;
+            margin-top: 2px;
+        }
+        .ag-cookie-option {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 8px;
+            padding: 8px 12px;
+        }
+        .ag-cookie-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+        .ag-cookie-btn {
+            border: none;
+            border-radius: 8px;
+            font-family: inherit;
+            font-weight: 700;
+            font-size: 0.85rem;
+            padding: 8px 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .ag-btn-accept {
+            background: linear-gradient(135deg, #00f3ff, #00bbff);
+            color: #07080f;
+            box-shadow: 0 0 14px rgba(0, 243, 255, 0.35);
+        }
+        .ag-btn-accept:hover {
+            box-shadow: 0 0 20px rgba(0, 243, 255, 0.55);
+            transform: translateY(-1px);
+        }
+        .ag-btn-reject {
+            background: rgba(255, 255, 255, 0.06);
+            color: #cbd5e1;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+        .ag-btn-reject:hover {
+            background: rgba(255, 255, 255, 0.12);
+            color: #fff;
+        }
+        .ag-btn-secondary {
+            background: transparent;
+            color: #94a3b8;
+            border: 1px dashed rgba(255, 255, 255, 0.2);
+        }
+        .ag-btn-secondary:hover {
+            color: #00f3ff;
+            border-color: #00f3ff;
+        }
+    </style>
+
 </body>
 </html>
