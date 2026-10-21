@@ -1,55 +1,54 @@
-# 🚀 AeroGuard Core — Enterprise Discord & Roblox Suite
+# 🚀 AeroGuard Core — Text- & Ticket-Spezialisierte Discord & Roblox Suite
 
-Willkommen bei **AeroGuard Core v2.4**! Diese Version bietet dir eine **öffentliche Startseite**, **strikte Anmeldung ausschließlich über Discord**, ein **Multi-Server Dashboard** und **echte Funktions-Deaktivierung**.
-
----
-
-## 🌐 1. Öffentliche Startseite & Bot-Einladung (`http://localhost:3000/`)
-
-- **Öffentlich zugänglich (Kein Login nötig):**
-  - Jeder Besucher sieht direkt: **Was ist AeroGuard?**
-  - Übersicht der 6 Kern-Module (Kanal-Tickets, AutoMod, Voice-Warteräume mit TTS, Roblox-Live-Sync, Level-System, Web-Dashboard).
-  - Live-Telemetrie (Bot-Status, Server-Anzahl, Ping, bearbeitete Tickets).
-  - **🤖 Bot einladen:** Direkter Button, um den Bot mit Administrator-Rechten auf den eigenen Discord-Server einzuladen.
-  - **Oben rechts:**
-    - Wenn nicht eingeloggt: **🔑 Anmelden mit Discord** (führt zu `/login`).
-    - Wenn eingeloggt: **👑 Dashboard** (führt zu `/dashboard`).
+Willkommen bei **AeroGuard Core v2.5**! Der Bot wurde vollständig für **Text-Nachrichten, Server-Kanal-Tickets, AutoMod und Roblox-Synchronisation** optimiert. Sprach-Warteräume und Voice-Features wurden vollständig entfernt, um maximale Performance, Stabilität und Klarheit zu gewährleisten.
 
 ---
 
-## 🔑 2. Anmeldung nur mit Discord (`/login`)
+## 🔒 1. Berechtigungssystem: Wer darf ins Web-Dashboard?
 
-- **Kein Dev-Bypass / Schnell-Login:** Die Anmeldung erfolgt **ausschließlich sicher über Discord OAuth2**.
-- **Owner-Prüfung:** Nach der Discord-Anmeldung prüft der Bot deine Discord-ID (`1075845857875873852`).
-  - Nur du als Owner (bzw. autorisierte Whitelist-Admins) erhältst Zugriff auf das Steuerungs-Dashboard.
-  - Nicht-autorisierte Nutzer erhalten eine klare Zugriff-Verweigert-Meldung.
+Das Dashboard unter `http://localhost:3000/dashboard` ist nun **rollen- und serverbasiert geschützt**:
+1. **👑 Bot-Owner (Root):** Hat Vollzugriff auf alle Server, auf denen der Bot installiert ist.
+2. **👑 Server-Besitzer:** Jeder Serverbesitzer kann sich per Discord anmelden und erhält automatisch die volle Kontrolle über seinen eigenen Server!
+3. **🛡️ Autorisierte Support-Rolle & Admins:** 
+   - Der Serverbesitzer kann im Dashboard eine **Support-Rolle** (z. B. *@Support*, *@Team*, *@Moderator*) festlegen.
+   - Alle Mitglieder mit dieser Rolle (oder Administrator-Rechten) können sich ebenfalls einloggen und die Tickets sowie Einstellungen dieses Servers verwalten!
+4. **⛔ Random User (Unberechtigte Personen):**
+   - Personen ohne Besitzer- oder Support-Rolle auf einem Bot-Server werden beim Login sofort geblockt (*Zugriff verweigert*).
 
 ---
 
-## 🎛️ 3. Multi-Server-Dashboard & Echte Modul-Deaktivierung (`/dashboard`)
+## 🎛️ 2. Modernisiertes Multi-Server Dashboard (`/dashboard`)
 
-### Server auswählen & Module umschalten
-Oben im Dashboard wählst du deinen Discord-Server aus. Jeder Server hat eigene Schalter:
-1. 🎫 **Ticket-System**
-2. 🛡️ **AutoMod & Wortfilter**
-3. 🚨 **Anti-Raid / Alt-Schutz**
-4. 🎙️ **Voice-Support & TTS**
-5. ⭐ **Level- & Economy-System**
-6. 🎮 **Roblox Info-Hub**
-7. 🔒 **Emergency Server Lockdown**
+- **Server-Auswahl:** Zeigt dir nur die Server an, auf denen du als Besitzer oder Support-Rolle berechtigt bist.
+- **Rollen-Badge:** Zeigt dir direkt an, mit welchem Rang du angemeldet bist (`👑 Server-Besitzer`, `🛡️ Autorisierte Support-Rolle` oder `👑 System Owner`).
+- **Aktive Module (Einzeln per Leuchtschalter steuerbar):**
+  1. 🎫 **Ticket-System** (Server-Kanäle & Modal-Popups)
+  2. 🛡️ **AutoMod & Wortfilter** (Spam, Toxizität & Phishing-Schutz)
+  3. 🚨 **Anti-Raid / Alt-Schutz** (Blockieren von Fake-Accounts)
+  4. ⭐ **Level- & Economy-System** (XP-Punkte & Chat-Belohnungen)
+  5. 🎮 **Roblox Info-Hub** (Live Place-Synchronisation)
+  6. 🔒 **Emergency Server Lockdown** (Chat-Sperre im Notfall)
+- **Live-Ticket-Verwaltung:**
+  - **Live-Suche:** Suche sofort nach Ticket-Nummer, Benutzername oder Roblox-IGN.
+  - **Filter-Tabs:** Schalte zwischen *Alle*, *Offen* und *In Bearbeitung* um.
+  - **HTML-Transkripte:** Direkter Link zum Einsehen und Herunterladen.
+- **Support-Panel Bereitstellung:** Projiziere das Ticket-Panel mit einem Klick aus dem Dashboard in jeden beliebigen Textkanal des Servers.
 
-### ⚠️ Was passiert, wenn eine Funktion abgeschaltet wird?
-Der Bot führt die Funktion **wirklich nicht mehr aus** und weist den Nutzer/Supporter direkt darauf hin:
-> *"⚠️ **Funktion deaktiviert:** Das Ticket-System ist auf diesem Server aktuell über das Web-Dashboard abgeschaltet.*  
-> *👉 Bitte aktiviere es im Dashboard wieder: http://localhost:3000/dashboard"*
+---
 
-* Dies gilt für Chat-Befehle (`!setup`, `!panel`, `!close`, `!claim`, `!transcript`), Slash-Commands (`/ticket`, `/setup-voicesupport`, `/setup-infohub`) und Panel-Buttons!
+## 🌐 3. Öffentliche Startseite (`/`) & Bot-Einladung
+
+- Unter `http://localhost:3000/` finden Besucher eine moderne Landing Page mit:
+  - Erklärung aller Funktionen und Features (*Was ist AeroGuard?*).
+  - Live-Telemetrie (Bot-Status, Server-Zähler, Ping, bearbeitete Tickets).
+  - **🤖 Bot einladen:** Klick auf den Button öffnet deinen offiziellen Einladungslink mit allen benötigten Berechtigungen.
+  - **Anmelden:** Schneller Wechsel zum geschützten Dashboard.
 
 ---
 
 ## 🚀 Schnellanleitung
 
-1. **Bot & Webserver starten:**
+1. **Bot starten:**
    ```bash
    node server.js
    ```
@@ -60,4 +59,4 @@ Der Bot führt die Funktion **wirklich nicht mehr aus** und weist den Nutzer/Sup
    ```
 
 3. **Anmelden:**
-   Klicke oben rechts auf **Anmelden**, autorisiere dich über Discord und steuere deine Server im Dashboard!
+   Melde dich per Discord an. Sobald du Serverbesitzer bist oder die Support-Rolle besitzt, erscheint dein Server zur Steuerung im Dashboard!

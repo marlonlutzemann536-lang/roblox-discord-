@@ -46,38 +46,12 @@ if (fs.existsSync(path.join(__dirname, '.env'))) {
         console.log("⚙️ [CONFIG] Lokale .env Datei erfolgreich geladen.");
     } catch(e) {}
 }
-const { 
-    joinVoiceChannel, 
-    createAudioPlayer, 
-    createAudioResource, 
-    AudioPlayerStatus, 
-    NoSubscriberBehavior,
-    EndBehaviorType
-} = require('@discordjs/voice');
+// [@discordjs/voice PURGED - BOT IS TEXT & TICKET ONLY]
 const axios = require('axios');
 const session = require('express-session');
 const crypto = require('crypto');
 
-// =========================================================================
-// GOOGLE STT INITIALISIERUNG (100% SICHER ÜBER ENVIRONMENT VARIABLE)
-// =========================================================================
-let speechClient = null;
-let prism = null;
-try {
-    const speech = require('@google-cloud/speech');
-    prism = require('prism-media');
-    
-    // 🟢 Der Bot liest den Key jetzt komplett unsichtbar aus dem Render-Speicher aus!
-    if (process.env.GOOGLE_CREDENTIALS) {
-        const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
-        speechClient = new speech.SpeechClient({ credentials });
-        console.log("✅ [INFO] Google STT erfolgreich über Render-Umgebungsvariable konfiguriert.");
-    } else {
-        console.log("⚠️ [INFO] Keine GOOGLE_CREDENTIALS gefunden. Spracherkennung läuft im Passiv-Modus.");
-    }
-} catch (e) {
-    console.error("❌ [ERROR] Fehler bei der STT-Initialisierung:", e.message);
-}
+// [GOOGLE STT PURGED - BOT IS TEXT & TICKET ONLY]
 
 const app = express();
 // Middleware für JSON-Parsing & Form-Daten
@@ -94,6 +68,42 @@ const port = process.env.PORT || 3000;
 // =========================================================================
 // GUILD MULTI-SERVER SETTINGS MATRIX (AEROGUARD CLOUD CORE)
 // =========================================================================
+
+// =========================================================================
+// AEROGUARD MULTI-SERVER ACCESS CONTROL MATRIX
+// Erlaubt Zugriff für: Bot-Owner, Server-Besitzer, Server-Admins & Support-Rolle
+// =========================================================================
+async function getUserGuildPermission(userId, guildId) {
+    if (userId === OWNER_ID) {
+        return { authorized: true, roleLabel: '👑 System Owner (Root)', isOwner: true, isStaff: true };
+    }
+    const guild = client.guilds.cache.get(guildId);
+    if (!guild) return { authorized: false, roleLabel: 'Keine Berechtigung' };
+
+    if (guild.ownerId === userId) {
+        return { authorized: true, roleLabel: '👑 Server-Besitzer', isOwner: true, isStaff: true };
+    }
+
+    try {
+        const member = await guild.members.fetch(userId).catch(() => null);
+        if (!member) return { authorized: false, roleLabel: 'Kein Mitglied' };
+
+        if (member.permissions.has(PermissionFlagsBits.Administrator)) {
+            return { authorized: true, roleLabel: '⚡ Server-Administrator', isOwner: false, isStaff: true };
+        }
+
+        const gSettings = getGuildSettings(guildId);
+        if (gSettings.supportRoleId && member.roles.cache.has(gSettings.supportRoleId)) {
+            return { authorized: true, roleLabel: '🛡️ Autorisierte Support-Rolle', isOwner: false, isStaff: true };
+        }
+        if (cloudStorage.systemSettings.authorizedSupporters && cloudStorage.systemSettings.authorizedSupporters.includes(userId)) {
+            return { authorized: true, roleLabel: '🛡️ Autorisierter Supporter', isOwner: false, isStaff: true };
+        }
+    } catch(e) {}
+
+    return { authorized: false, roleLabel: 'Keine Berechtigung' };
+}
+
 function getGuildSettings(guildId) {
     if (!cloudStorage.guildSettings) cloudStorage.guildSettings = {};
     if (!cloudStorage.guildSettings[guildId]) {
@@ -327,7 +337,6 @@ const client = new Client({
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.DirectMessages,
-        GatewayIntentBits.GuildVoiceStates,
         GatewayIntentBits.GuildMessageReactions
     ],
     partials: [Partials.Channel, Partials.Message, Partials.User, Partials.Reaction]
@@ -567,223 +576,7 @@ function analyzeTicketWithAI(reason) {
 
 // [OLD DM TICKET ROUTER COMPLETELY PURGED]
 
-// =========================================================================
-// PREMIUM GOOGLE CLOUD TTS ENGINE
-// =========================================================================
-async function playTTS(voiceChannel, textToSpeak, keepAlive = false) {
-    try {
-        const connection = joinVoiceChannel({
-            channelId: voiceChannel.id,
-            guildId: voiceChannel.guild.id,
-            adapterCreator: voiceChannel.guild.voiceAdapterCreator,
-            selfMute: false,
-            selfDeaf: false
-        });
-
-        const player = createAudioPlayer({
-            behaviors: { noSubscriber: NoSubscriberBehavior.Pause }
-        });
-
-        let resource;
-        try {
-            const response = await axios.post(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${GOOGLE_API_KEY}`, {
-                input: { text: textToSpeak },
-                voice: { languageCode: 'de-DE', name: 'de-DE-Neural2-F' },
-                audioConfig: { audioEncoding: 'MP3', speakingRate: 1.0 }
-            });
-            
-            const tempFilePath = path.join(__dirname, `tts_${Date.now()}_${Math.floor(Math.random()*1000)}.mp3`);
-            fs.writeFileSync(tempFilePath, Buffer.from(response.data.audioContent, 'base64'));
-            resource = createAudioResource(tempFilePath);
-            
-            player.play(resource);
-            connection.subscribe(player);
-
-            player.on(AudioPlayerStatus.Idle, () => {
-                if (!keepAlive) {
-                    setTimeout(() => {
-                        if (connection.state.status !== 'destroyed') {
-                            connection.destroy();
-                            addLog('info', `Premium-TTS Ansage beendet. Bot hat den Warteraum verlassen.`);
-                        }
-                    }, 1000);
-                }
-                
-                if (fs.existsSync(tempFilePath)) {
-                    fs.unlinkSync(tempFilePath); 
-                }
-            });
-        } catch (apiError) {
-            addLog('error', `Premium TTS API Fehler: ${apiError.message}. Wechsle zum Fallback.`);
-            const text = encodeURIComponent(textToSpeak);
-            resource = createAudioResource(`https://translate.google.com/translate_tts?ie=UTF-8&tl=de&client=tw-ob&q=${text}`);
-            player.play(resource);
-            connection.subscribe(player);
-            
-            player.on(AudioPlayerStatus.Idle, () => { 
-                if (!keepAlive) {
-                    setTimeout(() => { if (connection.state.status !== 'destroyed') connection.destroy(); }, 1000); 
-                }
-            });
-        }
-
-        return connection;
-    } catch (e) {
-        addLog('error', `Fehler beim Verbinden der Audio-Leitstelle: ${e.message}`);
-    }
-}
-
-// =========================================================================
-// ECHTE GOOGLE CLOUD STT SCHNITTSTELLE (GEFIXT FÜR DISCORD STEREO)
-// =========================================================================
-function startGoogleCloudSTTStream(connection, targetUserId, supporterUser) {
-    if (!connection || !supporterUser) return;
-
-    if (!speechClient || !prism) {
-        supporterUser.send(`⚠️ **System-Warnung:** Die Google Cloud STT API (Spracherkennung) ist auf dem Server nicht korrekt konfiguriert (GOOGLE_CREDENTIALS fehlen). Die Stimme des Users kann momentan nicht in Text umgewandelt werden!`).catch(()=>{});
-        return;
-    }
-
-    try {
-        const receiver = connection.receiver;
-        const audioStream = receiver.subscribe(targetUserId, {
-            end: { behavior: EndBehaviorType.AfterSilence, duration: 1500 }
-        });
-
-        const request = {
-            config: { 
-                encoding: 'LINEAR16', 
-                sampleRateHertz: 48000, 
-                audioChannelCount: 2, 
-                languageCode: 'de-DE',
-                enableAutomaticPunctuation: true 
-            },
-            interimResults: false,
-        };
-
-        const recognizeStream = speechClient.streamingRecognize(request)
-            .on('error', (err) => {
-                if(err.code !== 11) console.error("STT Error:", err.message); 
-            })
-            .on('data', data => {
-                if (data.results[0] && data.results[0].alternatives[0]) {
-                    const transcript = data.results[0].alternatives[0].transcript.trim();
-                    
-                    // Speichere das Voice-Transkript auch im HTML-Protokoll
-                    logTicketMessage(targetUserId, "VOICE (Spieler)", transcript, false);
-                    
-                    // Sende das Zitat direkt an den Supporter
-                    supporterUser.send(`🗣️ **[LIVE-VOICE] Der hilfebedürftige Spieler sagt:**\n> *"${transcript}"*`).catch(()=>{});
-                }
-            });
-
-        const opusDecoder = new prism.opus.Decoder({ rate: 48000, channels: 2, frameSize: 960 });
-        
-        audioStream.pipe(opusDecoder).pipe(recognizeStream);
-
-        audioStream.on('end', () => {
-            if (cloudStorage.activeVoiceSessions[supporterUser.id]) {
-                startGoogleCloudSTTStream(connection, targetUserId, supporterUser); 
-            }
-        });
-
-    } catch (e) {
-        addLog('error', `Fehler in der Google Cloud STT Bridge Pipeline: ${e.message}`);
-    }
-}
-
-// =========================================================================
-// VOICE STATE UPDATE ENGINE (WARTERAUM & AUTO-DELETE)
-// =========================================================================
-client.on('voiceStateUpdate', async (oldState, newState) => {
-    const member = newState.member;
-    if (!member || member.user.bot) return;
-
-    const guildId = newState.guild?.id || oldState.guild?.id;
-
-    if (oldState.channelId) {
-        const oldChannel = await oldState.guild.channels.fetch(oldState.channelId).catch(() => null);
-        if (oldChannel && oldChannel.name.includes("Support CASE-")) {
-            const humanMembers = oldChannel.members.filter(m => !m.user.bot).size;
-            if (humanMembers === 0) {
-                await oldChannel.delete().catch(()=>{});
-                if (cloudStorage.tempVoiceChannels[oldState.channelId]) {
-                    delete cloudStorage.tempVoiceChannels[oldState.channelId];
-                    saveCloudVaultToDisk();
-                }
-                addLog('info', `Support-Kanal ${oldChannel.name} wurde vollautomatisch vaporisiert (leer).`);
-            }
-        }
-    }
-
-    if (!oldState.channelId && newState.channelId) {
-        const channel = newState.channel;
-        const channelNameLower = channel.name.toLowerCase().trim();
-        
-        const isSupportChannel = SUPPORT_VOICE_CHANNELS.some(name => channelNameLower.includes(name.toLowerCase()));
-
-        if (isSupportChannel) {
-            const caseId = `CASE-${Math.floor(Math.random() * 9000) + 1000}`;
-            addLog('info', `Support benötigt: ${member.user.tag} wartet im ${channel.name}.`);
-            
-            setTimeout(async () => {
-                await playTTS(channel, cloudStorage.systemSettings.voiceAnnounceWaiting, false);
-            }, 1000);
-
-            const alertEmbed = new EmbedBuilder()
-                .setTitle('🛡️ AeroGuard Sektor-Leitstelle')
-                .setDescription(`Ein User hat soeben einen überwachten Support-Warteraum betreten!\n\n• **Nutzer:** ${member} (\`${member.user.tag}\`)\n• **Raum:** \`${channel.name}\` \n• **Vorgangsnummer:** \`${caseId}\``)
-                .setColor(0x00f5d4)
-                .setTimestamp();
-
-            const textAlertChannelId = cloudStorage.voiceSupportAlertChannels[guildId];
-            if (textAlertChannelId) {
-                try {
-                    const textChannel = await newState.guild.channels.fetch(textAlertChannelId);
-                    if (textChannel) {
-                        const row = new ActionRowBuilder().addComponents(
-                            new ButtonBuilder().setCustomId(`v_claim_${member.id}_${caseId}`).setLabel('🟩 Fall übernehmen & Bridge aktivieren').setStyle(ButtonStyle.Success)
-                        );
-                        const sentMsg = await textChannel.send({ 
-                            content: `🔔 **@here — VOICE-SUPPORT BENACHRICHTIGUNG:**`, 
-                            embeds: [alertEmbed],
-                            components: [row]
-                        });
-                        
-                        cloudStorage.voiceSupportQueue[member.id] = { caseId, alertMsgId: sentMsg.id, channelId: channel.id, guildId };
-                        saveCloudVaultToDisk();
-                    }
-                } catch(e) { addLog('error', `Fehler im Voice-Leitstellen-Kanal: ${e.message}`); }
-            }
-        }
-    }
-
-    if (oldState.channelId && !newState.channelId) {
-        if (cloudStorage.voiceSupportQueue[member.id]) {
-            const queueData = cloudStorage.voiceSupportQueue[member.id];
-            delete cloudStorage.voiceSupportQueue[member.id];
-            saveCloudVaultToDisk();
-            
-            const textAlertChannelId = cloudStorage.voiceSupportAlertChannels[guildId];
-            if (textAlertChannelId) {
-                try {
-                    const textChannel = await oldState.guild.channels.fetch(textAlertChannelId);
-                    if (textChannel) {
-                        const targetMsg = await textChannel.messages.fetch(queueData.alertMsgId);
-                        if (targetMsg) {
-                            const abortedEmbed = new EmbedBuilder()
-                                .setTitle('❌ SUPPORTFALL ABGEBROCHEN')
-                                .setDescription(`Der Vorgang \`${queueData.caseId}\` wurde beendet.\n\n• **Nutzer:** ${member}\n• **Status:** Der Spieler hat den Warteraum eigenständig verlassen.`)
-                                .setColor(0xff4d6d)
-                                .setTimestamp();
-                            await targetMsg.edit({ content: `⚠️ **Vorgang storniert:**`, embeds: [abortedEmbed], components: [] });
-                        }
-                    }
-                } catch(e){}
-            }
-        }
-    }
-});
+// [VOICE SUPPORT & TTS/STT PURGED - BOT IS TEXT & TICKET ONLY]
 
 // =========================================================================
 // MOD-LOG SNAPSHOT ENGINE
@@ -1604,7 +1397,7 @@ client.on('interactionCreate', async interaction => {
         const userId = interaction.user.id;
         const isWhitelisted = cloudStorage.systemSettings.whitelistedUsers.includes(userId);
 
-        const adminCmds = ['status', 'restart', 'clear', 'warn', 'ticket', 'setup-ticketpanel', 'setup-voicesupport', 'setup-infohub', 'poll', 'rbx-shout', 'rbx-serverlogs', 'rbx-shutdown', 'setup-voiceannounce', 'clan-war', 'rbx-savedata', 'rbx-cleardata', 'nuke', 'lockdown', 'unlockdown', 'slowmode', 'addrole', 'removerole', 'set-placeid', 'mute', 'unmute', 'warnlist', 'clearwarns', 'lockchannel', 'unlockchannel', 'dm', 'whitelist', 'supporter', 'setup-modlog', 'backup-server', 'give-premium', 'setup-welcome', 'setup-livestatus', 'setup-autorole', 'blacklist'];
+        const adminCmds = ['status', 'restart', 'clear', 'warn', 'ticket', 'setup-ticketpanel', 'setup-infohub', 'poll', 'rbx-shout', 'rbx-serverlogs', 'rbx-shutdown', 'clan-war', 'rbx-savedata', 'rbx-cleardata', 'nuke', 'lockdown', 'unlockdown', 'slowmode', 'addrole', 'removerole', 'set-placeid', 'mute', 'unmute', 'warnlist', 'clearwarns', 'lockchannel', 'unlockchannel', 'dm', 'whitelist', 'supporter', 'setup-modlog', 'backup-server', 'give-premium', 'setup-welcome', 'setup-livestatus', 'setup-autorole', 'blacklist'];
         
         if (adminCmds.includes(commandName) && !isWhitelisted) {
             return interaction.reply({ content: '🔒 **Zugriff verweigert:** Dein Benutzerkonto verfügt nicht über die erforderlichen administrativen Schlüssel.', ephemeral: true });
@@ -2052,13 +1845,7 @@ client.on('interactionCreate', async interaction => {
             return interaction.reply({ content: `💾 **AeroGuard Cloud-Zentrale Integritätsbericht:**\n• Speicherort: \`${CLOUD_VAULT_PATH}\`\n• Aktuelle Dateigröße: \`${dbSize} KB\`\n• Status: 100% Sicher verschlüsselt auf lokaler Festplatte.`, ephemeral: true });
         }
 
-        if (commandName === 'setup-voiceannounce') {
-            const neuerText = interaction.options.getString('text');
-            cloudStorage.systemSettings.voiceAnnounceClaimed = neuerText;
-            saveCloudVaultToDisk();
-            return interaction.reply(`🟩 **Audio-Leitstelle:** Die Text-to-Speech Ansage bei der Support-Übernahme wurde aktualisiert zu:\n*"${neuerText}"*`);
-        }
-
+        // [setup-voiceannounce PURGED]
         if (commandName === 'rbx-savedata') {
             const rbxId = interaction.options.getString('userid');
             const coins = interaction.options.getInteger('coins');
@@ -2112,17 +1899,7 @@ client.on('interactionCreate', async interaction => {
             return interaction.reply({ content: '🔮 **AeroGuard Core-Setup:** Wähle den Zielkanal für das interaktive Panel:', components: [new ActionRowBuilder().addComponents(channelSelect)], ephemeral: true });
         }
 
-        if (commandName === 'setup-voicesupport') {
-            if (interaction.guild) {
-                const gSettings = getGuildSettings(interaction.guild.id);
-                if (gSettings && gSettings.modules && gSettings.modules.voiceSupport === false) {
-                    return interaction.reply({ content: '⚠️ **Funktion deaktiviert:** Der Voice-Support ist auf diesem Server aktuell über das Web-Dashboard abgeschaltet.\n👉 *Bitte aktiviere es im Dashboard wieder:* `http://localhost:3000/dashboard`', ephemeral: true });
-                }
-            }
-            const channelSelect = new ChannelSelectMenuBuilder().setCustomId('voice_support_text_channel_select').setPlaceholder('Kanal wählen...').addChannelTypes(ChannelType.GuildText);
-            return interaction.reply({ content: '🔮 **AeroGuard Leitstelle:** Definiere den Log-Textkanal für Voice-Warteräume:', components: [new ActionRowBuilder().addComponents(channelSelect)], ephemeral: true });
-        }
-
+        // [setup-voicesupport PURGED]
         if (commandName === 'setup-infohub') {
             if (interaction.guild) {
                 const gSettings = getGuildSettings(interaction.guild.id);
@@ -2420,6 +2197,7 @@ client.once('ready', async () => {
 // =========================================================================
 // =========================================================================
 // =========================================================================
+// =========================================================================
 // WEBPANEL OAUTH2 UTILITIES & MULTI-SERVER CONTROL LAYER
 // =========================================================================
 
@@ -2427,9 +2205,7 @@ client.once('ready', async () => {
 app.get('/login', (req, res) => {
     const clientId = process.env.CLIENT_ID || '1522570826610774016';
     const redirectUri = encodeURIComponent(process.env.REDIRECT_URI || 'https://roblox-discord-g44u.onrender.com/api/auth/callback');
-    const discordAuthUrl = clientId 
-        ? `https://discord.com/api/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=identify%20guilds`
-        : '#';
+    const discordAuthUrl = `https://discord.com/api/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=identify%20guilds`;
 
     res.send(`<!DOCTYPE html>
 <html lang="de">
@@ -2441,7 +2217,7 @@ app.get('/login', (req, res) => {
     <style>
         :root {
             --bg: #07080f;
-            --card: rgba(14, 18, 32, 0.85);
+            --card: rgba(14, 18, 34, 0.85);
             --border: rgba(255, 255, 255, 0.08);
             --cyan: #00f3ff;
             --cyan-glow: rgba(0, 243, 255, 0.35);
@@ -2468,7 +2244,7 @@ app.get('/login', (req, res) => {
             border: 1px solid var(--border);
             border-radius: 24px;
             padding: 50px 38px;
-            max-width: 460px;
+            max-width: 480px;
             width: 100%;
             text-align: center;
             backdrop-filter: blur(20px);
@@ -2492,7 +2268,12 @@ app.get('/login', (req, res) => {
             box-shadow: 0 0 30px var(--cyan-glow);
         }
         h1 { font-size: 1.85rem; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 8px; }
-        p { color: #94a3b8; font-size: 0.95rem; margin-bottom: 28px; line-height: 1.5; }
+        p { color: #94a3b8; font-size: 0.95rem; margin-bottom: 24px; line-height: 1.5; }
+        .perm-info {
+            background: rgba(0, 243, 255, 0.06); border: 1px solid rgba(0, 243, 255, 0.2);
+            border-radius: 12px; padding: 14px; text-align: left; margin-bottom: 26px; font-size: 0.85rem; color: #cbd5e1; line-height: 1.4;
+        }
+        .perm-info strong { color: var(--cyan); }
         .btn-discord {
             display: flex; align-items: center; justify-content: center; gap: 12px;
             width: 100%; padding: 15px 20px; border-radius: 12px;
@@ -2510,23 +2291,21 @@ app.get('/login', (req, res) => {
             display: inline-block; margin-top: 24px; color: #64748b; font-size: 0.88rem; text-decoration: none; transition: color 0.2s;
         }
         .back-link:hover { color: var(--cyan); }
-        .notice-box {
-            background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); color: #fbbf24;
-            padding: 14px; border-radius: 12px; font-size: 0.85rem; text-align: left; margin-bottom: 20px; line-height: 1.4;
-        }
     </style>
 </head>
 <body>
     <div class="login-card">
         <div class="brand-icon">AG</div>
         <h1>AeroGuard <span style="color:var(--cyan)">Core</span></h1>
-        <p>Melde dich mit deinem Discord-Account an, um auf das Management-Dashboard zuzugreifen.</p>
+        <p>Sichere Anmeldung für berechtigte Server-Administratoren & Supporter</p>
 
-        ${!clientId ? `
-        <div class="notice-box">
-            ⚙️ <strong>Konfiguration erforderlich:</strong> Bitte trage <code>CLIENT_ID</code> und <code>CLIENT_SECRET</code> in deine <code>.env</code> ein, um die Discord OAuth2-Anmeldung zu aktivieren.
+        <div class="perm-info">
+            🛡️ <strong>Zugriffsberechtigung:</strong><br>
+            Das Dashboard ist geschützt. Zugriff haben ausschließlich:<br>
+            • Der Bot-Owner (Root)<br>
+            • Der <strong>Server-Besitzer</strong> des jeweiligen Discord-Servers<br>
+            • Mitglieder mit der autorisierten <strong>Support-Rolle</strong> oder Administrator-Rechten
         </div>
-        ` : ''}
 
         <a href="${discordAuthUrl}" class="btn-discord">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.929 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.893.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>
@@ -2541,16 +2320,16 @@ app.get('/login', (req, res) => {
 </html>`);
 });
 
-// Route: Discord OAuth2 Callback
+// Route: Discord OAuth2 Callback with Multi-Server Role Verification
 app.get('/api/auth/callback', async (req, res) => {
     try {
         if (!req.query.code) return res.redirect('/login');
         const tokenResponse = await axios.post('https://discord.com/api/oauth2/token', new URLSearchParams({
-            client_id: process.env.CLIENT_ID,
+            client_id: process.env.CLIENT_ID || '1522570826610774016',
             client_secret: process.env.CLIENT_SECRET,
             grant_type: 'authorization_code',
             code: req.query.code,
-            redirect_uri: process.env.REDIRECT_URI || 'http://localhost:3000/api/auth/callback'
+            redirect_uri: process.env.REDIRECT_URI || 'https://roblox-discord-g44u.onrender.com/api/auth/callback'
         }), { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
 
         const userResponse = await axios.get('https://discord.com/api/users/@me', {
@@ -2558,16 +2337,28 @@ app.get('/api/auth/callback', async (req, res) => {
         });
 
         const userData = userResponse.data;
-        const isOwner = (userData.id === OWNER_ID) || 
-            (cloudStorage.systemSettings.whitelistedUsers && cloudStorage.systemSettings.whitelistedUsers.includes(userData.id));
 
-        if (!isOwner) {
+        // Check if user has permission on AT LEAST one bot guild OR is global OWNER_ID
+        let hasAccess = (userData.id === OWNER_ID);
+        if (!hasAccess) {
+            for (const guild of client.guilds.cache.values()) {
+                const perm = await getUserGuildPermission(userData.id, guild.id);
+                if (perm.authorized) {
+                    hasAccess = true;
+                    break;
+                }
+            }
+        }
+
+        if (!hasAccess) {
             return res.send(`<!DOCTYPE html>
 <html lang="de">
 <body style="background:#07080f;color:#fff;font-family:sans-serif;text-align:center;padding:80px 20px;">
     <h1 style="color:#ef4444;font-size:2rem;">⛔ Zugriff verweigert</h1>
-    <p style="color:#94a3b8;margin-top:12px;">Dein Discord-Account (${userData.username}) ist nicht als Bot-Owner oder Administrator autorisiert.</p>
-    <a href="/" style="display:inline-block;margin-top:20px;color:#00f3ff;text-decoration:none;">← Zur Startseite</a>
+    <p style="color:#94a3b8;margin-top:14px;max-width:500px;margin-left:auto;margin-right:auto;line-height:1.5;">
+        Dein Discord-Account (<strong>${userData.username}</strong>) besitzt auf keinem der Bot-Server die Serverbesitzer-Rechte oder die konfigurierte Support-Rolle.
+    </p>
+    <a href="/" style="display:inline-block;margin-top:24px;color:#00f3ff;text-decoration:none;font-weight:700;">← Zurück zur Startseite</a>
 </body>
 </html>`);
         }
@@ -2577,10 +2368,10 @@ app.get('/api/auth/callback', async (req, res) => {
             username: userData.username,
             tag: userData.discriminator !== '0' ? `${userData.username}#${userData.discriminator}` : userData.username,
             avatar: userData.avatar,
-            isOwner: true
+            isOwner: (userData.id === OWNER_ID)
         };
 
-        addLog('info', `Dashboard-Login erfolgreich: ${userData.username} (Owner: true)`);
+        addLog('info', `Dashboard-Login erfolgreich: ${userData.username} (${userData.id})`);
         return res.redirect('/dashboard');
     } catch (e) {
         addLog('error', 'OAuth2 Fehler: ' + e.message);
@@ -2622,24 +2413,36 @@ app.get('/api/tickets', (req, res) => {
     res.json(list);
 });
 
-// API: List of all Guilds for Multi-Server Switcher
-app.get('/api/guilds', (req, res) => {
-    const guilds = client.guilds.cache.map(g => ({
-        id: g.id,
-        name: g.name,
-        icon: g.iconURL() || '',
-        memberCount: g.memberCount,
-        channelsCount: g.channels.cache.size,
-        rolesCount: g.roles.cache.size,
-        settings: getGuildSettings(g.id)
-    }));
-    res.json(guilds);
+// API: List of all Guilds for the Logged-In User (Filtered by Permissions!)
+app.get('/api/guilds', async (req, res) => {
+    if (!req.session.user) return res.status(401).json({ error: 'Nicht angemeldet' });
+
+    const authorizedGuilds = [];
+    for (const guild of client.guilds.cache.values()) {
+        const perm = await getUserGuildPermission(req.session.user.id, guild.id);
+        if (perm.authorized) {
+            authorizedGuilds.push({
+                id: guild.id,
+                name: guild.name,
+                icon: guild.iconURL() || '',
+                memberCount: guild.memberCount,
+                channelsCount: guild.channels.cache.size,
+                rolesCount: guild.roles.cache.size,
+                userRoleLabel: perm.roleLabel,
+                settings: getGuildSettings(guild.id)
+            });
+        }
+    }
+    res.json(authorizedGuilds);
 });
 
-// API: Update Server Modules & Config
-app.post('/api/guild/:guildId/settings', (req, res) => {
-    if (!req.session.user || !req.session.user.isOwner) {
-        return res.status(403).json({ error: 'Zugriff verweigert. Nur der Bot-Owner kann Module verwalten.' });
+// API: Update Server Modules & Config (Protected: Server Owner or Support Role)
+app.post('/api/guild/:guildId/settings', async (req, res) => {
+    if (!req.session.user) return res.status(401).json({ error: 'Nicht angemeldet' });
+
+    const perm = await getUserGuildPermission(req.session.user.id, req.params.guildId);
+    if (!perm.authorized) {
+        return res.status(403).json({ error: 'Zugriff verweigert. Nur der Serverbesitzer oder Mitglieder mit der Support-Rolle können Einstellungen ändern.' });
     }
 
     const guild = client.guilds.cache.get(req.params.guildId);
@@ -2659,13 +2462,16 @@ app.post('/api/guild/:guildId/settings', (req, res) => {
     if (req.body.ticketLogChannelId !== undefined) gSettings.ticketLogChannelId = req.body.ticketLogChannelId || null;
 
     saveCloudVaultToDisk();
-    addLog('info', `Dashboard: Einstellungen für Server "${guild.name}" (${guild.id}) gespeichert.`);
+    addLog('info', `Dashboard: Einstellungen für Server "${guild.name}" von ${req.session.user.username} (${perm.roleLabel}) gespeichert.`);
     res.json({ success: true, settings: gSettings });
 });
 
 // API: Deploy Ticket Panel to Channel from Web
 app.post('/api/guild/:guildId/deploy-panel', async (req, res) => {
-    if (!req.session.user || !req.session.user.isOwner) {
+    if (!req.session.user) return res.status(401).json({ error: 'Nicht angemeldet' });
+
+    const perm = await getUserGuildPermission(req.session.user.id, req.params.guildId);
+    if (!perm.authorized) {
         return res.status(403).json({ error: 'Zugriff verweigert.' });
     }
 
@@ -2727,9 +2533,7 @@ app.get('/', (req, res) => {
     const guildsCount = client.guilds.cache.size;
     const ticketsDone = cloudStorage.systemSettings.ticketCounter || 0;
 
-    const clientId = process.env.CLIENT_ID || (client.user ? client.user.id : '');
-    const defaultInviteLink = 'https://discord.com/oauth2/authorize?client_id=1522570826610774016&permissions=8&response_type=code&redirect_uri=https%3A%2F%2Froblox-discord-g44u.onrender.com%2Fapi%2Fauth%2Fcallback&integration_type=0&scope=identify+connections+guilds.join+applications.commands.permissions.update+gdm.join+rpc+applications.commands+rpc.activities.write+messages.read+rpc.screenshare.read+rpc.video.read+rpc.voice.read+applications.store.update+openid+applications.builds.read+webhook.incoming+email+guilds+guilds.members.read+bot+rpc.notifications.read+rpc.voice.write+rpc.video.write+rpc.screenshare.write';
-    const inviteUrl = process.env.BOT_INVITE_URL || defaultInviteLink;
+    const inviteUrl = process.env.BOT_INVITE_URL || 'https://discord.com/oauth2/authorize?client_id=1522570826610774016&permissions=8&response_type=code&redirect_uri=https%3A%2F%2Froblox-discord-g44u.onrender.com%2Fapi%2Fauth%2Fcallback&integration_type=0&scope=identify+connections+guilds.join+applications.commands.permissions.update+gdm.join+rpc+applications.commands+rpc.activities.write+messages.read+rpc.screenshare.read+rpc.video.read+rpc.voice.read+applications.store.update+openid+applications.builds.read+webhook.incoming+email+guilds+guilds.members.read+bot+rpc.notifications.read+rpc.voice.write+rpc.video.write+rpc.screenshare.write';
 
     res.send(`<!DOCTYPE html>
 <html lang="de">
@@ -2767,7 +2571,6 @@ app.get('/', (req, res) => {
         }
         .container { max-width: 1240px; margin: 0 auto; padding: 0 24px; }
         
-        /* NAVBAR */
         nav {
             display: flex; justify-content: space-between; align-items: center;
             padding: 24px 0; border-bottom: 1px solid var(--border);
@@ -2795,7 +2598,6 @@ app.get('/', (req, res) => {
             box-shadow: 0 0 20px rgba(245, 158, 11, 0.4);
         }
 
-        /* HERO SECTION */
         .hero {
             padding: 90px 0 70px 0; text-align: center; position: relative;
         }
@@ -2832,7 +2634,6 @@ app.get('/', (req, res) => {
         }
         .btn-cta-secondary:hover { border-color: var(--purple); background: var(--surface-hover); transform: translateY(-3px); }
 
-        /* LIVE TELEMETRY BAR */
         .telemetry-bar {
             display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px;
             margin: 40px 0 80px 0;
@@ -2844,13 +2645,12 @@ app.get('/', (req, res) => {
         .tel-val { font-size: 2.3rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; color: var(--cyan); margin-top: 4px; }
         .tel-label { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); }
 
-        /* WHAT IS AEROGUARD / FEATURES */
         .section-headline { text-align: center; margin-bottom: 50px; }
         .section-headline h2 { font-size: 2.3rem; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 10px; }
         .section-headline p { color: var(--text-dim); font-size: 1.05rem; }
 
         .features-grid {
-            display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 24px;
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 24px;
             margin-bottom: 80px;
         }
         .feature-card {
@@ -2866,7 +2666,6 @@ app.get('/', (req, res) => {
         .feature-title { font-size: 1.35rem; font-weight: 700; margin-bottom: 12px; }
         .feature-desc { color: #94a3b8; font-size: 0.95rem; line-height: 1.6; }
 
-        /* FOOTER */
         footer {
             border-top: 1px solid var(--border); padding: 40px 0; text-align: center; color: #64748b; font-size: 0.9rem;
         }
@@ -2874,7 +2673,6 @@ app.get('/', (req, res) => {
 </head>
 <body>
     <div class="container">
-        <!-- NAVIGATION -->
         <nav>
             <a href="/" class="brand">
                 <div class="brand-icon">AG</div>
@@ -2894,7 +2692,6 @@ app.get('/', (req, res) => {
             </div>
         </nav>
 
-        <!-- HERO SECTION -->
         <section class="hero">
             <div class="hero-badge">⚡ DIE ULTIMATIVE DISCORD & ROBLOX AUTOMATION</div>
             <h1 class="hero-title">
@@ -2913,7 +2710,6 @@ app.get('/', (req, res) => {
             </div>
         </section>
 
-        <!-- LIVE TELEMETRY BAR -->
         <div class="telemetry-bar" id="telemetry">
             <div class="telemetry-item">
                 <div class="tel-label">Online Status</div>
@@ -2933,7 +2729,6 @@ app.get('/', (req, res) => {
             </div>
         </div>
 
-        <!-- WHAT IS AEROGUARD? / FEATURES -->
         <section id="features">
             <div class="section-headline">
                 <h2>Was ist AeroGuard Core?</h2>
@@ -2941,7 +2736,6 @@ app.get('/', (req, res) => {
             </div>
 
             <div class="features-grid">
-                <!-- Feature 1 -->
                 <div class="feature-card">
                     <div class="feature-icon">🎫</div>
                     <div class="feature-title">Kanal-Ticketsystem 2.0</div>
@@ -2950,7 +2744,6 @@ app.get('/', (req, res) => {
                     </div>
                 </div>
 
-                <!-- Feature 2 -->
                 <div class="feature-card">
                     <div class="feature-icon">🛡️</div>
                     <div class="feature-title">AutoMod & Anti-Raid Schutzschild</div>
@@ -2959,16 +2752,6 @@ app.get('/', (req, res) => {
                     </div>
                 </div>
 
-                <!-- Feature 3 -->
-                <div class="feature-card">
-                    <div class="feature-icon">🎙️</div>
-                    <div class="feature-title">Voice-Support mit Google Cloud TTS</div>
-                    <div class="feature-desc">
-                        Unterstützt intelligente Leitstellen-Warteräume. Sobald ein Supporter ein Voice-Ticket übernimmt, kündigt der Bot die Schaltung mit Premium Neural2 Text-to-Speech an.
-                    </div>
-                </div>
-
-                <!-- Feature 4 -->
                 <div class="feature-card">
                     <div class="feature-icon">🎮</div>
                     <div class="feature-title">Roblox Live-Integration</div>
@@ -2977,7 +2760,6 @@ app.get('/', (req, res) => {
                     </div>
                 </div>
 
-                <!-- Feature 5 -->
                 <div class="feature-card">
                     <div class="feature-icon">⭐</div>
                     <div class="feature-title">Level- & Economy-System</div>
@@ -2986,18 +2768,24 @@ app.get('/', (req, res) => {
                     </div>
                 </div>
 
-                <!-- Feature 6 -->
                 <div class="feature-card">
                     <div class="feature-icon">🎛️</div>
                     <div class="feature-title">Multi-Server Web-Dashboard</div>
                     <div class="feature-desc">
-                        Behalte die volle Kontrolle über jeden Server, auf dem der Bot installiert ist. Schalte einzelne Module per Klick an oder aus und konfiguriere Kanäle direkt im Browser.
+                        Behalte die volle Kontrolle über jeden Server, auf dem der Bot installiert ist. Schalte einzelne Module per Klick an oder aus und konfiguriere Rollen und Kanäle direkt im Browser.
+                    </div>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">🔒</div>
+                    <div class="feature-title">Rollenbasierter Zugriffsschutz</div>
+                    <div class="feature-desc">
+                        Kein unbefugter Zugriff! Nur verifizierte Server-Besitzer und autorisierte Support-Rollen können das Management-Panel einsehen und steuern.
                     </div>
                 </div>
             </div>
         </section>
 
-        <!-- FOOTER -->
         <footer>
             <p>AeroGuard Core Enterprise v2.4 • Entwickelt für maximale Sicherheit & Performance</p>
             <p style="margin-top:6px;"><a href="/login" style="color:var(--cyan);text-decoration:none;">Team Dashboard Login</a> • <a href="${inviteUrl}" target="_blank" style="color:#fff;text-decoration:none;">Bot zu Discord hinzufügen</a></p>
@@ -3022,16 +2810,35 @@ app.get('/dashboard', async (req, res) => {
     const uptimeStr = `${hours}h ${minutes}m`;
     const ping = client.ws.ping || 0;
 
-    const guildsList = client.guilds.cache.map(g => ({
-        id: g.id,
-        name: g.name,
-        icon: g.iconURL() || '',
-        memberCount: g.memberCount,
-        categories: g.channels.cache.filter(c => c.type === ChannelType.GuildCategory).map(c => ({ id: c.id, name: c.name })),
-        textChannels: g.channels.cache.filter(c => c.type === ChannelType.GuildText).map(c => ({ id: c.id, name: c.name })),
-        roles: g.roles.cache.filter(r => r.name !== '@everyone').map(r => ({ id: r.id, name: r.name, color: r.hexColor })),
-        settings: getGuildSettings(g.id)
-    }));
+    // Filter guilds to only those the user is authorized for!
+    const authorizedGuilds = [];
+    for (const guild of client.guilds.cache.values()) {
+        const perm = await getUserGuildPermission(currentUser.id, guild.id);
+        if (perm.authorized) {
+            authorizedGuilds.push({
+                id: guild.id,
+                name: guild.name,
+                icon: guild.iconURL() || '',
+                memberCount: guild.memberCount,
+                userRoleLabel: perm.roleLabel,
+                categories: guild.channels.cache.filter(c => c.type === ChannelType.GuildCategory).map(c => ({ id: c.id, name: c.name })),
+                textChannels: guild.channels.cache.filter(c => c.type === ChannelType.GuildText).map(c => ({ id: c.id, name: c.name })),
+                roles: guild.roles.cache.filter(r => r.name !== '@everyone').map(r => ({ id: r.id, name: r.name, color: r.hexColor })),
+                settings: getGuildSettings(guild.id)
+            });
+        }
+    }
+
+    if (authorizedGuilds.length === 0 && !currentUser.isOwner) {
+        return res.send(`<!DOCTYPE html>
+<html lang="de">
+<body style="background:#07080f;color:#fff;font-family:sans-serif;text-align:center;padding:80px 20px;">
+    <h1 style="color:#ef4444;font-size:2rem;">⛔ Keine berechtigten Server gefunden</h1>
+    <p style="color:#94a3b8;margin-top:14px;">Du besitzt auf keinem Server die Serverbesitzer-Rechte oder die konfigurierte Support-Rolle.</p>
+    <a href="/" style="display:inline-block;margin-top:20px;color:#00f3ff;text-decoration:none;">← Zurück zur Startseite</a>
+</body>
+</html>`);
+    }
 
     const activeList = Object.keys(cloudStorage.activeTickets).map(chId => ({
         channelId: chId,
@@ -3039,11 +2846,11 @@ app.get('/dashboard', async (req, res) => {
     }));
 
     const ticketRowsHtml = activeList.length === 0 
-        ? '<tr><td colspan="6" style="text-align:center; padding:30px; color:#64748b;">✨ Keine offenen Tickets im System. Alle Anfragen sind bearbeitet!</td></tr>'
+        ? '<tr id="no-tickets-row"><td colspan="6" style="text-align:center; padding:30px; color:#64748b;">✨ Keine offenen Tickets im System. Alle Anfragen sind bearbeitet!</td></tr>'
         : activeList.map(t => {
             const statusColor = t.status === 'CLAIMED' ? '#fbbf24' : '#00f3ff';
             const statusLabel = t.status === 'CLAIMED' ? 'In Bearbeitung' : 'Offen';
-            return '<tr>' +
+            return '<tr class="ticket-row" data-status="' + (t.status || 'OPEN') + '" data-search="' + ((t.username || '') + ' ' + (t.ign || '') + ' ' + (t.ticketNum || '')).toLowerCase() + '">' +
                 '<td><span class="badge-ticket">#' + (String(t.ticketNum).padStart(4, '0')) + '</span></td>' +
                 '<td><strong>' + (t.username || 'Unbekannt') + '</strong></td>' +
                 '<td><span class="badge-cat">' + (t.category || 'Support') + '</span></td>' +
@@ -3053,7 +2860,7 @@ app.get('/dashboard', async (req, res) => {
             '</tr>';
         }).join('');
 
-    const guildsDataJson = JSON.stringify(guildsList).replace(/</g, '\\u003c');
+    const guildsDataJson = JSON.stringify(authorizedGuilds).replace(/</g, '\\u003c');
 
     const fullHtml = `<!DOCTYPE html>
 <html lang="de">
@@ -3088,7 +2895,7 @@ app.get('/dashboard', async (req, res) => {
             min-height: 100vh;
             padding-bottom: 80px;
         }
-        .container { max-width: 1300px; margin: 0 auto; padding: 25px 24px; }
+        .container { max-width: 1320px; margin: 0 auto; padding: 25px 24px; }
         
         header {
             display: flex; justify-content: space-between; align-items: center;
@@ -3109,23 +2916,22 @@ app.get('/dashboard', async (req, res) => {
         .user-panel {
             display: flex; align-items: center; gap: 14px;
             background: var(--surface); border: 1px solid var(--border);
-            padding: 8px 16px; border-radius: 999px; backdrop-filter: blur(12px);
+            padding: 8px 18px; border-radius: 999px; backdrop-filter: blur(12px);
         }
         .user-avatar {
-            width: 36px; height: 36px; border-radius: 50%;
+            width: 38px; height: 38px; border-radius: 50%;
             background: linear-gradient(135deg, var(--gold), #d97706);
             display: flex; align-items: center; justify-content: center;
-            font-weight: 800; font-size: 0.9rem; color: #000;
+            font-weight: 800; font-size: 0.95rem; color: #000;
         }
         .user-info { display: flex; flex-direction: column; text-align: left; }
-        .user-name { font-size: 0.9rem; font-weight: 700; color: #fff; }
-        .owner-badge {
-            font-size: 0.7rem; font-weight: 800; color: var(--gold);
-            text-transform: uppercase; letter-spacing: 0.06em;
-            display: flex; align-items: center; gap: 4px;
+        .user-name { font-size: 0.92rem; font-weight: 700; color: #fff; }
+        .role-badge {
+            font-size: 0.72rem; font-weight: 800; color: var(--cyan);
+            letter-spacing: 0.05em; display: flex; align-items: center; gap: 4px;
         }
         .logout-link {
-            color: #ef4444; text-decoration: none; font-size: 0.8rem;
+            color: #ef4444; text-decoration: none; font-size: 0.82rem;
             font-weight: 600; margin-left: 8px; padding-left: 8px; border-left: 1px solid var(--border);
         }
         .logout-link:hover { text-decoration: underline; }
@@ -3144,7 +2950,7 @@ app.get('/dashboard', async (req, res) => {
         .section-title { font-size: 1.25rem; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px; }
         
         .server-grid {
-            display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px;
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;
             margin-bottom: 35px;
         }
         .server-card {
@@ -3156,7 +2962,7 @@ app.get('/dashboard', async (req, res) => {
         .server-card.active {
             border-color: var(--cyan);
             background: linear-gradient(135deg, rgba(0, 243, 255, 0.1), rgba(157, 78, 221, 0.08));
-            box-shadow: 0 0 25px rgba(0, 243, 255, 0.15);
+            box-shadow: 0 0 25px rgba(0, 243, 255, 0.18);
         }
         .server-icon {
             width: 52px; height: 52px; border-radius: 14px;
@@ -3182,7 +2988,7 @@ app.get('/dashboard', async (req, res) => {
         .active-server-badge {
             display: flex; align-items: center; gap: 10px;
             background: rgba(0, 243, 255, 0.1); border: 1px solid rgba(0, 243, 255, 0.3);
-            padding: 6px 16px; border-radius: 999px; font-weight: 700; color: var(--cyan);
+            padding: 6px 16px; border-radius: 999px; font-weight: 700; color: var(--cyan); font-size: 0.9rem;
         }
 
         .modules-grid {
@@ -3196,7 +3002,7 @@ app.get('/dashboard', async (req, res) => {
         }
         .module-card:hover { border-color: rgba(255, 255, 255, 0.2); }
         .module-info { max-width: 75%; }
-        .module-title { font-size: 1rem; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+        .module-title { font-size: 1.02rem; font-weight: 700; display: flex; align-items: center; gap: 8px; }
         .module-desc { font-size: 0.82rem; color: var(--text-dim); margin-top: 4px; line-height: 1.4; }
 
         .switch {
@@ -3251,6 +3057,22 @@ app.get('/dashboard', async (req, res) => {
             background: var(--purple); color: #fff; box-shadow: 0 0 20px var(--purple-glow);
         }
 
+        /* TICKET SEARCH & TABS */
+        .ticket-controls {
+            display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 18px; flex-wrap: wrap;
+        }
+        .search-input {
+            background: #0b0f19; border: 1px solid var(--border); border-radius: 10px; padding: 10px 16px;
+            color: #fff; font-size: 0.9rem; outline: none; width: 280px; transition: border-color 0.2s;
+        }
+        .search-input:focus { border-color: var(--cyan); }
+        .filter-tabs { display: flex; gap: 8px; }
+        .tab-btn {
+            background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border); border-radius: 8px;
+            padding: 8px 16px; color: var(--text-dim); font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: all 0.2s;
+        }
+        .tab-btn.active { background: rgba(0, 243, 255, 0.15); border-color: var(--cyan); color: var(--cyan); }
+
         table { width: 100%; border-collapse: collapse; text-align: left; }
         th { font-size: 0.8rem; text-transform: uppercase; color: var(--text-dim); padding: 12px 14px; border-bottom: 1px solid var(--border); }
         td { padding: 14px; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 0.92rem; }
@@ -3282,7 +3104,7 @@ app.get('/dashboard', async (req, res) => {
                 <div class="user-avatar">${currentUser.username.substring(0, 2).toUpperCase()}</div>
                 <div class="user-info">
                     <div class="user-name">${currentUser.username}</div>
-                    <div class="owner-badge">👑 SYSTEM OWNER (ROOT)</div>
+                    <div class="role-badge" id="header-user-role">🛡️ Berechtigt</div>
                 </div>
                 <a href="/logout" class="logout-link">Abmelden</a>
             </div>
@@ -3290,8 +3112,8 @@ app.get('/dashboard', async (req, res) => {
 
         <div class="stats-grid">
             <div class="stat-card">
-                <div class="stat-title">Verbundene Server</div>
-                <div class="stat-val">${guildsList.length}</div>
+                <div class="stat-title">Verwaltbare Server</div>
+                <div class="stat-val">${authorizedGuilds.length}</div>
             </div>
             <div class="stat-card">
                 <div class="stat-title">Aktive Tickets</div>
@@ -3302,14 +3124,14 @@ app.get('/dashboard', async (req, res) => {
                 <div class="stat-val">${ping} <span style="font-size:1rem;color:var(--text-dim)">ms</span></div>
             </div>
             <div class="stat-card">
-                <div class="stat-title">Uptime</div>
+                <div class="stat-title">Bot Uptime</div>
                 <div class="stat-val">${uptimeStr}</div>
             </div>
         </div>
 
         <div class="section-header">
-            <div class="section-title">🌐 Server-Auswahl (Verbundene Discord-Gilden)</div>
-            <span style="font-size:0.85rem;color:var(--text-dim);">Wähle einen Server zum Steuern der Module</span>
+            <div class="section-title">🌐 Deine autorisierten Server</div>
+            <span style="font-size:0.85rem;color:var(--text-dim);">Du hast Zugriff als Server-Besitzer oder autorisierte Support-Rolle</span>
         </div>
         <div class="server-grid" id="server-grid"></div>
 
@@ -3319,7 +3141,7 @@ app.get('/dashboard', async (req, res) => {
                     <h2 id="active-server-name" style="font-size:1.6rem;font-weight:800;">Server auswählen...</h2>
                     <p style="color:var(--text-dim);font-size:0.88rem;margin-top:4px;" id="active-server-desc">Lade Konfiguration...</p>
                 </div>
-                <div class="active-server-badge">
+                <div class="active-server-badge" id="active-server-role-badge">
                     <span>👑 Vollzugriff aktiv</span>
                 </div>
             </div>
@@ -3361,17 +3183,6 @@ app.get('/dashboard', async (req, res) => {
 
                 <div class="module-card">
                     <div class="module-info">
-                        <div class="module-title">🎙️ Voice-Support & TTS</div>
-                        <div class="module-desc">Leitstellen-Warteräume mit Sprachsynthese & Warteschleife</div>
-                    </div>
-                    <label class="switch">
-                        <input type="checkbox" id="mod-voiceSupport">
-                        <span class="slider"></span>
-                    </label>
-                </div>
-
-                <div class="module-card">
-                    <div class="module-info">
                         <div class="module-title">⭐ Level- & Economy-System</div>
                         <div class="module-desc">XP-Punkte durch Chatten und AeroCoins Belohnungen</div>
                     </div>
@@ -3406,15 +3217,15 @@ app.get('/dashboard', async (req, res) => {
 
             <div class="config-grid">
                 <div class="form-group">
-                    <label>📁 Ticket-Kategorie</label>
-                    <select id="select-category">
-                        <option value="">Standard (Automatisch erstellen)</option>
+                    <label>🛡️ Support-Rolle (Erhält Dashboard-Zugriff)</label>
+                    <select id="select-role">
+                        <option value="">Keine spezielle Rolle</option>
                     </select>
                 </div>
                 <div class="form-group">
-                    <label>🛡️ Support-Rolle</label>
-                    <select id="select-role">
-                        <option value="">Keine spezielle Rolle</option>
+                    <label>📁 Ticket-Kategorie</label>
+                    <select id="select-category">
+                        <option value="">Standard (Automatisch erstellen)</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -3436,8 +3247,18 @@ app.get('/dashboard', async (req, res) => {
         </div>
 
         <div class="control-panel">
-            <div class="section-title" style="margin-bottom:18px;">
-                <span>🎫 Aktuelle Live-Tickets</span>
+            <div class="ticket-controls">
+                <div class="section-title">
+                    <span>🎫 Aktuelle Live-Tickets</span>
+                </div>
+                <div style="display:flex;gap:12px;flex-wrap:wrap;">
+                    <input type="text" class="search-input" id="ticket-search" placeholder="🔍 Ticket, User oder IGN suchen..." oninput="filterTickets()">
+                    <div class="filter-tabs">
+                        <button class="tab-btn active" onclick="setFilter('ALL', this)">Alle</button>
+                        <button class="tab-btn" onclick="setFilter('OPEN', this)">Offen</button>
+                        <button class="tab-btn" onclick="setFilter('CLAIMED', this)">In Bearbeitung</button>
+                    </div>
+                </div>
             </div>
             <table>
                 <thead>
@@ -3450,7 +3271,7 @@ app.get('/dashboard', async (req, res) => {
                         <th>Aktion</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="tickets-tbody">
                     ${ticketRowsHtml}
                 </tbody>
             </table>
@@ -3462,13 +3283,14 @@ app.get('/dashboard', async (req, res) => {
     <script>
         const guilds = ${guildsDataJson};
         let activeGuildId = guilds.length > 0 ? guilds[0].id : null;
+        let currentStatusFilter = 'ALL';
 
         function renderGuilds() {
             const grid = document.getElementById('server-grid');
             grid.innerHTML = '';
             
             if (guilds.length === 0) {
-                grid.innerHTML = '<div style="color:var(--text-dim);padding:20px;">Der Bot befindet sich aktuell auf keinem Server. Lade ihn über die Startseite mit dem "Bot einladen"-Button ein!</div>';
+                grid.innerHTML = '<div style="color:var(--text-dim);padding:20px;">Keine Server gefunden, auf denen du berechtigt bist.</div>';
                 return;
             }
 
@@ -3485,7 +3307,7 @@ app.get('/dashboard', async (req, res) => {
                     '<div class="server-icon">' + iconHtml + '</div>' +
                     '<div class="server-details">' +
                         '<div class="server-name">' + g.name + '</div>' +
-                        '<div class="server-meta">' + g.memberCount + ' Mitglieder</div>' +
+                        '<div class="server-meta">' + (g.userRoleLabel || 'Berechtigt') + ' • ' + g.memberCount + ' User</div>' +
                     '</div>';
                 grid.appendChild(card);
             });
@@ -3503,25 +3325,16 @@ app.get('/dashboard', async (req, res) => {
 
             document.getElementById('active-server-name').innerText = guild.name;
             document.getElementById('active-server-desc').innerText = 'Server ID: ' + guild.id + ' • ' + guild.memberCount + ' Mitglieder';
+            document.getElementById('active-server-role-badge').innerHTML = '<span>' + (guild.userRoleLabel || 'Berechtigt') + '</span>';
+            document.getElementById('header-user-role').innerText = guild.userRoleLabel || 'Berechtigt';
 
             const modules = guild.settings.modules || {};
             document.getElementById('mod-tickets').checked = modules.tickets !== false;
             document.getElementById('mod-autoMod').checked = modules.autoMod !== false;
             document.getElementById('mod-antiRaid').checked = modules.antiRaid !== false;
-            document.getElementById('mod-voiceSupport').checked = modules.voiceSupport !== false;
             document.getElementById('mod-levelSystem').checked = modules.levelSystem !== false;
             document.getElementById('mod-robloxHub').checked = modules.robloxHub !== false;
             document.getElementById('mod-lockdown').checked = modules.lockdown === true;
-
-            const catSel = document.getElementById('select-category');
-            catSel.innerHTML = '<option value="">Standard (Automatisch erstellen)</option>';
-            guild.categories.forEach(c => {
-                const opt = document.createElement('option');
-                opt.value = c.id;
-                opt.innerText = '📁 ' + c.name;
-                if (guild.settings.ticketCategoryId === c.id) opt.selected = true;
-                catSel.appendChild(opt);
-            });
 
             const roleSel = document.getElementById('select-role');
             roleSel.innerHTML = '<option value="">Keine spezielle Rolle</option>';
@@ -3531,6 +3344,16 @@ app.get('/dashboard', async (req, res) => {
                 opt.innerText = '@ ' + r.name;
                 if (guild.settings.supportRoleId === r.id) opt.selected = true;
                 roleSel.appendChild(opt);
+            });
+
+            const catSel = document.getElementById('select-category');
+            catSel.innerHTML = '<option value="">Standard (Automatisch erstellen)</option>';
+            guild.categories.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.id;
+                opt.innerText = '📁 ' + c.name;
+                if (guild.settings.ticketCategoryId === c.id) opt.selected = true;
+                catSel.appendChild(opt);
             });
 
             const logSel = document.getElementById('select-logchannel');
@@ -3552,7 +3375,6 @@ app.get('/dashboard', async (req, res) => {
                     tickets: document.getElementById('mod-tickets').checked,
                     autoMod: document.getElementById('mod-autoMod').checked,
                     antiRaid: document.getElementById('mod-antiRaid').checked,
-                    voiceSupport: document.getElementById('mod-voiceSupport').checked,
                     levelSystem: document.getElementById('mod-levelSystem').checked,
                     robloxHub: document.getElementById('mod-robloxHub').checked,
                     lockdown: document.getElementById('mod-lockdown').checked
@@ -3586,7 +3408,7 @@ app.get('/dashboard', async (req, res) => {
             const guild = guilds.find(g => g.id === activeGuildId);
             if (!guild || guild.textChannels.length === 0) return alert('Keine Textkanäle auf diesem Server vorhanden.');
 
-            const channelPrompt = prompt('In welchen Textkanal soll das Ticket-Panel gesendet werden? (z. B. "support" oder Kanal-ID):');
+            const channelPrompt = prompt('In welchen Textkanal soll das Ticket-Panel gesendet werden? (Name wie "support" oder Kanal-ID):');
             if (!channelPrompt) return;
 
             let targetCh = guild.textChannels.find(c => c.name.toLowerCase() === channelPrompt.toLowerCase().replace('#', '') || c.id === channelPrompt);
@@ -3609,6 +3431,32 @@ app.get('/dashboard', async (req, res) => {
             } catch(e) {
                 alert('Netzwerkfehler');
             }
+        }
+
+        function setFilter(status, btn) {
+            currentStatusFilter = status;
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            filterTickets();
+        }
+
+        function filterTickets() {
+            const query = (document.getElementById('ticket-search').value || '').toLowerCase().trim();
+            const rows = document.querySelectorAll('.ticket-row');
+            
+            rows.forEach(row => {
+                const rowStatus = row.getAttribute('data-status');
+                const rowSearch = row.getAttribute('data-search') || '';
+
+                const matchesStatus = (currentStatusFilter === 'ALL') || (rowStatus === currentStatusFilter);
+                const matchesQuery = !query || rowSearch.includes(query);
+
+                if (matchesStatus && matchesQuery) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
         }
 
         function showToast(msg) {
