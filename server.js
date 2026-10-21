@@ -877,6 +877,60 @@ client.on('messageCreate', async message => {
         }
     }
 
+    // Prefix-Befehl: !help / !hilfe / !befehle (Vollständige Funktionsliste)
+    if (lowerContent === '!help' || lowerContent === '!hilfe' || lowerContent === '!befehle') {
+        const dashUrl = process.env.DASHBOARD_URL || 'https://roblox-discord-g44u.onrender.com/dashboard';
+        const helpEmbed = new EmbedBuilder()
+            .setTitle('🛰️ AeroGuard Core — Funktionsübersicht & Befehle')
+            .setDescription('Hier findest du alle aktiven Module und Befehle im Überblick:')
+            .setColor(0x00f3ff)
+            .addFields(
+                { 
+                    name: '🎫 Support- & Ticket-System', 
+                    value: '• `!setup` / `!panel` – *Support-Panel in Kanal posten*\n• `!close` – *Ticket schließen & HTML-Transkript sichern*\n• `!claim` – *Ticket als Supporter übernehmen*\n• `!add @User` / `!remove @User` – *Mitglieder zum Ticket hinzufügen/entfernen*' 
+                },
+                { 
+                    name: '💡 Community-Vorschläge & Feedback', 
+                    value: '• `/suggest <Idee>` oder `!suggest <Idee>` – *Vorschlag zur Abstimmung freigeben*\n• `#💡・vorschläge` – *Nachrichten werden automatisch zu Voting-Embeds mit Threads*\n• `/suggest-setup <Kanal>` – *Vorschlagskanal festlegen (Admins)*' 
+                },
+                { 
+                    name: '🎨 Server-Kanal Emoji-Verschönerer', 
+                    value: '• `/style-channels` oder `!style-channels` – *Überarbeitet alle Kanäle mit passenden Cyberpunk-Emojis (Admins)*\n• 1-Klick-Button im Web-Dashboard verfügbar!' 
+                },
+                { 
+                    name: '🎉 High-End Giveaway-Suite (Web-Exklusiv)', 
+                    value: '• `/giveaway list` – *Laufende Giveaways anzeigen*\n• `/giveaway reroll <ID>` – *Gewinner neu auslosen*\n• `/giveaway end <ID>` – *Giveaway vorzeitig beenden*\n• **Starten:** Exklusiv über das [Web-Dashboard](' + dashUrl + ')!' 
+                },
+                { 
+                    name: '🎮 Roblox Live-Integration & Verifizierung', 
+                    value: '• `/verify <RobloxName>` – *Roblox-Account offiziell verknüpfen*\n• `/setup-livestatus` – *Live Spieleranzeige einrichten*\n• `/setup-infohub` – *Spiele-Info-Hub projizieren*' 
+                },
+                { 
+                    name: '🛡️ Moderation & Server-Schutz', 
+                    value: '• `/clear <Anzahl>` – *Chatnachrichten löschen*\n• `/warn <Target> <Grund>` & `/warnlist` & `/clearwarns` – *Verwarnungen*\n• `/mute <Target> <Minuten> <Grund>` & `/unmute` – *Timeouts*\n• `/lockdown` & `/unlockdown` – *Server-Notfallsperre*' 
+                },
+                { 
+                    name: '⭐ Level, Economy & Games', 
+                    value: '• `/wallet` – *Münzguthaben anzeigen*\n• `/daily` – *Tägliche AeroCoins Belohnung*\n• `/slots <Einsatz>` & `/coinflip` & `/8ball <Frage>` – *Mini-Games*\n• `/poll <Frage> <A> <B>` – *Interaktive Umfrage*' 
+                }
+            )
+            .setFooter({ text: 'AeroGuard Enterprise Suite • Alles steuerbar im Web-Dashboard' })
+            .setTimestamp();
+
+        const helpRow = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setLabel('🌐 Offizielle Webseite')
+                .setStyle(ButtonStyle.Link)
+                .setURL('https://roblox-discord-g44u.onrender.com/'),
+            new ButtonBuilder()
+                .setLabel('📊 Web-Dashboard')
+                .setStyle(ButtonStyle.Link)
+                .setURL(dashUrl)
+        );
+
+        return message.reply({ embeds: [helpEmbed], components: [helpRow] });
+    }
+
     // Prefix-Befehle: !suggest / !vorschlag
     if (lowerContent.startsWith('!suggest ') || lowerContent.startsWith('!vorschlag ')) {
         const text = rawContent.replace(/^!(suggest|vorschlag)\s+/i, '').trim();
@@ -1145,7 +1199,9 @@ client.on('interactionCreate', async interaction => {
                 { name: '1️⃣ Warum laufen Support-Tickets auf dem Server?', value: 'Privatnachrichten blockieren oft Supporter und verhindern Teamarbeit. Auf dem Server wird für dich ein vollautomatischer privater Ticket-Kanal erstellt, den nur du und das autorisierte Team sehen.' },
                 { name: '2️⃣ Wie erstelle ich ein Ticket?', value: 'Gehe auf den Discord-Server in den Support-Kanal und klicke auf eine Kategorie (z. B. *Allgemeiner Support*, *Bug melden* oder *Bewerbung*). Gib dein Anliegen im Modal ein – fertig!' },
                 { name: '3️⃣ Wer kann mein Ticket sehen?', value: 'Nur du, autorisierte Supporter und Server-Administratoren.' },
-                { name: '4️⃣ Wie schließe ich ein Ticket?', value: 'Tippe im Ticket-Kanal `!close` oder klicke auf den roten Schließen-Button.' }
+                { name: '4️⃣ Wie schließe ich ein Ticket?', value: 'Tippe im Ticket-Kanal `!close` oder klicke auf den roten Schließen-Button.' },
+                { name: '5️⃣ Wie reiche ich Vorschläge ein?', value: 'Tippe `/suggest <Idee>` oder schreibe direkt in den Kanal `#💡・vorschläge` – dein Beitrag wird automatisch in ein interaktives Voting-Embed mit Diskussions-Thread umgewandelt!' },
+                { name: '6️⃣ Wie funktionieren Giveaways?', value: 'Verlosungen werden fair und manipulationssicher über das Web-Dashboard gestartet. Im Discord klickst du einfach auf **🎉 Teilnehmen**, um bei der automatischen Ziehung dabei zu sein!' }
             )
             .setFooter({ text: 'AeroGuard FAQ • Server-basiertes Support-System' });
         return await interaction.reply({ embeds: [faqEmbed], ephemeral: true }).catch(async () => {
@@ -2026,6 +2082,59 @@ client.on('interactionCreate', async interaction => {
         // =========================================================================
         // NEU: VORSCHLÄGE SLASH-COMMANDS (/suggest & /vorschlag & /suggest-setup)
         // =========================================================================
+        if (commandName === 'help') {
+            const dashUrl = process.env.DASHBOARD_URL || 'https://roblox-discord-g44u.onrender.com/dashboard';
+            const helpEmbed = new EmbedBuilder()
+                .setTitle('🛰️ AeroGuard Core — Funktionsübersicht & Befehle')
+                .setDescription('Hier findest du alle aktiven Module und Befehle im Überblick:')
+                .setColor(0x00f3ff)
+                .addFields(
+                    { 
+                        name: '🎫 Support- & Ticket-System', 
+                        value: '• `/ticket panel` – *Support-Panel in Kanal posten*\n• `/ticket setup` – *Kategorie & Support-Rolle einrichten*\n• `/ticket close` oder `!close` – *Ticket schließen & HTML-Transkript sichern*\n• `/ticket claim` oder `!claim` – *Ticket als Supporter übernehmen*' 
+                    },
+                    { 
+                        name: '💡 Community-Vorschläge & Feedback', 
+                        value: '• `/suggest <Idee>` oder `/vorschlag <Idee>` – *Vorschlag zur Abstimmung freigeben*\n• `#💡・vorschläge` – *Nachrichten werden automatisch zu Voting-Embeds mit Threads*\n• `/suggest-setup <Kanal>` – *Vorschlagskanal festlegen (Admins)*' 
+                    },
+                    { 
+                        name: '🎨 Server-Kanal Emoji-Verschönerer', 
+                        value: '• `/style-channels` oder `!style-channels` – *Überarbeitet alle Kanäle mit passenden Cyberpunk-Emojis (Admins)*\n• 1-Klick-Button im Web-Dashboard verfügbar!' 
+                    },
+                    { 
+                        name: '🎉 High-End Giveaway-Suite (Web-Exklusiv)', 
+                        value: '• `/giveaway list` – *Laufende Giveaways anzeigen*\n• `/giveaway reroll <ID>` – *Gewinner neu auslosen*\n• `/giveaway end <ID>` – *Giveaway vorzeitig beenden*\n• **Starten:** Exklusiv über das [Web-Dashboard](' + dashUrl + ')!' 
+                    },
+                    { 
+                        name: '🎮 Roblox Live-Integration & Verifizierung', 
+                        value: '• `/verify <RobloxName>` – *Roblox-Account offiziell verknüpfen*\n• `/setup-livestatus` – *Live Spieleranzeige einrichten*\n• `/setup-infohub` – *Spiele-Info-Hub projizieren*' 
+                    },
+                    { 
+                        name: '🛡️ Moderation & Server-Schutz', 
+                        value: '• `/clear <Anzahl>` – *Chatnachrichten löschen*\n• `/warn <Target> <Grund>` & `/warnlist` – *Verwarnungen*\n• `/mute <Target> <Minuten> <Grund>` & `/unmute` – *Timeouts*\n• `/lockdown` & `/unlockdown` – *Server-Notfallsperre*' 
+                    },
+                    { 
+                        name: '⭐ Level, Economy & Games', 
+                        value: '• `/wallet` – *Münzguthaben anzeigen*\n• `/daily` – *Tägliche AeroCoins Belohnung*\n• `/slots <Einsatz>` & `/coinflip` & `/8ball <Frage>` – *Mini-Games*\n• `/poll <Frage> <A> <B>` – *Interaktive Umfrage*' 
+                    }
+                )
+                .setFooter({ text: 'AeroGuard Enterprise Suite • Alles steuerbar im Web-Dashboard' })
+                .setTimestamp();
+
+            const helpRow = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setLabel('🌐 Offizielle Webseite')
+                    .setStyle(ButtonStyle.Link)
+                    .setURL('https://roblox-discord-g44u.onrender.com/'),
+                new ButtonBuilder()
+                    .setLabel('📊 Web-Dashboard')
+                    .setStyle(ButtonStyle.Link)
+                    .setURL(dashUrl)
+            );
+
+            return interaction.reply({ embeds: [helpEmbed], components: [helpRow], ephemeral: true });
+        }
+
         if (commandName === 'suggest' || commandName === 'vorschlag') {
             const gSettings = getGuildSettings(interaction.guild.id);
             if (gSettings && gSettings.suggestions && gSettings.suggestions.enabled === false) {
@@ -2840,7 +2949,7 @@ client.on('messageCreate', async message => {
                 },
                 { 
                     name: '⚡ Schnellbefehle auf dem Server', 
-                    value: '• `!setup` oder `!panel` – *Support-Panel im Kanal aufstellen (Admins)*\n• `!close` – *Ticket mit Bestätigung & Transkript schließen*\n• `!claim` – *Ticket als Supporter übernehmen*\n• `!transcript` – *HTML-Chat-Transkript exportieren*' 
+                    value: '• `!help` – *Komplette Funktions- & Befehlsübersicht*\n• `!setup` oder `!panel` – *Support-Panel aufstellen (Admins)*\n• `!suggest <Idee>` – *Community-Vorschlag mit Abstimmung einreichen*\n• `!style-channels` – *Alle Kanäle mit Emojis verschönern (Admins)*\n• `!close` / `!claim` – *Ticket schließen oder übernehmen*' 
                 },
                 { 
                     name: '🌐 Offizielle Webseite & Dashboard', 
@@ -3214,6 +3323,7 @@ setInterval(async () => {
 // EXPANDED REGISTER COMMAND DEFINITIONS MATRIX
 // =========================================================================
 const extendedCommandDefinitions = [
+    new SlashCommandBuilder().setName('help').setDescription('Zeigt alle Funktionen und Befehle von AeroGuard Core im Überblick'),
     new SlashCommandBuilder().setName('status').setDescription('AeroGuard Live-Status, Telemetrie & RAM-Auslastung'),
     new SlashCommandBuilder().setName('cloud-inspect').setDescription('Prüft den persistenten Speicherzustand der Cloud-Datenbank'),
     new SlashCommandBuilder().setName('ping').setDescription('Gibt die Websocket-Latenz zurück'),
@@ -4131,6 +4241,30 @@ app.get('/', (req, res) => {
                     <div class="feature-title">Rollenbasierter Zugriffsschutz</div>
                     <div class="feature-desc">
                         Kein unbefugter Zugriff! Nur verifizierte Server-Besitzer und autorisierte Support-Rollen können das Management-Panel einsehen und steuern.
+                    </div>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">💡</div>
+                    <div class="feature-title">Community-Vorschläge & Voting</div>
+                    <div class="feature-desc">
+                        Dedizierter Vorschlagskanal (<code>#💡・vorschläge</code>) mit automatischen Abstimmungsbuttons (👍/👎), separaten Diskussions-Threads für jede Idee und Team-Statusverwaltung (Angenommen, Abgelehnt, In Umsetzung).
+                    </div>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">🎨</div>
+                    <div class="feature-title">Kanal-Emoji Verschönerer</div>
+                    <div class="feature-desc">
+                        Analysiere und formatiere mit nur 1 Klick alle Server-Kanäle, Sprachräume und Kategorien mit passenden, modernen Cyberpunk-Emojis (z. B. <code>📜・regeln</code>, <code>💬・hauptchat</code>, <code>🔊・talk</code>). Inklusive Doppel-Emoji-Schutz.
+                    </div>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">🎉</div>
+                    <div class="feature-title">Giveaway-Suite (Web-Exklusiv)</div>
+                    <div class="feature-desc">
+                        Veranstalte manipulationssichere Verlosungen mit Live-Countdown im Discord, 1-Klick-Teilnahmebutton und optionaler Roblox-Verifizierungspflicht. Aus Sicherheitsgründen exklusiv und bequem über das Web-Dashboard startbar!
                     </div>
                 </div>
             </div>
