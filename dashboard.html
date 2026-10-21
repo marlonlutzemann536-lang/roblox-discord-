@@ -321,10 +321,10 @@
                     📜 Web-Transkripte (<span id="count-transcripts">{{TRANSCRIPTS_COUNT}}</span>)
                 </button>
                 <!-- OWNER-EXKLUSIVE TABS (NUR FÜR BOT-BESITZER SICHTBAR) -->
-                <button class="tab-btn owner-only-tab" id="tabbtn-applications" onclick="showDashboardTab('applications', this)" style="display:none; border-color:rgba(0,243,255,0.4); color:var(--cyan);">
+                <button class="tab-btn" id="tabbtn-applications" onclick="showDashboardTab('applications', this)" style="display:inline-flex; border-color:rgba(0,243,255,0.4); color:var(--cyan);">
                     📝 Bewerbungen (<span id="count-applications">{{APPLICATIONS_PENDING_COUNT}}</span>)
                 </button>
-                <button class="tab-btn owner-only-tab" id="tabbtn-jobpostings" onclick="showDashboardTab('jobpostings', this)" style="display:none; border-color:rgba(245,158,11,0.4); color:var(--amber);">
+                <button class="tab-btn" id="tabbtn-jobpostings" onclick="showDashboardTab('jobpostings', this)" style="display:inline-flex; border-color:rgba(245,158,11,0.4); color:var(--amber);">
                     📢 Ausschreibungen (<span id="count-jobpostings">{{JOB_POSTINGS_COUNT}}</span>)
                 </button>
             </div>
@@ -1055,6 +1055,9 @@
                 if (b) b.style.display = 'block';
             }
             if (activeGuildId) selectGuild(activeGuildId);
+            // Immediately render applications and job postings so cards are visible instantly!
+            renderApplications();
+            renderJobPostings();
         };
 
         function initGuildSelector() {

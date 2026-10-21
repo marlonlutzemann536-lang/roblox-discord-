@@ -1,3 +1,105 @@
+function getDefaultApplications() {
+    return {
+        "APP-DEMO-01": {
+            "id": "APP-DEMO-01",
+            "secretToken": "demo_token_123456",
+            "applicantTag": "MaxMustermann#1234",
+            "applicantId": "1075845857875873852",
+            "applicantAvatar": null,
+            "age": 16,
+            "robloxUsername": "MaxPlayz_DE",
+            "hasMicrophone": true,
+            "position": "🎫 AeroGuard Supporter / Ticket-Support",
+            "availability": "Ca. 15-20 Stunden pro Woche (unter der Woche ab 17 Uhr, am Wochenende ganztägig)",
+            "experience": "1 Jahr Erfahrung als Discord-Supporter auf einem 800-Member Server, kenne Ticket-Tools und Roblox Ingame-Support.",
+            "motivation": "Ich nutze AeroGuard schon länger und möchte das Projekt aktiv unterstützen und anderen Spielern bei Fragen helfen.",
+            "strengths": "Sehr geduldig, hilfsbereit, technisches Verständnis für Bots und Roblox.",
+            "status": "pending",
+            "claimedBy": null,
+            "claimedAt": null,
+            "submittedAt": Date.now() - 3600000,
+            "updatedAt": Date.now() - 3600000,
+            "decisionReason": "",
+            "messages": [
+                {
+                    "id": "msg_welcome",
+                    "senderType": "bot",
+                    "senderName": "🤖 AeroGuard System",
+                    "timestamp": Date.now() - 3600000,
+                    "text": "Bewerbung erfolgreich eingereicht! Unser Team wird deine Angaben sorgfältig prüfen."
+                }
+            ]
+        },
+        "APP-DEMO-02": {
+            "id": "APP-DEMO-02",
+            "secretToken": "demo_token_654321",
+            "applicantTag": "JulianDev#9999",
+            "applicantId": "823948293849203948",
+            "applicantAvatar": null,
+            "age": 17,
+            "robloxUsername": "Julian_Aero",
+            "hasMicrophone": true,
+            "position": "🛡️ Discord Moderator / Staff-Team",
+            "availability": "Täglich ab 16 Uhr online (ca. 20 Stunden/Woche)",
+            "experience": "Moderator auf 2 größeren Gaming-Communitys, vertraut mit Timeouts und Streit-Schlichtung.",
+            "motivation": "Ich möchte für Recht und Ordnung in den Chats und Sprachräumen sorgen und das Team bei Regelverstößen entlasten.",
+            "strengths": "Ruhig in Konfliktsituationen, durchsetzungsfähig und fair.",
+            "status": "in_review",
+            "claimedBy": { "id": "1075845857875873852", "tag": "2003marlonl" },
+            "claimedAt": Date.now() - 1800000,
+            "submittedAt": Date.now() - 7200000,
+            "updatedAt": Date.now() - 1800000,
+            "decisionReason": "",
+            "messages": [
+                {
+                    "id": "msg_julian_1",
+                    "senderType": "bot",
+                    "senderName": "🤖 AeroGuard System",
+                    "timestamp": Date.now() - 7200000,
+                    "text": "Bewerbung eingereicht für Discord Moderator."
+                },
+                {
+                    "id": "msg_julian_2",
+                    "senderType": "staff",
+                    "senderName": "2003marlonl (Leitung)",
+                    "timestamp": Date.now() - 1800000,
+                    "text": "Hey Julian! Wann hättest du heute Zeit für ein kurzes Kennenlernen im Voice?"
+                }
+            ]
+        },
+        "APP-DEMO-03": {
+            "id": "APP-DEMO-03",
+            "secretToken": "demo_token_777888",
+            "applicantTag": "Sarah_Roblox#2024",
+            "applicantId": "912837465019283746",
+            "applicantAvatar": null,
+            "age": 15,
+            "robloxUsername": "SarahStar",
+            "hasMicrophone": true,
+            "position": "🎫 AeroGuard Supporter / Ticket-Support",
+            "availability": "Freitags und am Wochenende ca. 10-15 Stunden",
+            "experience": "Erfahrung im Ticket-Support auf Roblox-Fan-Servern, kenne mich mit AeroGuard-Befehlen aus.",
+            "motivation": "Ich möchte neuen Spielern auf dem Server helfen und ein freundliches Gesicht für das Projekt sein.",
+            "strengths": "Sehr freundlich, hilfsbereit und aktiv.",
+            "status": "pending",
+            "claimedBy": null,
+            "claimedAt": null,
+            "submittedAt": Date.now() - 900000,
+            "updatedAt": Date.now() - 900000,
+            "decisionReason": "",
+            "messages": [
+                {
+                    "id": "msg_sarah_1",
+                    "senderType": "bot",
+                    "senderName": "🤖 AeroGuard System",
+                    "timestamp": Date.now() - 900000,
+                    "text": "Bewerbung erfolgreich über das Portal übermittelt."
+                }
+            ]
+        }
+    };
+}
+
 // =========================================================================
 // UPDATE: 19.07.2026 - AeroGuard Core Update Force Sync (Inkl. Blacklist & /close)
 // =========================================================================
@@ -374,6 +476,10 @@ function loadCloudVaultFromDisk() {
             cloudStorage.systemSettings = { ...cloudStorage.systemSettings, ...parsedData.systemSettings };
             
             if (!cloudStorage.globalBlacklist) cloudStorage.globalBlacklist = [];
+            if (!cloudStorage.activeApplications || Object.keys(cloudStorage.activeApplications).length === 0) {
+                cloudStorage.activeApplications = getDefaultApplications();
+                console.log("📝 [AEROGUARD CLOUD] Standard-Bewerbungen für Dashboard initialisiert.");
+            }
             if (!cloudStorage.jobPostings || Object.keys(cloudStorage.jobPostings).length === 0) {
                 cloudStorage.jobPostings = {
                     'job_support': {
@@ -6252,6 +6358,10 @@ app.get('/dashboard', async (req, res) => {
     template = template.replace(/\{\{TRANSCRIPTS_JSON\}\}/g, JSON.stringify(savedTranscriptsList).replace(/</g, '\\u003c'));
     template = template.replace(/\{\{ACTIVE_TICKETS_JSON\}\}/g, JSON.stringify(activeList).replace(/</g, '\\u003c'));
 
+    if (!cloudStorage.activeApplications || Object.keys(cloudStorage.activeApplications).length === 0) {
+        cloudStorage.activeApplications = getDefaultApplications();
+        saveCloudVaultToDisk();
+    }
     const allApplications = Object.values(cloudStorage.activeApplications || {});
     const pendingAppsCount = allApplications.filter(a => a.status === 'pending').length;
     template = template.replace(/\{\{APPLICATIONS_PENDING_COUNT\}\}/g, String(pendingAppsCount));
@@ -6970,6 +7080,10 @@ app.post('/api/apply/:id/message', async (req, res) => {
 // API: Alle Bewerbungen abrufen (Nur eingeloggte Staff)
 app.get('/api/applications', (req, res) => {
     if (!req.session.user) return res.status(401).json({ error: 'Nicht angemeldet.' });
+    if (!cloudStorage.activeApplications || Object.keys(cloudStorage.activeApplications).length === 0) {
+        cloudStorage.activeApplications = getDefaultApplications();
+        saveCloudVaultToDisk();
+    }
     const list = Object.values(cloudStorage.activeApplications || {}).sort((a, b) => (b.submittedAt || 0) - (a.submittedAt || 0));
     res.json({ success: true, applications: list });
 });
