@@ -533,47 +533,7 @@ function analyzeTicketWithAI(reason) {
     return "🤖 **KI-Analyse:** Dein Problem konnte nicht automatisch von der Cloud-Datenbank gelöst werden. Ein menschlicher Supporter wird benötigt.";
 }
 
-// =========================================================================
-// HIGHEND AUTOMATED CLAIMING TICKET ROUTER
-// =========================================================================
-async function sendCentralTicketPanel(user) {
-    const freeTickets = [];
-    Object.keys(cloudStorage.activeTickets).forEach(id => {
-        const t = cloudStorage.activeTickets[id];
-        if (!t.claimedBy) freeTickets.push({ t, id });
-    });
-
-    if (freeTickets.length === 0) {
-        return await user.send('🌌 **AeroGuard Cloud-Core:** Aktuell befinden sich keine unbelegten Support-Tickets in der Warteschleife.');
-    }
-
-    const embed = new EmbedBuilder()
-        .setTitle('📂 AeroGuard Enterprise Live-Support Warteschlange')
-        .setDescription('Wähle ein offenes Ticket aus dem Dropdown-Menü aus. Das Ticket wird beim Auswählen **sofort automatisch für dich geclaimt und zugewiesen**!')
-        .setColor(0x9d4edd)
-        .setTimestamp();
-
-    let listText = '';
-    const options = [];
-
-    freeTickets.slice(0, 25).forEach(item => {
-        listText += `🔢 **Ticket #${item.t.ticketNum}** — User: **${item.t.username}**\n• Bereich: *${item.t.category}*\n• Grund: "${item.t.reason}"\n\n`;
-        options.push({
-            label: `Ticket #${item.t.ticketNum} (${item.t.username.substring(0, 14)})`,
-            description: `Sofort-Claim: ${item.t.reason.substring(0, 24)}`,
-            value: item.id
-        });
-    });
-
-    embed.addFields({ name: 'Offene Support-Tunnel im Sektor', value: listText });
-
-    const selectMenu = new StringSelectMenuBuilder()
-        .setCustomId('supporter_ticket_select')
-        .setPlaceholder('Ticket auswählen zum automatischen Blitz-Claiming...')
-        .addOptions(options);
-
-    await user.send({ embeds: [embed], components: [new ActionRowBuilder().addComponents(selectMenu)] });
-}
+// [OLD DM TICKET ROUTER COMPLETELY PURGED]
 
 // =========================================================================
 // PREMIUM GOOGLE CLOUD TTS ENGINE
@@ -2024,9 +1984,7 @@ client.on('interactionCreate', async interaction => {
         if (commandName === 'clear') {
             const anzahl = interaction.options.getInteger('anzahl'); 
             await channel.bulkDelete(anzahl, true);
-            cloudStorage.activeTickets = {}; 
-            cloudStorage.ownerActiveSession = {}; 
-            cloudStorage.pendingTicketSelections = {};
+            
             saveCloudVaultToDisk();
             return interaction.reply({ content: `🧹 **Sektor-Bereinigung:** \`${anzahl}\` Übertragungen vollständig vaporisiert.`, ephemeral: true });
         }
@@ -2227,46 +2185,57 @@ client.on('interactionCreate', async interaction => {
 });
 
 // =========================================================================
-// INTERNATIONALE MASTER DM-BRIDGE (MESSAGE ROUTER, VOICE-BRIDGE & KI)
+// INTERNATIONALE MASTER DM-BRIDGE (BEWERBUNGEN & INFOS)
 // =========================================================================
 client.on('messageCreate', async message => {
     if (message.author.bot) return;
 
-    if (!message.guild && cloudStorage.activeApplications[message.author.id]) {
-        const userId = message.author.id; 
-        const appState = cloudStorage.activeApplications[userId];
-        
-        appState.answers.push(message.content); 
-        appState.step += 1;
-        saveCloudVaultToDisk();
-
-        if (appState.step < APPLICATION_QUESTIONS.length) { 
-            return await message.author.send(APPLICATION_QUESTIONS[appState.step]); 
-        } else {
-            delete cloudStorage.activeApplications[userId]; 
-            saveCloudVaultToDisk();
-            await message.author.send("✅ **Protokoll beendet!** Deine Bewerbung wurde sicher in die administrative Cloud hochgeladen.");
+    if (!message.guild) {
+        // Fall 1: Aktive Teambewerbung in DM
+        if (cloudStorage.activeApplications[message.author.id]) {
+            const userId = message.author.id; 
+            const appState = cloudStorage.activeApplications[userId];
             
-            try {
-                const ownerUser = await client.users.fetch(OWNER_ID);
-                if (ownerUser) {
-                    const appEmbed = new EmbedBuilder()
-                        .setTitle(`📝 Neue Sektor-Team-Bewerbung!`)
-                        .setDescription(`Bewerber-Identifikation: ${message.author} (\`${message.author.tag}\`)`)
-                        .setColor(0x00f5d4)
-                        .setTimestamp();
-                        
-                    for(let i=0; i<APPLICATION_QUESTIONS.length; i++) {
-                        appEmbed.addFields({ name: APPLICATION_QUESTIONS[i], value: appState.answers[i] || 'Keine Antwort' });
-                    }
-                    await ownerUser.send({ embeds: [appEmbed] });
-                }
-            } catch(e){}
-            return;
-        }
-    }
+            appState.answers.push(message.content); 
+            appState.step += 1;
+            saveCloudVaultToDisk();
 
-    // [REMOVED OLD DM TICKET CHAT ROUTER]
+            if (appState.step < APPLICATION_QUESTIONS.length) { 
+                return await message.author.send(APPLICATION_QUESTIONS[appState.step]); 
+            } else {
+                delete cloudStorage.activeApplications[userId]; 
+                saveCloudVaultToDisk();
+                await message.author.send("✅ **Protokoll beendet!** Deine Bewerbung wurde sicher in die administrative Cloud hochgeladen.");
+                
+                try {
+                    const ownerUser = await client.users.fetch(OWNER_ID);
+                    if (ownerUser) {
+                        const appEmbed = new EmbedBuilder()
+                            .setTitle('📋 Neue Sektor-Team-Bewerbung!')
+                            .setDescription('Bewerber-Identifikation: ' + message.author.toString() + ' (`' + message.author.tag + '`)')
+                            .setColor(0x00f5d4)
+                            .setTimestamp();
+                            
+                        for(let i=0; i<APPLICATION_QUESTIONS.length; i++) {
+                            appEmbed.addFields({ name: APPLICATION_QUESTIONS[i], value: appState.answers[i] || 'Keine Antwort' });
+                        }
+                        await ownerUser.send({ embeds: [appEmbed] });
+                    }
+                } catch(e){}
+                return;
+            }
+        }
+
+        // Fall 2: Normale Direktnachricht (z. B. "hi") - Altes DM-Ticketsystem entfernt
+        const dmHelpEmbed = new EmbedBuilder()
+            .setTitle('🛡️ AeroGuard Support-Zentrum')
+            .setDescription('**Support-Tickets werden nicht mehr per Direktnachricht geführt.**\n\nBitte besuche unseren Discord-Server und nutze dort das Support-Panel:\n• Gehe in den Support-Kanal auf dem Server\n• Klicke auf die passende Kategorie (*Allgemeiner Support*, *Bug melden* etc.)\n• Es öffnet sich ein Pop-up-Formular und dein persönlicher Ticket-Kanal (**#ticket-XXXX**) wird für dich erstellt!')
+            .setColor(0x9d4edd)
+            .setFooter({ text: 'AeroGuard Core • Server-basiertes Ticket-System' })
+            .setTimestamp();
+
+        return await message.author.send({ embeds: [dmHelpEmbed] }).catch(() => {});
+    }
 });
 
 
