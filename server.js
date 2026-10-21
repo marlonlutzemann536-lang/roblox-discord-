@@ -167,6 +167,20 @@ async function resolveRobloxUser(usernameOrId) {
     }
 }
 
+
+function getDiscordAvatarUrl(user) {
+    if (!user) return 'https://cdn.discordapp.com/embed/avatars/0.png';
+    if (user.avatar) {
+        return `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=128`;
+    }
+    try {
+        const idx = Number((BigInt(user.id) >> 22n) % 6n);
+        return `https://cdn.discordapp.com/embed/avatars/${idx}.png`;
+    } catch(e) {
+        return 'https://cdn.discordapp.com/embed/avatars/0.png';
+    }
+}
+
 function getGuildSettings(guildId) {
     if (!cloudStorage.guildSettings) cloudStorage.guildSettings = {};
     if (!cloudStorage.guildSettings[guildId]) {
@@ -177,23 +191,52 @@ function getGuildSettings(guildId) {
                 antiRaid: true,
                 levelSystem: true,
                 robloxHub: true,
-                lockdown: false
+                lockdown: false,
+                logging: true
             },
             ticketCategoryId: cloudStorage.systemSettings.ticketCategoryId || null,
             supportRoleId: cloudStorage.systemSettings.supportRoleId || null,
             ticketLogChannelId: cloudStorage.systemSettings.ticketLogChannelId || null,
+            ticketWelcomeMessage: "🌌 Willkommen in der AeroGuard Support-Zentrale! Wähle eine Kategorie, um dein Ticket zu eröffnen.",
             ticketCategories: [
                 { id: "support", label: "🔮 Allgemeiner Support", color: "Success", requireRoblox: false },
                 { id: "bug", label: "🐛 Bug/Fehler melden", color: "Danger", requireRoblox: true },
                 { id: "player_report", label: "🚨 Spieler-Report", color: "Danger", requireRoblox: true },
                 { id: "team", label: "📝 Team-Bewerbung", color: "Primary", requireRoblox: false },
                 { id: "partner", label: "🤝 Partnerschaft", color: "Secondary", requireRoblox: false }
-            ]
+            ],
+            roblox: {
+                placeId: "98791725510246",
+                verifiedRoleId: null,
+                nicknameSync: true,
+                requireVerificationGlobal: false
+            },
+            autoMod: {
+                antiSpamThreshold: 5,
+                antiInvite: true,
+                punishment: "timeout",
+                customBadWords: []
+            },
+            levels: {
+                multiplier: 1.0,
+                levelUpChannel: "current",
+                coinsPerLevel: 100
+            },
+            security: {
+                minAccountAgeDays: 0,
+                antiRaidAutoLockdown: true
+            },
+            logging: {
+                modLogChannelId: null,
+                welcomeChannelId: null
+            }
         };
         saveCloudVaultToDisk();
     }
-    if (!cloudStorage.guildSettings[guildId].ticketCategories || cloudStorage.guildSettings[guildId].ticketCategories.length === 0) {
-        cloudStorage.guildSettings[guildId].ticketCategories = [
+    const g = cloudStorage.guildSettings[guildId];
+    if (!g.modules) g.modules = { tickets: true, autoMod: true, antiRaid: true, levelSystem: true, robloxHub: true, lockdown: false, logging: true };
+    if (!g.ticketCategories || g.ticketCategories.length === 0) {
+        g.ticketCategories = [
             { id: "support", label: "🔮 Allgemeiner Support", color: "Success", requireRoblox: false },
             { id: "bug", label: "🐛 Bug/Fehler melden", color: "Danger", requireRoblox: true },
             { id: "player_report", label: "🚨 Spieler-Report", color: "Danger", requireRoblox: true },
@@ -201,7 +244,12 @@ function getGuildSettings(guildId) {
             { id: "partner", label: "🤝 Partnerschaft", color: "Secondary", requireRoblox: false }
         ];
     }
-    return cloudStorage.guildSettings[guildId];
+    if (!g.roblox) g.roblox = { placeId: "98791725510246", verifiedRoleId: null, nicknameSync: true, requireVerificationGlobal: false };
+    if (!g.autoMod) g.autoMod = { antiSpamThreshold: 5, antiInvite: true, punishment: "timeout", customBadWords: [] };
+    if (!g.levels) g.levels = { multiplier: 1.0, levelUpChannel: "current", coinsPerLevel: 100 };
+    if (!g.security) g.security = { minAccountAgeDays: 0, antiRaidAutoLockdown: true };
+    if (!g.logging) g.logging = { modLogChannelId: null, welcomeChannelId: null };
+    return g;
 }
 
 // =========================================================================
@@ -2697,7 +2745,7 @@ app.post('/api/guild/:guildId/settings', async (req, res) => {
 
     const perm = await getUserGuildPermission(req.session.user.id, req.params.guildId);
     if (!perm.authorized) {
-        return res.status(403).json({ error: 'Zugriff verweigert. Nur der Serverbesitzer oder Mitglieder mit der Support-Rolle können Einstellungen ändern.' });
+        return res.status(403).json({ error: 'Zugriff verweigert. Nur der Serverbesitzer oder autorisierte Supporter können Einstellungen ändern.' });
     }
 
     const guild = client.guilds.cache.get(req.params.guildId);
@@ -2715,14 +2763,20 @@ app.post('/api/guild/:guildId/settings', async (req, res) => {
     if (req.body.ticketCategoryId !== undefined) gSettings.ticketCategoryId = req.body.ticketCategoryId || null;
     if (req.body.supportRoleId !== undefined) gSettings.supportRoleId = req.body.supportRoleId || null;
     if (req.body.ticketLogChannelId !== undefined) gSettings.ticketLogChannelId = req.body.ticketLogChannelId || null;
+    if (req.body.ticketWelcomeMessage !== undefined) gSettings.ticketWelcomeMessage = req.body.ticketWelcomeMessage;
     if (Array.isArray(req.body.ticketCategories)) gSettings.ticketCategories = req.body.ticketCategories;
+
+    if (req.body.roblox) gSettings.roblox = { ...(gSettings.roblox || {}), ...req.body.roblox };
+    if (req.body.autoMod) gSettings.autoMod = { ...(gSettings.autoMod || {}), ...req.body.autoMod };
+    if (req.body.levels) gSettings.levels = { ...(gSettings.levels || {}), ...req.body.levels };
+    if (req.body.security) gSettings.security = { ...(gSettings.security || {}), ...req.body.security };
+    if (req.body.logging) gSettings.logging = { ...(gSettings.logging || {}), ...req.body.logging };
 
     saveCloudVaultToDisk();
     addLog('info', `Dashboard: Einstellungen für Server "${guild.name}" von ${req.session.user.username} (${perm.roleLabel}) gespeichert.`);
     res.json({ success: true, settings: gSettings });
 });
 
-// API: Deploy Ticket Panel to Channel from Web
 app.post('/api/guild/:guildId/deploy-panel', async (req, res) => {
     if (!req.session.user) return res.status(401).json({ error: 'Nicht angemeldet' });
 
@@ -3093,6 +3147,8 @@ app.get('/dashboard', async (req, res) => {
     const uptimeStr = `${hours}h ${minutes}m`;
     const ping = client.ws.ping || 0;
 
+    const userAvatarUrl = getDiscordAvatarUrl(currentUser);
+
     // Filter guilds to only those the user is authorized for!
     const authorizedGuilds = [];
     for (const guild of client.guilds.cache.values()) {
@@ -3135,806 +3191,27 @@ app.get('/dashboard', async (req, res) => {
         closedAt: t.closedAt
     })).sort((a, b) => (b.closedAt || 0) - (a.closedAt || 0));
 
-    const savedTranscriptsJson = JSON.stringify(savedTranscriptsList).replace(/</g, '\\u003c');
     const activeList = Object.keys(cloudStorage.activeTickets).map(chId => ({
         channelId: chId,
         ...cloudStorage.activeTickets[chId]
     }));
 
-    const ticketRowsHtml = activeList.length === 0 
-        ? '<tr id="no-tickets-row"><td colspan="6" style="text-align:center; padding:30px; color:#64748b;">✨ Keine offenen Tickets im System. Alle Anfragen sind bearbeitet!</td></tr>'
-        : activeList.map(t => {
-            const statusColor = t.status === 'CLAIMED' ? '#fbbf24' : '#00f3ff';
-            const statusLabel = t.status === 'CLAIMED' ? 'In Bearbeitung' : 'Offen';
-            return '<tr class="ticket-row" data-status="' + (t.status || 'OPEN') + '" data-search="' + ((t.username || '') + ' ' + (t.ign || '') + ' ' + (t.ticketNum || '')).toLowerCase() + '">' +
-                '<td><span class="badge-ticket">#' + (String(t.ticketNum).padStart(4, '0')) + '</span></td>' +
-                '<td><strong>' + (t.username || 'Unbekannt') + '</strong></td>' +
-                '<td><span class="badge-cat">' + (t.category || 'Support') + '</span></td>' +
-                '<td><code>' + (t.ign || 'N/A') + '</code></td>' +
-                '<td><span style="color:' + statusColor + ';font-weight:700;">● ' + statusLabel + '</span></td>' +
-                '<td><a href="/transcript/' + (t.channelId || '') + '" target="_blank" class="action-btn">Transkript</a></td>' +
-            '</tr>';
-        }).join('');
-
-    const guildsDataJson = JSON.stringify(authorizedGuilds).replace(/</g, '\\u003c');
-
-    const fullHtml = `<!DOCTYPE html>
-<html lang="de">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AeroGuard Core — Enterprise Multi-Server Dashboard</title>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --bg: #07080f;
-            --surface: rgba(13, 17, 30, 0.7);
-            --surface-hover: rgba(22, 28, 48, 0.85);
-            --border: rgba(255, 255, 255, 0.08);
-            --border-glow: rgba(0, 243, 255, 0.25);
-            --cyan: #00f3ff;
-            --cyan-glow: rgba(0, 243, 255, 0.35);
-            --purple: #9d4edd;
-            --purple-glow: rgba(157, 78, 221, 0.35);
-            --green: #10b981;
-            --gold: #f59e0b;
-            --text-dim: #94a3b8;
-        }
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            background-color: var(--bg);
-            background-image: 
-                radial-gradient(ellipse at 15% 10%, rgba(157, 78, 221, 0.12) 0%, transparent 45%),
-                radial-gradient(ellipse at 85% 20%, rgba(0, 243, 255, 0.1) 0%, transparent 45%);
-            color: #f1f5f9;
-            font-family: 'Outfit', sans-serif;
-            min-height: 100vh;
-            padding-bottom: 80px;
-        }
-        .container { max-width: 1320px; margin: 0 auto; padding: 25px 24px; }
-        
-        header {
-            display: flex; justify-content: space-between; align-items: center;
-            padding-bottom: 24px; border-bottom: 1px solid var(--border);
-            margin-bottom: 30px; flex-wrap: wrap; gap: 20px;
-        }
-        .brand { display: flex; align-items: center; gap: 14px; text-decoration: none; color: #fff; }
-        .brand-icon {
-            width: 48px; height: 48px; border-radius: 14px;
-            background: linear-gradient(135deg, var(--cyan), var(--purple));
-            display: flex; align-items: center; justify-content: center;
-            font-size: 1.6rem; font-weight: 800; color: #000;
-            box-shadow: 0 0 25px var(--cyan-glow);
-        }
-        .brand-name { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.02em; }
-        .brand-sub { font-size: 0.82rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.08em; }
-
-        .user-panel {
-            display: flex; align-items: center; gap: 14px;
-            background: var(--surface); border: 1px solid var(--border);
-            padding: 8px 18px; border-radius: 999px; backdrop-filter: blur(12px);
-        }
-        .user-avatar {
-            width: 38px; height: 38px; border-radius: 50%;
-            background: linear-gradient(135deg, var(--gold), #d97706);
-            display: flex; align-items: center; justify-content: center;
-            font-weight: 800; font-size: 0.95rem; color: #000;
-        }
-        .user-info { display: flex; flex-direction: column; text-align: left; }
-        .user-name { font-size: 0.92rem; font-weight: 700; color: #fff; }
-        .role-badge {
-            font-size: 0.72rem; font-weight: 800; color: var(--cyan);
-            letter-spacing: 0.05em; display: flex; align-items: center; gap: 4px;
-        }
-        .logout-link {
-            color: #ef4444; text-decoration: none; font-size: 0.82rem;
-            font-weight: 600; margin-left: 8px; padding-left: 8px; border-left: 1px solid var(--border);
-        }
-        .logout-link:hover { text-decoration: underline; }
-
-        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 18px; margin-bottom: 35px; }
-        .stat-card {
-            background: var(--surface); border: 1px solid var(--border);
-            border-radius: 16px; padding: 22px; backdrop-filter: blur(14px);
-            transition: transform 0.2s, border-color 0.2s;
-        }
-        .stat-card:hover { transform: translateY(-3px); border-color: var(--border-glow); }
-        .stat-title { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); }
-        .stat-val { font-size: 2.1rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; color: var(--cyan); line-height: 1.1; margin-top: 6px; }
-
-        .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-        .section-title { font-size: 1.25rem; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px; }
-        
-        .server-grid {
-            display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;
-            margin-bottom: 35px;
-        }
-        .server-card {
-            background: var(--surface); border: 1px solid var(--border);
-            border-radius: 16px; padding: 18px; display: flex; align-items: center; gap: 14px;
-            cursor: pointer; transition: all 0.25s ease; backdrop-filter: blur(12px);
-        }
-        .server-card:hover { background: var(--surface-hover); border-color: var(--cyan); }
-        .server-card.active {
-            border-color: var(--cyan);
-            background: linear-gradient(135deg, rgba(0, 243, 255, 0.1), rgba(157, 78, 221, 0.08));
-            box-shadow: 0 0 25px rgba(0, 243, 255, 0.18);
-        }
-        .server-icon {
-            width: 52px; height: 52px; border-radius: 14px;
-            background: rgba(255, 255, 255, 0.05); display: flex; align-items: center; justify-content: center;
-            font-size: 1.3rem; font-weight: 700; overflow: hidden; flex-shrink: 0;
-            border: 1px solid var(--border);
-        }
-        .server-icon img { width: 100%; height: 100%; object-fit: cover; }
-        .server-details { overflow: hidden; }
-        .server-name { font-size: 1.05rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .server-meta { font-size: 0.8rem; color: var(--text-dim); margin-top: 2px; }
-
-        .control-panel {
-            background: var(--surface); border: 1px solid var(--border);
-            border-radius: 20px; padding: 32px; margin-bottom: 35px; backdrop-filter: blur(16px);
-            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
-        }
-        .panel-heading {
-            display: flex; justify-content: space-between; align-items: center;
-            border-bottom: 1px solid var(--border); padding-bottom: 20px; margin-bottom: 25px;
-            flex-wrap: wrap; gap: 14px;
-        }
-        .active-server-badge {
-            display: flex; align-items: center; gap: 10px;
-            background: rgba(0, 243, 255, 0.1); border: 1px solid rgba(0, 243, 255, 0.3);
-            padding: 6px 16px; border-radius: 999px; font-weight: 700; color: var(--cyan); font-size: 0.9rem;
-        }
-
-        .modules-grid {
-            display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px;
-            margin-bottom: 30px;
-        }
-        .module-card {
-            background: rgba(0, 0, 0, 0.3); border: 1px solid var(--border);
-            border-radius: 14px; padding: 20px; display: flex; align-items: center; justify-content: space-between;
-            transition: border-color 0.2s;
-        }
-        .module-card:hover { border-color: rgba(255, 255, 255, 0.2); }
-        .module-info { max-width: 75%; }
-        .module-title { font-size: 1.02rem; font-weight: 700; display: flex; align-items: center; gap: 8px; }
-        .module-desc { font-size: 0.82rem; color: var(--text-dim); margin-top: 4px; line-height: 1.4; }
-
-        .switch {
-            position: relative; display: inline-block; width: 52px; height: 28px; flex-shrink: 0;
-        }
-        .switch input { opacity: 0; width: 0; height: 0; }
-        .slider {
-            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
-            background-color: #334155; transition: .3s; border-radius: 28px;
-        }
-        .slider:before {
-            position: absolute; content: ""; height: 20px; width: 20px; left: 4px; bottom: 4px;
-            background-color: white; transition: .3s; border-radius: 50%;
-        }
-        input:checked + .slider {
-            background-color: var(--cyan);
-            box-shadow: 0 0 15px var(--cyan-glow);
-        }
-        input:checked + .slider:before {
-            transform: translateX(24px);
-            background-color: #000;
-        }
-
-        .config-grid {
-            display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;
-            border-top: 1px solid var(--border); padding-top: 25px; margin-bottom: 25px;
-        }
-        .form-group { display: flex; flex-direction: column; gap: 8px; }
-        label { font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); }
-        select {
-            background: #0b0f19; border: 1px solid var(--border); border-radius: 10px;
-            padding: 12px 14px; color: #fff; font-family: 'Outfit', sans-serif; font-size: 0.92rem;
-            outline: none; transition: border-color 0.2s;
-        }
-        select:focus { border-color: var(--cyan); }
-
-        .actions-bar {
-            display: flex; gap: 14px; flex-wrap: wrap; justify-content: flex-end;
-        }
-        .btn-action {
-            background: linear-gradient(135deg, var(--cyan), #00b4d8); color: #000;
-            border: none; border-radius: 10px; padding: 12px 24px; font-size: 0.95rem; font-weight: 700;
-            cursor: pointer; transition: all 0.2s ease; display: inline-flex; align-items: center; gap: 8px;
-        }
-        .btn-action:hover {
-            box-shadow: 0 0 25px var(--cyan-glow); transform: translateY(-2px);
-        }
-        .btn-secondary {
-            background: rgba(157, 78, 221, 0.15); border: 1px solid var(--purple); color: #e9d5ff;
-        }
-        .btn-secondary:hover {
-            background: var(--purple); color: #fff; box-shadow: 0 0 20px var(--purple-glow);
-        }
-
-        /* TICKET SEARCH & TABS */
-        .ticket-controls {
-            display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 18px; flex-wrap: wrap;
-        }
-        .search-input {
-            background: #0b0f19; border: 1px solid var(--border); border-radius: 10px; padding: 10px 16px;
-            color: #fff; font-size: 0.9rem; outline: none; width: 280px; transition: border-color 0.2s;
-        }
-        .search-input:focus { border-color: var(--cyan); }
-        .filter-tabs { display: flex; gap: 8px; }
-        .tab-btn {
-            background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border); border-radius: 8px;
-            padding: 8px 16px; color: var(--text-dim); font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: all 0.2s;
-        }
-        .tab-btn.active { background: rgba(0, 243, 255, 0.15); border-color: var(--cyan); color: var(--cyan); }
-
-        table { width: 100%; border-collapse: collapse; text-align: left; }
-        th { font-size: 0.8rem; text-transform: uppercase; color: var(--text-dim); padding: 12px 14px; border-bottom: 1px solid var(--border); }
-        td { padding: 14px; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 0.92rem; }
-        .badge-ticket { background: rgba(0,243,255,0.15); border: 1px solid var(--cyan); color: var(--cyan); padding: 3px 8px; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 0.8rem; }
-        .badge-cat { background: rgba(157,78,221,0.15); border: 1px solid var(--purple); color: #d8b4fe; padding: 3px 8px; border-radius: 6px; font-size: 0.8rem; }
-        .action-btn { background: transparent; border: 1px solid var(--cyan); color: var(--cyan); padding: 6px 14px; border-radius: 8px; text-decoration: none; font-size: 0.82rem; font-weight: 600; transition: all 0.2s; }
-        .action-btn:hover { background: var(--cyan); color: #000; box-shadow: 0 0 14px var(--cyan-glow); }
-
-        #toast {
-            position: fixed; bottom: 30px; right: 30px; background: #10b981; color: #000;
-            padding: 14px 24px; border-radius: 12px; font-weight: 700; box-shadow: 0 10px 30px rgba(16,185,129,0.4);
-            display: none; z-index: 1000; transform: translateY(20px); transition: transform 0.3s ease;
-        }
-        #toast.show { display: block; transform: translateY(0); }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <header>
-            <a href="/" class="brand">
-                <div class="brand-icon">AG</div>
-                <div>
-                    <div class="brand-name">AEROGUARD <span style="color:var(--cyan)">CORE</span></div>
-                    <div class="brand-sub">Enterprise Multi-Server Control & Leitstelle</div>
-                </div>
-            </a>
-            
-            <div class="user-panel">
-                <div class="user-avatar">${currentUser.username.substring(0, 2).toUpperCase()}</div>
-                <div class="user-info">
-                    <div class="user-name">${currentUser.username}</div>
-                    <div class="role-badge" id="header-user-role">🛡️ Berechtigt</div>
-                </div>
-                <a href="/logout" class="logout-link">Abmelden</a>
-            </div>
-        </header>
-
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-title">Verwaltbare Server</div>
-                <div class="stat-val">${authorizedGuilds.length}</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-title">Aktive Tickets</div>
-                <div class="stat-val">${activeList.length}</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-title">Websocket Ping</div>
-                <div class="stat-val">${ping} <span style="font-size:1rem;color:var(--text-dim)">ms</span></div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-title">Bot Uptime</div>
-                <div class="stat-val">${uptimeStr}</div>
-            </div>
-        </div>
-
-        <div class="section-header">
-            <div class="section-title">🌐 Deine autorisierten Server</div>
-            <span style="font-size:0.85rem;color:var(--text-dim);">Du hast Zugriff als Server-Besitzer oder autorisierte Support-Rolle</span>
-        </div>
-        <div class="server-grid" id="server-grid"></div>
-
-        <div class="control-panel" id="control-panel">
-            <div class="panel-heading">
-                <div>
-                    <h2 id="active-server-name" style="font-size:1.6rem;font-weight:800;">Server auswählen...</h2>
-                    <p style="color:var(--text-dim);font-size:0.88rem;margin-top:4px;" id="active-server-desc">Lade Konfiguration...</p>
-                </div>
-                <div class="active-server-badge" id="active-server-role-badge">
-                    <span>👑 Vollzugriff aktiv</span>
-                </div>
-            </div>
-
-            <h3 style="font-size:1.1rem;margin-bottom:16px;">⚡ Modul-Steuerung (Einzeln Aktivieren / Deaktivieren)</h3>
-            <div class="modules-grid">
-                <div class="module-card">
-                    <div class="module-info">
-                        <div class="module-title">🎫 Ticket-System</div>
-                        <div class="module-desc">Private Server-Kanäle mit Modal-Popups & Claim-Funktion</div>
-                    </div>
-                    <label class="switch">
-                        <input type="checkbox" id="mod-tickets">
-                        <span class="slider"></span>
-                    </label>
-                </div>
-
-                <div class="module-card">
-                    <div class="module-info">
-                        <div class="module-title">🛡️ AutoMod & Wortfilter</div>
-                        <div class="module-desc">Automatische Erkennung von Spam, Beleidigungen & Links</div>
-                    </div>
-                    <label class="switch">
-                        <input type="checkbox" id="mod-autoMod">
-                        <span class="slider"></span>
-                    </label>
-                </div>
-
-                <div class="module-card">
-                    <div class="module-info">
-                        <div class="module-title">🚨 Anti-Raid / Alt-Schutz</div>
-                        <div class="module-desc">Blockiert verdächtige Neu-Accounts & Massen-Beitritte</div>
-                    </div>
-                    <label class="switch">
-                        <input type="checkbox" id="mod-antiRaid">
-                        <span class="slider"></span>
-                    </label>
-                </div>
-
-                <div class="module-card">
-                    <div class="module-info">
-                        <div class="module-title">⭐ Level- & Economy-System</div>
-                        <div class="module-desc">XP-Punkte durch Chatten und AeroCoins Belohnungen</div>
-                    </div>
-                    <label class="switch">
-                        <input type="checkbox" id="mod-levelSystem">
-                        <span class="slider"></span>
-                    </label>
-                </div>
-
-                <div class="module-card">
-                    <div class="module-info">
-                        <div class="module-title">🎮 Roblox Info-Hub</div>
-                        <div class="module-desc">Echtzeit-Synchronisation mit laufenden Roblox-Servern</div>
-                    </div>
-                    <label class="switch">
-                        <input type="checkbox" id="mod-robloxHub">
-                        <span class="slider"></span>
-                    </label>
-                </div>
-
-                <div class="module-card" style="border-color:rgba(239,68,68,0.3);">
-                    <div class="module-info">
-                        <div class="module-title" style="color:#fca5a5;">🔒 Server Lockdown</div>
-                        <div class="module-desc">Notfall-Sperre: Normale Mitglieder können nicht schreiben</div>
-                    </div>
-                    <label class="switch">
-                        <input type="checkbox" id="mod-lockdown">
-                        <span class="slider"></span>
-                    </label>
-                </div>
-            </div>
-
-            <div class="config-grid">
-                <div class="form-group">
-                    <label>🛡️ Support-Rolle (Erhält Dashboard-Zugriff)</label>
-                    <select id="select-role">
-                        <option value="">Keine spezielle Rolle</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>📁 Ticket-Kategorie</label>
-                    <select id="select-category">
-                        <option value="">Standard (Automatisch erstellen)</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>📜 Ticket-Logkanal</label>
-                    <select id="select-logchannel">
-                        <option value="">Kein separater Log-Kanal</option>
-                    </select>
-                </div>
-            </div>
-
-            
-            <div style="margin-top:24px; padding-top:20px; border-top:1px solid var(--border);">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
-                    <div>
-                        <div style="font-weight:700; font-size:1.05rem; color:#fff;">🎨 Ticket-Kategorien & Gründe anpassen</div>
-                        <div style="font-size:0.8rem; color:var(--text-dim); margin-top:2px;">Gründe für Ticket-Eröffnungen definieren und Roblox-Verknüpfungspflicht festlegen.</div>
-                    </div>
-                    <button type="button" class="btn-action btn-secondary" onclick="addCategoryRow()" style="padding:6px 14px; font-size:0.82rem;">
-                        + Neue Kategorie hinzufügen
-                    </button>
-                </div>
-                <div id="category-rows-container" style="display:flex; flex-direction:column; gap:10px;"></div>
-            </div>
-
-            <div class="actions-bar">
-                <button class="btn-action btn-secondary" onclick="deployPanelToChannel()">
-                    🚀 Support-Panel in Kanal posten
-                </button>
-                <button class="btn-action" onclick="saveActiveGuildSettings()">
-                    💾 Einstellungen speichern
-                </button>
-            </div>
-        </div>
-
-        <div class="control-panel">
-            <div class="ticket-controls">
-                <div class="section-title">
-                    <span>🎫 Aktuelle Live-Tickets</span>
-                </div>
-                <div style="display:flex;gap:12px;flex-wrap:wrap;">
-                    <input type="text" class="search-input" id="ticket-search" placeholder="🔍 Ticket, User oder IGN suchen..." oninput="filterTickets()">
-                    <div class="filter-tabs">
-                        <button class="tab-btn active" onclick="setFilter('ALL', this)">Alle</button>
-                        <button class="tab-btn" onclick="setFilter('OPEN', this)">Offen</button>
-                        <button class="tab-btn" onclick="setFilter('CLAIMED', this)">In Bearbeitung</button>
-                    </div>
-                </div>
-            </div>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Nummer</th>
-                        <th>Ersteller</th>
-                        <th>Kategorie</th>
-                        <th>Roblox / IGN</th>
-                        <th>Status</th>
-                        <th>Aktion</th>
-                    </tr>
-                </thead>
-                <tbody id="tickets-tbody">
-                    ${ticketRowsHtml}
-                </tbody>
-            </table>
-        </div>
-
-        <div class="control-panel" style="margin-top:30px;">
-            <div class="ticket-controls">
-                <div class="section-title">
-                    <span>📜 Gespeicherte Web-Transkripte</span>
-                </div>
-                <div style="display:flex;gap:12px;flex-wrap:wrap;">
-                    <input type="text" class="search-input" id="transcripts-search" placeholder="🔍 Transkript-ID, Ersteller oder Roblox suchen..." oninput="filterTranscripts()">
-                </div>
-            </div>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Transkript-ID</th>
-                        <th>Ticket #</th>
-                        <th>Ersteller</th>
-                        <th>Roblox-Account</th>
-                        <th>Kategorie</th>
-                        <th>Geschlossen von</th>
-                        <th>Aktion</th>
-                    </tr>
-                </thead>
-                <tbody id="transcripts-tbody">
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-    <div id="toast">✅ Einstellungen erfolgreich gespeichert!</div>
-
-    <script>
-        const guilds = ${guildsDataJson};
-        const allSavedTranscripts = ${savedTranscriptsJson};
-        let activeCategories = [];
-
-        let activeGuildId = guilds.length > 0 ? guilds[0].id : null;
-        let currentStatusFilter = 'ALL';
-
-        function renderGuilds() {
-            const grid = document.getElementById('server-grid');
-            grid.innerHTML = '';
-            
-            if (guilds.length === 0) {
-                grid.innerHTML = '<div style="color:var(--text-dim);padding:20px;">Keine Server gefunden, auf denen du berechtigt bist.</div>';
-                return;
-            }
-
-            guilds.forEach(g => {
-                const card = document.createElement('div');
-                card.className = 'server-card ' + (g.id === activeGuildId ? 'active' : '');
-                card.onclick = () => selectGuild(g.id);
-                
-                const iconHtml = g.icon 
-                    ? '<img src="' + g.icon + '" alt="">' 
-                    : g.name.substring(0, 2).toUpperCase();
-
-                card.innerHTML = 
-                    '<div class="server-icon">' + iconHtml + '</div>' +
-                    '<div class="server-details">' +
-                        '<div class="server-name">' + g.name + '</div>' +
-                        '<div class="server-meta">' + (g.userRoleLabel || 'Berechtigt') + ' • ' + g.memberCount + ' User</div>' +
-                    '</div>';
-                grid.appendChild(card);
-            });
-        }
-
-        function selectGuild(guildId) {
-            activeGuildId = guildId;
-            renderGuilds();
-            loadGuildData(guildId);
-        }
-
-        function loadGuildData(guildId) {
-            const guild = guilds.find(g => g.id === guildId);
-            if (!guild) return;
-
-            document.getElementById('active-server-name').innerText = guild.name;
-            document.getElementById('active-server-desc').innerText = 'Server ID: ' + guild.id + ' • ' + guild.memberCount + ' Mitglieder';
-            document.getElementById('active-server-role-badge').innerHTML = '<span>' + (guild.userRoleLabel || 'Berechtigt') + '</span>';
-            document.getElementById('header-user-role').innerText = guild.userRoleLabel || 'Berechtigt';
-
-            activeCategories = JSON.parse(JSON.stringify(guild.settings.ticketCategories || []));
-            if (activeCategories.length === 0) {
-                activeCategories = [
-                    { id: "support", label: "🔮 Allgemeiner Support", color: "Success", requireRoblox: false },
-                    { id: "bug", label: "🐛 Bug/Fehler melden", color: "Danger", requireRoblox: true },
-                    { id: "player_report", label: "🚨 Spieler-Report", color: "Danger", requireRoblox: true },
-                    { id: "team", label: "📝 Team-Bewerbung", color: "Primary", requireRoblox: false },
-                    { id: "partner", label: "🤝 Partnerschaft", color: "Secondary", requireRoblox: false }
-                ];
-            }
-            renderCategoryEditor();
-            renderTranscriptsTable();
-
-
-            const modules = guild.settings.modules || {};
-            document.getElementById('mod-tickets').checked = modules.tickets !== false;
-            document.getElementById('mod-autoMod').checked = modules.autoMod !== false;
-            document.getElementById('mod-antiRaid').checked = modules.antiRaid !== false;
-            document.getElementById('mod-levelSystem').checked = modules.levelSystem !== false;
-            document.getElementById('mod-robloxHub').checked = modules.robloxHub !== false;
-            document.getElementById('mod-lockdown').checked = modules.lockdown === true;
-
-            const roleSel = document.getElementById('select-role');
-            roleSel.innerHTML = '<option value="">Keine spezielle Rolle</option>';
-            guild.roles.forEach(r => {
-                const opt = document.createElement('option');
-                opt.value = r.id;
-                opt.innerText = '@ ' + r.name;
-                if (guild.settings.supportRoleId === r.id) opt.selected = true;
-                roleSel.appendChild(opt);
-            });
-
-            const catSel = document.getElementById('select-category');
-            catSel.innerHTML = '<option value="">Standard (Automatisch erstellen)</option>';
-            guild.categories.forEach(c => {
-                const opt = document.createElement('option');
-                opt.value = c.id;
-                opt.innerText = '📁 ' + c.name;
-                if (guild.settings.ticketCategoryId === c.id) opt.selected = true;
-                catSel.appendChild(opt);
-            });
-
-            const logSel = document.getElementById('select-logchannel');
-            logSel.innerHTML = '<option value="">Kein separater Log-Kanal</option>';
-            guild.textChannels.forEach(ch => {
-                const opt = document.createElement('option');
-                opt.value = ch.id;
-                opt.innerText = '#' + ch.name;
-                if (guild.settings.ticketLogChannelId === ch.id) opt.selected = true;
-                logSel.appendChild(opt);
-            });
-        }
-
-        async function saveActiveGuildSettings() {
-            if (!activeGuildId) return;
-
-            const payload = {
-                modules: {
-                    tickets: document.getElementById('mod-tickets').checked,
-                    autoMod: document.getElementById('mod-autoMod').checked,
-                    antiRaid: document.getElementById('mod-antiRaid').checked,
-                    levelSystem: document.getElementById('mod-levelSystem').checked,
-                    robloxHub: document.getElementById('mod-robloxHub').checked,
-                    lockdown: document.getElementById('mod-lockdown').checked
-                },
-                ticketCategoryId: document.getElementById('select-category').value || null,
-                supportRoleId: document.getElementById('select-role').value || null,
-                ticketLogChannelId: document.getElementById('select-logchannel').value || null,
-                ticketCategories: activeCategories
-            };
-
-            try {
-                const res = await fetch('/api/guild/' + activeGuildId + '/settings', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                const data = await res.json();
-                if (data.success) {
-                    const g = guilds.find(x => x.id === activeGuildId);
-                    if (g) g.settings = data.settings;
-                    showToast('✅ Einstellungen für ' + g.name + ' gespeichert!');
-                } else {
-                    alert('Fehler: ' + (data.error || 'Konnte nicht speichern'));
-                }
-            } catch(e) {
-                alert('Netzwerkfehler beim Speichern');
-            }
-        }
-
-        async function deployPanelToChannel() {
-            if (!activeGuildId) return;
-            const guild = guilds.find(g => g.id === activeGuildId);
-            if (!guild || guild.textChannels.length === 0) return alert('Keine Textkanäle auf diesem Server vorhanden.');
-
-            const channelPrompt = prompt('In welchen Textkanal soll das Ticket-Panel gesendet werden? (Name wie "support" oder Kanal-ID):');
-            if (!channelPrompt) return;
-
-            let targetCh = guild.textChannels.find(c => c.name.toLowerCase() === channelPrompt.toLowerCase().replace('#', '') || c.id === channelPrompt);
-            if (!targetCh) {
-                targetCh = guild.textChannels[0];
-            }
-
-            try {
-                const res = await fetch('/api/guild/' + activeGuildId + '/deploy-panel', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ channelId: targetCh.id })
-                });
-                const data = await res.json();
-                if (data.success) {
-                    showToast('🚀 Ticket-Panel erfolgreich in #' + data.channelName + ' bereitgestellt!');
-                } else {
-                    alert('Fehler: ' + data.error);
-                }
-            } catch(e) {
-                alert('Netzwerkfehler');
-            }
-        }
-
-        function setFilter(status, btn) {
-            currentStatusFilter = status;
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            filterTickets();
-        }
-
-        function filterTickets() {
-            const query = (document.getElementById('ticket-search').value || '').toLowerCase().trim();
-            const rows = document.querySelectorAll('.ticket-row');
-            
-            rows.forEach(row => {
-                const rowStatus = row.getAttribute('data-status');
-                const rowSearch = row.getAttribute('data-search') || '';
-
-                const matchesStatus = (currentStatusFilter === 'ALL') || (rowStatus === currentStatusFilter);
-                const matchesQuery = !query || rowSearch.includes(query);
-
-                if (matchesStatus && matchesQuery) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
-            });
-        }
-
-
-        function renderCategoryEditor() {
-            const container = document.getElementById('category-rows-container');
-            if (!container) return;
-            container.innerHTML = '';
-
-            activeCategories.forEach((cat, index) => {
-                const row = document.createElement('div');
-                row.style = 'display:flex; align-items:center; gap:12px; background:rgba(255,255,255,0.03); border:1px solid var(--border); padding:10px 14px; border-radius:10px; flex-wrap:wrap;';
-                
-                const isSuccess = cat.color === 'Success' ? 'selected' : '';
-                const isPrimary = cat.color === 'Primary' ? 'selected' : '';
-                const isDanger = cat.color === 'Danger' ? 'selected' : '';
-                const isSecondary = cat.color === 'Secondary' ? 'selected' : '';
-                const isChecked = cat.requireRoblox ? 'checked' : '';
-
-                row.innerHTML = 
-                    '<div style="flex:2; min-width:180px;">' +
-                        '<input type="text" class="search-input" style="width:100%; padding:8px 12px; font-size:0.85rem;" value="' + (cat.label || '').replace(/"/g, '&quot;') + '" placeholder="Kategorie Name (z. B. Support)" onchange="updateCatProp(' + index + ', \'label\', this.value)">' +
-                    '</div>' +
-                    '<div style="flex:1; min-width:130px;">' +
-                        '<select style="width:100%; background:#161c33; border:1px solid var(--border); color:#fff; padding:8px; border-radius:8px; font-size:0.85rem;" onchange="updateCatProp(' + index + ', \'color\', this.value)">' +
-                            '<option value="Success" ' + isSuccess + '>🟢 Grün (Success)</option>' +
-                            '<option value="Primary" ' + isPrimary + '>🔵 Blau (Primary)</option>' +
-                            '<option value="Danger" ' + isDanger + '>🔴 Rot (Danger)</option>' +
-                            '<option value="Secondary" ' + isSecondary + '>⚪ Grau (Secondary)</option>' +
-                        '</select>' +
-                    '</div>' +
-                    '<label style="display:flex; align-items:center; gap:6px; font-size:0.82rem; color:var(--cyan); cursor:pointer; min-width:140px; margin:0;">' +
-                        '<input type="checkbox" ' + isChecked + ' onchange="updateCatProp(' + index + ', \'requireRoblox\', this.checked)">' +
-                        '<span>🎮 Roblox-Pflicht</span>' +
-                    '</label>' +
-                    '<button type="button" onclick="deleteCategoryRow(' + index + ')" style="background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.4); color:#fca5a5; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:0.85rem;">' +
-                        '🗑️' +
-                    '</button>';
-                container.appendChild(row);
-            });
-        }
-
-        function updateCatProp(index, prop, val) {
-            if (activeCategories[index]) {
-                activeCategories[index][prop] = val;
-            }
-        }
-
-        function addCategoryRow() {
-            const newId = 'cat_' + Date.now().toString(36);
-            activeCategories.push({
-                id: newId,
-                label: '✨ Neuer Grund',
-                color: 'Primary',
-                requireRoblox: false
-            });
-            renderCategoryEditor();
-        }
-
-        function deleteCategoryRow(index) {
-            if (activeCategories.length <= 1) {
-                return alert('Mindestens eine Ticket-Kategorie muss bestehen bleiben.');
-            }
-            activeCategories.splice(index, 1);
-            renderCategoryEditor();
-        }
-
-        function renderTranscriptsTable(searchQuery = '') {
-            const tbody = document.getElementById('transcripts-tbody');
-            if (!tbody) return;
-
-            const filtered = allSavedTranscripts.filter(t => {
-                const matchGuild = !activeGuildId || t.guildId === activeGuildId;
-                if (!matchGuild) return false;
-                if (!searchQuery) return true;
-                const q = searchQuery.toLowerCase();
-                const str = ((t.id || '') + ' ' + (t.username || '') + ' ' + (t.ign || '') + ' ' + (t.category || '')).toLowerCase();
-                return str.includes(q);
-            });
-
-            if (filtered.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:25px; color:#64748b;">Keine archivierten Transkripte für diesen Server gefunden.</td></tr>';
-                return;
-            }
-
-            tbody.innerHTML = filtered.map(t => {
-                const rbx = t.robloxData;
-                const rbxDisplay = rbx ? rbx.displayName + ' (@' + rbx.username + ')' : (t.ign || 'N/A');
-                return '<tr>' +
-                    '<td><code style="color:var(--cyan); font-size:0.8rem;">' + (t.id || 'N/A') + '</code></td>' +
-                    '<td><span class="badge-ticket">#' + String(t.ticketNum || 0).padStart(4, '0') + '</span></td>' +
-                    '<td><strong>' + (t.username || 'Unbekannt') + '</strong></td>' +
-                    '<td>' +
-                        '<div style="display:flex; align-items:center; gap:6px;">' +
-                            (rbx && rbx.avatarUrl ? '<img src="' + rbx.avatarUrl + '" style="width:20px;height:20px;border-radius:4px;" alt="">' : '🎮') +
-                            '<span>' + rbxDisplay + '</span>' +
-                        '</div>' +
-                    '</td>' +
-                    '<td><span class="badge-cat">' + (t.category || 'Support') + '</span></td>' +
-                    '<td><span style="color:#94a3b8; font-size:0.85rem;">' + (t.closedBy || 'System') + '</span></td>' +
-                    '<td><a href="/transcript/' + t.id + '" target="_blank" class="action-btn">🌐 Transkript aufrufen</a></td>' +
-                '</tr>';
-            }).join('');
-        }
-
-        function filterTranscripts() {
-            const q = document.getElementById('transcripts-search').value;
-            renderTranscriptsTable(q);
-        }
-
-        function showToast(msg) {
-            const t = document.getElementById('toast');
-            t.innerText = msg;
-            t.classList.add('show');
-            setTimeout(() => t.classList.remove('show'), 3500);
-        }
-
-        if (guilds.length > 0) {
-            renderGuilds();
-            loadGuildData(activeGuildId);
-        }
-    </script>
-</body>
-</html>`;
-    res.send(fullHtml);
+    const templatePath = path.join(__dirname, 'dashboard.html');
+    let template = fs.readFileSync(templatePath, 'utf8');
+
+    template = template.replace(/\{\{USER_AVATAR_URL\}\}/g, userAvatarUrl);
+    template = template.replace(/\{\{USER_NAME\}\}/g, currentUser.username || 'User');
+    template = template.replace(/\{\{USER_TAG\}\}/g, currentUser.tag || currentUser.username);
+    template = template.replace(/\{\{USER_ROLE_LABEL\}\}/g, authorizedGuilds[0]?.userRoleLabel || 'Berechtigt');
+    template = template.replace(/\{\{ACTIVE_TICKETS_COUNT\}\}/g, String(activeList.length));
+    template = template.replace(/\{\{TRANSCRIPTS_COUNT\}\}/g, String(savedTranscriptsList.length));
+    template = template.replace(/\{\{PING\}\}/g, String(ping));
+    template = template.replace(/\{\{UPTIME\}\}/g, uptimeStr);
+    template = template.replace(/\{\{GUILDS_JSON\}\}/g, JSON.stringify(authorizedGuilds).replace(/</g, '\\u003c'));
+    template = template.replace(/\{\{TRANSCRIPTS_JSON\}\}/g, JSON.stringify(savedTranscriptsList).replace(/</g, '\\u003c'));
+    template = template.replace(/\{\{ACTIVE_TICKETS_JSON\}\}/g, JSON.stringify(activeList).replace(/</g, '\\u003c'));
+
+    res.send(template);
 });
 
 app.post('/api/webhook/stripe', (req, res) => {

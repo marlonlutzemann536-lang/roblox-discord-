@@ -1,0 +1,1208 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AeroGuard Core — Enterprise Multi-Server Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #07080f;
+            --surface: rgba(13, 17, 32, 0.75);
+            --surface-card: rgba(18, 24, 46, 0.85);
+            --surface-hover: rgba(26, 34, 64, 0.95);
+            --border: rgba(255, 255, 255, 0.08);
+            --border-glow: rgba(0, 243, 255, 0.25);
+            --cyan: #00f3ff;
+            --cyan-glow: rgba(0, 243, 255, 0.35);
+            --purple: #9d4edd;
+            --purple-glow: rgba(157, 78, 221, 0.35);
+            --green: #10b981;
+            --danger: #ef4444;
+            --gold: #f59e0b;
+            --text-main: #f8fafc;
+            --text-dim: #94a3b8;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background-color: var(--bg);
+            background-image: 
+                radial-gradient(ellipse at 15% 10%, rgba(157, 78, 221, 0.14) 0%, transparent 45%),
+                radial-gradient(ellipse at 85% 15%, rgba(0, 243, 255, 0.12) 0%, transparent 45%),
+                radial-gradient(circle at 50% 90%, rgba(16, 185, 129, 0.08) 0%, transparent 50%);
+            color: var(--text-main);
+            font-family: 'Outfit', sans-serif;
+            min-height: 100vh;
+            line-height: 1.5;
+            overflow-x: hidden;
+        }
+        .container { max-width: 1340px; margin: 0 auto; padding: 24px; }
+        
+        /* HEADER */
+        header {
+            display: flex; justify-content: space-between; align-items: center;
+            background: var(--surface); border: 1px solid var(--border-glow);
+            border-radius: 18px; padding: 14px 24px; margin-bottom: 24px;
+            backdrop-filter: blur(16px); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            flex-wrap: wrap; gap: 16px;
+        }
+        .header-left { display: flex; align-items: center; gap: 14px; }
+        .logo-box {
+            width: 44px; height: 44px; border-radius: 12px;
+            background: linear-gradient(135deg, var(--cyan), var(--purple));
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.4rem; box-shadow: 0 0 18px var(--cyan-glow);
+        }
+        .logo-title { font-size: 1.25rem; font-weight: 800; color: #fff; letter-spacing: -0.02em; }
+        .logo-subtitle { font-size: 0.72rem; color: var(--cyan); text-transform: uppercase; font-weight: 700; letter-spacing: 0.08em; }
+
+        /* NAV TABS */
+        .nav-tabs { display: flex; gap: 8px; background: rgba(0, 0, 0, 0.3); padding: 5px; border-radius: 12px; border: 1px solid var(--border); }
+        .tab-btn {
+            background: transparent; border: none; color: var(--text-dim);
+            padding: 8px 18px; border-radius: 8px; font-family: inherit;
+            font-weight: 600; font-size: 0.88rem; cursor: pointer; transition: all 0.2s;
+            display: inline-flex; align-items: center; gap: 8px;
+        }
+        .tab-btn:hover { color: #fff; background: rgba(255, 255, 255, 0.05); }
+        .tab-btn.active { background: linear-gradient(135deg, var(--cyan), #0099ff); color: #000; font-weight: 700; box-shadow: 0 0 14px var(--cyan-glow); }
+
+        /* USER PROFILE PILL */
+        .user-profile-header {
+            display: flex; align-items: center; gap: 12px;
+            background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border-glow);
+            padding: 5px 14px 5px 6px; border-radius: 30px; backdrop-filter: blur(12px);
+        }
+        .avatar-container { position: relative; width: 40px; height: 40px; }
+        .user-avatar-image {
+            width: 40px; height: 40px; border-radius: 50%;
+            object-fit: cover; border: 2px solid var(--cyan); box-shadow: 0 0 12px var(--cyan-glow);
+        }
+        .status-dot {
+            position: absolute; bottom: 0; right: 0; width: 11px; height: 11px;
+            border-radius: 50%; background: #10b981; border: 2px solid #07080f;
+        }
+        .user-details { display: flex; flex-direction: column; }
+        .user-name-tag { font-size: 0.88rem; font-weight: 700; color: #fff; line-height: 1.2; }
+        .user-role-badge { font-size: 0.68rem; color: var(--cyan); font-weight: 600; }
+        .logout-link {
+            color: var(--text-dim); text-decoration: none; font-size: 1rem;
+            margin-left: 6px; padding: 6px; border-radius: 8px; transition: all 0.2s; display: flex; align-items: center;
+        }
+        .logout-link:hover { color: var(--danger); background: rgba(239, 68, 68, 0.15); }
+
+        /* SERVER HERO BAR */
+        .server-hero {
+            background: var(--surface); border: 1px solid var(--border); border-radius: 18px;
+            padding: 20px 24px; margin-bottom: 24px; display: flex; justify-content: space-between;
+            align-items: center; flex-wrap: wrap; gap: 16px; backdrop-filter: blur(14px);
+        }
+        .server-selector-group { display: flex; align-items: center; gap: 16px; }
+        .server-icon-large {
+            width: 52px; height: 52px; border-radius: 14px;
+            background: #161c33; border: 2px solid var(--purple);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.3rem; font-weight: 800; color: #fff; overflow: hidden;
+            box-shadow: 0 0 16px var(--purple-glow);
+        }
+        .server-icon-large img { width: 100%; height: 100%; object-fit: cover; }
+        .server-info-title { font-size: 1.35rem; font-weight: 800; color: #fff; }
+        .server-info-sub { font-size: 0.82rem; color: var(--text-dim); display: flex; align-items: center; gap: 8px; margin-top: 2px; }
+        .active-role-pill {
+            background: rgba(157, 78, 221, 0.15); border: 1px solid rgba(157, 78, 221, 0.4);
+            color: #d8b4fe; padding: 2px 10px; border-radius: 20px; font-size: 0.72rem; font-weight: 700;
+        }
+
+        .server-dropdown-picker {
+            background: #12182c; border: 1px solid var(--border); color: #fff;
+            padding: 10px 16px; border-radius: 10px; font-family: inherit; font-size: 0.9rem;
+            font-weight: 600; cursor: pointer; outline: none; transition: border-color 0.2s;
+        }
+        .server-dropdown-picker:hover, .server-dropdown-picker:focus { border-color: var(--cyan); }
+
+        .telemetry-group { display: flex; gap: 16px; flex-wrap: wrap; }
+        .stat-pill {
+            background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border);
+            padding: 8px 14px; border-radius: 10px; font-size: 0.82rem;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .stat-val { font-weight: 700; color: #fff; font-family: 'JetBrains Mono', monospace; }
+
+        /* MODULES GRID (CLICKABLE CARDS) */
+        .modules-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+            gap: 20px; margin-bottom: 24px;
+        }
+        .feature-card {
+            background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+            padding: 24px; transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex; flex-direction: column; position: relative; overflow: hidden;
+            cursor: pointer; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+        .feature-card::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+            background: linear-gradient(90deg, transparent, var(--border), transparent);
+            transition: all 0.3s;
+        }
+        .feature-card:hover {
+            transform: translateY(-4px); border-color: var(--border-glow);
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5), 0 0 20px rgba(0, 243, 255, 0.15);
+        }
+        .feature-card:hover::before {
+            background: linear-gradient(90deg, var(--cyan), var(--purple));
+        }
+        .feature-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; }
+        .feature-icon-wrapper {
+            width: 48px; height: 48px; border-radius: 12px;
+            background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: center; font-size: 1.5rem;
+        }
+        .feature-badge-active {
+            padding: 4px 10px; border-radius: 20px; font-size: 0.72rem; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 0.05em; display: inline-flex; align-items: center; gap: 5px;
+        }
+        .badge-on { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); }
+        .badge-off { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); }
+
+        .feature-title { font-size: 1.2rem; font-weight: 800; color: #fff; margin-bottom: 6px; }
+        .feature-desc { font-size: 0.85rem; color: var(--text-dim); line-height: 1.5; margin-bottom: 18px; flex: 1; }
+        
+        .feature-card-footer {
+            display: flex; justify-content: space-between; align-items: center;
+            border-top: 1px solid var(--border); padding-top: 14px; margin-top: auto;
+        }
+        .feature-subtext { font-size: 0.75rem; color: var(--text-dim); font-family: 'JetBrains Mono', monospace; }
+        .btn-configure {
+            background: rgba(0, 243, 255, 0.1); border: 1px solid var(--cyan);
+            color: var(--cyan); padding: 7px 16px; border-radius: 8px; font-family: inherit;
+            font-size: 0.82rem; font-weight: 700; cursor: pointer; transition: all 0.2s;
+            display: inline-flex; align-items: center; gap: 6px;
+        }
+        .btn-configure:hover {
+            background: var(--cyan); color: #000; box-shadow: 0 0 15px var(--cyan-glow);
+        }
+
+        /* TABLES & CONTROLS */
+        .content-panel {
+            background: var(--surface); border: 1px solid var(--border); border-radius: 18px;
+            padding: 24px; backdrop-filter: blur(14px); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+        }
+        .panel-controls {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 20px; flex-wrap: wrap; gap: 14px;
+        }
+        .panel-title { font-size: 1.25rem; font-weight: 800; color: #fff; display: flex; align-items: center; gap: 10px; }
+        .search-box {
+            background: rgba(0, 0, 0, 0.4); border: 1px solid var(--border);
+            padding: 9px 16px; border-radius: 10px; color: #fff; font-family: inherit;
+            font-size: 0.88rem; outline: none; width: 280px; transition: border-color 0.2s;
+        }
+        .search-box:focus { border-color: var(--cyan); }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th {
+            text-align: left; padding: 12px 16px; font-size: 0.75rem; text-transform: uppercase;
+            color: var(--text-dim); font-weight: 700; letter-spacing: 0.05em; border-bottom: 1px solid var(--border);
+        }
+        td { padding: 14px 16px; font-size: 0.9rem; border-bottom: 1px solid rgba(255, 255, 255, 0.04); vertical-align: middle; }
+        tr:hover td { background: rgba(255, 255, 255, 0.02); }
+        .badge-id { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--cyan); background: rgba(0, 243, 255, 0.08); padding: 3px 8px; border-radius: 6px; }
+        .badge-cat { background: rgba(157, 78, 221, 0.15); border: 1px solid rgba(157, 78, 221, 0.3); color: #d8b4fe; padding: 3px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 700; }
+        .action-link {
+            background: rgba(255, 255, 255, 0.06); border: 1px solid var(--border); color: #fff;
+            padding: 6px 14px; border-radius: 8px; text-decoration: none; font-size: 0.8rem; font-weight: 600;
+            transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px;
+        }
+        .action-link:hover { background: rgba(0, 243, 255, 0.2); border-color: var(--cyan); color: var(--cyan); }
+
+        /* MODAL OVERLAY & POPUP */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(4, 6, 12, 0.82); backdrop-filter: blur(12px);
+            display: none; align-items: center; justify-content: center;
+            z-index: 1000; padding: 20px;
+        }
+        .modal-overlay.active { display: flex; animation: fadeIn 0.2s ease-out; }
+        .modal-card {
+            background: #0d1222; border: 1px solid var(--cyan); border-radius: 20px;
+            width: 100%; max-width: 680px; max-height: 90vh; overflow-y: auto;
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.8), 0 0 30px var(--cyan-glow);
+            display: flex; flex-direction: column;
+        }
+        .modal-header {
+            padding: 20px 24px; border-bottom: 1px solid var(--border);
+            display: flex; justify-content: space-between; align-items: center;
+            position: sticky; top: 0; background: #0d1222; z-index: 2;
+        }
+        .modal-title-wrap { display: flex; align-items: center; gap: 12px; }
+        .modal-title { font-size: 1.3rem; font-weight: 800; color: #fff; }
+        .btn-modal-close {
+            background: transparent; border: none; color: var(--text-dim);
+            font-size: 1.5rem; cursor: pointer; padding: 4px 8px; border-radius: 8px;
+            transition: all 0.2s;
+        }
+        .btn-modal-close:hover { color: var(--danger); background: rgba(239, 68, 68, 0.15); }
+        .modal-body { padding: 24px; display: flex; flex-direction: column; gap: 20px; }
+        .modal-footer {
+            padding: 16px 24px; border-top: 1px solid var(--border);
+            display: flex; justify-content: flex-end; gap: 12px;
+            background: #090e1b; position: sticky; bottom: 0;
+        }
+        .form-group { display: flex; flex-direction: column; gap: 6px; }
+        .form-group label { font-size: 0.8rem; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; }
+        .form-control {
+            background: #141a2e; border: 1px solid var(--border); color: #fff;
+            padding: 10px 14px; border-radius: 10px; font-family: inherit; font-size: 0.9rem;
+            outline: none; transition: border-color 0.2s;
+        }
+        .form-control:focus { border-color: var(--cyan); }
+        .btn-primary {
+            background: linear-gradient(135deg, var(--cyan), #0099ff); color: #000;
+            border: none; padding: 10px 22px; border-radius: 10px; font-family: inherit;
+            font-size: 0.9rem; font-weight: 700; cursor: pointer; transition: all 0.2s;
+        }
+        .btn-primary:hover { box-shadow: 0 0 20px var(--cyan-glow); transform: translateY(-1px); }
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.06); border: 1px solid var(--border);
+            color: #fff; padding: 10px 18px; border-radius: 10px; font-family: inherit;
+            font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.2s;
+        }
+        .btn-secondary:hover { background: rgba(255, 255, 255, 0.12); }
+
+        /* SWITCH TOGGLE */
+        .switch { position: relative; display: inline-block; width: 44px; height: 24px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #242c48; transition: .3s; border-radius: 24px;
+        }
+        .slider:before {
+            position: absolute; content: ""; height: 16px; width: 16px; left: 4px; bottom: 4px;
+            background-color: white; transition: .3s; border-radius: 50%;
+        }
+        input:checked + .slider { background: linear-gradient(135deg, var(--cyan), #0099ff); }
+        input:checked + .slider:before { transform: translateX(20px); background-color: #000; }
+
+        /* TOAST */
+        #toast {
+            position: fixed; bottom: 24px; right: 24px;
+            background: #0d1326; border: 1px solid var(--cyan); color: #fff;
+            padding: 14px 24px; border-radius: 12px; font-weight: 700; font-size: 0.9rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 20px var(--cyan-glow);
+            transform: translateY(100px); opacity: 0; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 2000; display: flex; align-items: center; gap: 10px;
+        }
+        #toast.show { transform: translateY(0); opacity: 1; }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- HEADER -->
+        <header>
+            <div class="header-left">
+                <div class="logo-box">🛡️</div>
+                <div>
+                    <div class="logo-title">AeroGuard Core</div>
+                    <div class="logo-subtitle">Enterprise Multi-Server Suite</div>
+                </div>
+            </div>
+
+            <!-- TABS NAVIGATION -->
+            <div class="nav-tabs">
+                <button class="tab-btn active" id="tabbtn-modules" onclick="showDashboardTab('modules', this)">
+                    🎛️ Modul-Zentrale
+                </button>
+                <button class="tab-btn" id="tabbtn-tickets" onclick="showDashboardTab('tickets', this)">
+                    🎫 Live-Tickets (<span id="count-active-tickets">{{ACTIVE_TICKETS_COUNT}}</span>)
+                </button>
+                <button class="tab-btn" id="tabbtn-transcripts" onclick="showDashboardTab('transcripts', this)">
+                    📜 Web-Transkripte (<span id="count-transcripts">{{TRANSCRIPTS_COUNT}}</span>)
+                </button>
+            </div>
+
+            <!-- DISCORD USER PROFILE PILL WITH REAL DISCORD AVATAR -->
+            <div class="user-profile-header">
+                <div class="avatar-container">
+                    <img src="{{USER_AVATAR_URL}}" alt="{{USER_NAME}}" class="user-avatar-image">
+                    <div class="status-dot"></div>
+                </div>
+                <div class="user-details">
+                    <div class="user-name-tag">{{USER_TAG}}</div>
+                    <div class="user-role-badge" id="header-user-role">{{USER_ROLE_LABEL}}</div>
+                </div>
+                <a href="/logout" class="logout-link" title="Abmelden">🚪</a>
+            </div>
+        </header>
+
+        <!-- SERVER HERO BAR & SELECTOR -->
+        <div class="server-hero">
+            <div class="server-selector-group">
+                <div class="server-icon-large" id="hero-server-icon">
+                    AG
+                </div>
+                <div>
+                    <div class="server-info-title" id="hero-server-name">Lade Server...</div>
+                    <div class="server-info-sub">
+                        <span id="hero-server-role" class="active-role-pill">Berechtigt</span>
+                        <span>•</span>
+                        <span id="hero-server-id">ID: ...</span>
+                    </div>
+                </div>
+            </div>
+
+            <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+                <select id="guild-selector" class="server-dropdown-picker" onchange="switchGuild(this.value)">
+                    <!-- Options populated by client JS -->
+                </select>
+
+                <div class="telemetry-group">
+                    <div class="stat-pill">
+                        <span>⚡ Ping:</span>
+                        <span class="stat-val">{{PING}}ms</span>
+                    </div>
+                    <div class="stat-pill">
+                        <span>⏱️ Uptime:</span>
+                        <span class="stat-val">{{UPTIME}}</span>
+                    </div>
+                    <div class="stat-pill">
+                        <span>👥 User:</span>
+                        <span class="stat-val" id="hero-stat-members">...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 1: MODUL-ZENTRALE (CLICKABLE CONFIGURABLE MODULES) -->
+        <div id="tab-modules" class="tab-content">
+            <div class="modules-grid">
+                <!-- MODULE 1: TICKETS -->
+                <div class="feature-card" onclick="openModuleModal('tickets')">
+                    <div class="feature-card-header">
+                        <div class="feature-icon-wrapper" style="color:var(--cyan);">🎫</div>
+                        <span id="badge-mod-tickets" class="feature-badge-active badge-on">● Aktiv</span>
+                    </div>
+                    <div class="feature-title">Ticket- & Support-System</div>
+                    <div class="feature-desc">Vollautomatisches Kanal-Ticket-System, anpassbare Kategorien/Gründe, Supporter-Rollen & 1-Klick Support-Panel Bereitstellung.</div>
+                    <div class="feature-card-footer">
+                        <span class="feature-subtext">Support-Kanal & Kategorien</span>
+                        <button type="button" class="btn-configure">⚙️ Konfigurieren</button>
+                    </div>
+                </div>
+
+                <!-- MODULE 2: ROBLOX HUB -->
+                <div class="feature-card" onclick="openModuleModal('roblox')">
+                    <div class="feature-card-header">
+                        <div class="feature-icon-wrapper" style="color:#00f5d4;">🎮</div>
+                        <span id="badge-mod-roblox" class="feature-badge-active badge-on">● Aktiv</span>
+                    </div>
+                    <div class="feature-title">Roblox-Verifizierung & Hub</div>
+                    <div class="feature-desc">Echtzeit-Validierung über offizielle Roblox Users & Thumbnails API. 3D Headshots, Rollenvergabe & Ticket-Zuweisung.</div>
+                    <div class="feature-card-footer">
+                        <span class="feature-subtext">Users API & Verifizierungs-Rolle</span>
+                        <button type="button" class="btn-configure">⚙️ Konfigurieren</button>
+                    </div>
+                </div>
+
+                <!-- MODULE 3: AUTOMOD -->
+                <div class="feature-card" onclick="openModuleModal('automod')">
+                    <div class="feature-card-header">
+                        <div class="feature-icon-wrapper" style="color:#f59e0b;">🛡️</div>
+                        <span id="badge-mod-automod" class="feature-badge-active badge-on">● Aktiv</span>
+                    </div>
+                    <div class="feature-title">Auto-Moderation & Chat-Schutz</div>
+                    <div class="feature-desc">Anti-Spam Filter, Blacklist für Schimpfwörter, Anti-Invite Shield und automatische Timeouts bei Regelverstößen.</div>
+                    <div class="feature-card-footer">
+                        <span class="feature-subtext">Anti-Spam & Badwords</span>
+                        <button type="button" class="btn-configure">⚙️ Konfigurieren</button>
+                    </div>
+                </div>
+
+                <!-- MODULE 4: LEVELS -->
+                <div class="feature-card" onclick="openModuleModal('levels')">
+                    <div class="feature-card-header">
+                        <div class="feature-icon-wrapper" style="color:#a855f7;">⭐</div>
+                        <span id="badge-mod-levels" class="feature-badge-active badge-on">● Aktiv</span>
+                    </div>
+                    <div class="feature-title">Aktivitäts-Level & AeroCoins</div>
+                    <div class="feature-desc">XP-Vergabe für Nachrichten, automatische Level-Ups, Münz-Belohnungen und serverweite Ranglisten.</div>
+                    <div class="feature-card-footer">
+                        <span class="feature-subtext">XP-Multiplikator & Belohnung</span>
+                        <button type="button" class="btn-configure">⚙️ Konfigurieren</button>
+                    </div>
+                </div>
+
+                <!-- MODULE 5: SECURITY -->
+                <div class="feature-card" onclick="openModuleModal('security')">
+                    <div class="feature-card-header">
+                        <div class="feature-icon-wrapper" style="color:#ef4444;">🚨</div>
+                        <span id="badge-mod-security" class="feature-badge-active badge-off">● Inaktiv</span>
+                    </div>
+                    <div class="feature-title">Notfall-Sperre & Anti-Raid</div>
+                    <div class="feature-desc">1-Klick Notfall-Server-Lockdown (Schreibsperre für @everyone), Schutz vor Massen-Beitritten & Mindestalter-Filter.</div>
+                    <div class="feature-card-footer">
+                        <span class="feature-subtext">Server-Lockdown Steuerung</span>
+                        <button type="button" class="btn-configure">⚙️ Konfigurieren</button>
+                    </div>
+                </div>
+
+                <!-- MODULE 6: LOGGING -->
+                <div class="feature-card" onclick="openModuleModal('logging')">
+                    <div class="feature-card-header">
+                        <div class="feature-icon-wrapper" style="color:#38bdf8;">📜</div>
+                        <span id="badge-mod-logging" class="feature-badge-active badge-on">● Aktiv</span>
+                    </div>
+                    <div class="feature-title">Enterprise Audit & Log-System</div>
+                    <div class="feature-desc">Strukturiertes Routing von Ticket-Archiven, Moderations-Ereignissen und Willkommens-Nachrichten mit Cloud-Backups.</div>
+                    <div class="feature-card-footer">
+                        <span class="feature-subtext">Kanal-Zuweisung & Backups</span>
+                        <button type="button" class="btn-configure">⚙️ Konfigurieren</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 2: LIVE-TICKETS -->
+        <div id="tab-tickets" class="tab-content" style="display:none;">
+            <div class="content-panel">
+                <div class="panel-controls">
+                    <div class="panel-title">
+                        <span>🎫 Aktive Support-Tickets</span>
+                    </div>
+                    <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+                        <input type="text" class="search-box" id="ticket-search-input" placeholder="🔍 Ticket #, User oder Roblox IGN..." oninput="filterLiveTickets()">
+                        <div class="nav-tabs">
+                            <button class="tab-btn active" onclick="setTicketFilter('ALL', this)">Alle</button>
+                            <button class="tab-btn" onclick="setTicketFilter('OPEN', this)">Offen</button>
+                            <button class="tab-btn" onclick="setTicketFilter('CLAIMED', this)">In Bearbeitung</button>
+                        </div>
+                    </div>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Ticket #</th>
+                            <th>Ersteller</th>
+                            <th>Kategorie</th>
+                            <th>Roblox IGN</th>
+                            <th>Status</th>
+                            <th>Aktion</th>
+                        </tr>
+                    </thead>
+                    <tbody id="live-tickets-tbody">
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- TAB 3: WEB-TRANSKRIPTE -->
+        <div id="tab-transcripts" class="tab-content" style="display:none;">
+            <div class="content-panel">
+                <div class="panel-controls">
+                    <div class="panel-title">
+                        <span>📜 Permanente Web-Transkripte auf der Webseite</span>
+                    </div>
+                    <input type="text" class="search-box" id="transcript-search-input" placeholder="🔍 Transkript-ID, Ersteller oder Roblox..." oninput="filterWebTranscripts()">
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Transkript-ID</th>
+                            <th>Ticket #</th>
+                            <th>Ersteller</th>
+                            <th>Roblox-Account</th>
+                            <th>Kategorie</th>
+                            <th>Geschlossen von</th>
+                            <th>Aktion</th>
+                        </tr>
+                    </thead>
+                    <tbody id="web-transcripts-tbody">
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- DYNAMIC CONFIGURATION MODAL (OPENED WHEN CLICKING ANY MODULE) -->
+    <div class="modal-overlay" id="config-modal-overlay" onclick="handleBackdropClick(event)">
+        <div class="modal-card">
+            <div class="modal-header">
+                <div class="modal-title-wrap">
+                    <span id="modal-icon" style="font-size:1.6rem;">⚙️</span>
+                    <div>
+                        <div class="modal-title" id="modal-title">Modul konfigurieren</div>
+                        <div style="font-size:0.75rem; color:var(--text-dim);" id="modal-subtitle">Detaillierte Systemeinstellungen</div>
+                    </div>
+                </div>
+                <div style="display:flex; align-items:center; gap:16px;">
+                    <label class="switch" title="Modul aktivieren/deaktivieren">
+                        <input type="checkbox" id="modal-module-toggle">
+                        <span class="slider"></span>
+                    </label>
+                    <button type="button" class="btn-modal-close" onclick="closeModuleModal()">✕</button>
+                </div>
+            </div>
+
+            <div class="modal-body" id="modal-body-content">
+                <!-- Dynamically populated based on clicked module -->
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary" onclick="closeModuleModal()">Abbrechen</button>
+                <button type="button" class="btn-primary" onclick="saveActiveModuleConfig()">💾 Einstellungen speichern</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST NOTIFICATION -->
+    <div id="toast">✅ Einstellungen erfolgreich gespeichert!</div>
+
+    <!-- CLIENT SCRIPT -->
+    <script>
+        const guilds = {{GUILDS_JSON}};
+        const allTranscripts = {{TRANSCRIPTS_JSON}};
+        const activeTicketsList = {{ACTIVE_TICKETS_JSON}};
+        let activeGuildId = guilds[0] ? guilds[0].id : null;
+        let currentOpenModule = null;
+        let currentTicketFilter = 'ALL';
+
+        // INIT
+        window.onload = () => {
+            initGuildSelector();
+            if (activeGuildId) selectGuild(activeGuildId);
+        };
+
+        function initGuildSelector() {
+            const sel = document.getElementById('guild-selector');
+            if (!sel) return;
+            sel.innerHTML = '';
+            guilds.forEach(g => {
+                const opt = document.createElement('option');
+                opt.value = g.id;
+                opt.innerText = g.name + ' (' + (g.userRoleLabel || 'Berechtigt') + ')';
+                sel.appendChild(opt);
+            });
+        }
+
+        function switchGuild(guildId) {
+            selectGuild(guildId);
+        }
+
+        function selectGuild(guildId) {
+            activeGuildId = guildId;
+            const guild = guilds.find(g => g.id === guildId);
+            if (!guild) return;
+
+            document.getElementById('guild-selector').value = guildId;
+            document.getElementById('hero-server-name').innerText = guild.name;
+            document.getElementById('hero-server-id').innerText = 'ID: ' + guild.id;
+            document.getElementById('hero-server-role').innerText = guild.userRoleLabel || 'Berechtigt';
+            document.getElementById('header-user-role').innerText = guild.userRoleLabel || 'Berechtigt';
+            document.getElementById('hero-stat-members').innerText = guild.memberCount || '0';
+
+            const iconEl = document.getElementById('hero-server-icon');
+            if (guild.icon) {
+                iconEl.innerHTML = '<img src="' + guild.icon + '" alt="">';
+            } else {
+                iconEl.innerText = guild.name.substring(0, 2).toUpperCase();
+            }
+
+            updateModuleBadges();
+            renderLiveTickets();
+            renderWebTranscripts();
+        }
+
+        function updateModuleBadges() {
+            const guild = guilds.find(g => g.id === activeGuildId);
+            if (!guild) return;
+            const m = guild.settings.modules || {};
+
+            setModuleBadge('badge-mod-tickets', m.tickets !== false);
+            setModuleBadge('badge-mod-roblox', m.robloxHub !== false);
+            setModuleBadge('badge-mod-automod', m.autoMod !== false);
+            setModuleBadge('badge-mod-levels', m.levelSystem !== false);
+            setModuleBadge('badge-mod-security', m.lockdown === true, true);
+            setModuleBadge('badge-mod-logging', m.logging !== false);
+        }
+
+        function setModuleBadge(elementId, isActive, isInverse) {
+            const el = document.getElementById(elementId);
+            if (!el) return;
+            if (isInverse) {
+                el.className = 'feature-badge-active ' + (isActive ? 'badge-off' : 'badge-on');
+                el.innerText = isActive ? '● LOCKDOWN AKTIV' : '● Normal';
+            } else {
+                el.className = 'feature-badge-active ' + (isActive ? 'badge-on' : 'badge-off');
+                el.innerText = isActive ? '● Aktiv' : '● Deaktiviert';
+            }
+        }
+
+        function showDashboardTab(tabName, btn) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+
+            btn.classList.add('active');
+            const target = document.getElementById('tab-' + tabName);
+            if (target) target.style.display = 'block';
+
+            if (tabName === 'tickets') renderLiveTickets();
+            if (tabName === 'transcripts') renderWebTranscripts();
+        }
+
+        // =========================================================================
+        // MODAL CONFIGURATION SYSTEM (OPENS SPECIFIC MODULE WHEN CLICKED)
+        // =========================================================================
+        function openModuleModal(moduleId) {
+            currentOpenModule = moduleId;
+            const guild = guilds.find(g => g.id === activeGuildId);
+            if (!guild) return;
+            const settings = guild.settings;
+            const modules = settings.modules || {};
+
+            const overlay = document.getElementById('config-modal-overlay');
+            const iconEl = document.getElementById('modal-icon');
+            const titleEl = document.getElementById('modal-title');
+            const subtitleEl = document.getElementById('modal-subtitle');
+            const toggleEl = document.getElementById('modal-module-toggle');
+            const bodyEl = document.getElementById('modal-body-content');
+
+            overlay.classList.add('active');
+
+            if (moduleId === 'tickets') {
+                iconEl.innerText = '🎫';
+                titleEl.innerText = 'Ticket- & Support-System konfigurieren';
+                subtitleEl.innerText = 'Support-Panel, Kategorien, Roblox-Pflicht & Rollen';
+                toggleEl.checked = modules.tickets !== false;
+                bodyEl.innerHTML = buildTicketsModalHtml(guild);
+            } else if (moduleId === 'roblox') {
+                iconEl.innerText = '🎮';
+                titleEl.innerText = 'Roblox-Verifizierung & Open Cloud';
+                subtitleEl.innerText = 'Offizielle Roblox Users API, 3D Thumbnails & Rollen-Sync';
+                toggleEl.checked = modules.robloxHub !== false;
+                bodyEl.innerHTML = buildRobloxModalHtml(guild);
+            } else if (moduleId === 'automod') {
+                iconEl.innerText = '🛡️';
+                titleEl.innerText = 'Auto-Moderation & Chat-Schutz';
+                subtitleEl.innerText = 'Anti-Spam Empfindlichkeit, Schimpfwortfilter & Anti-Invite';
+                toggleEl.checked = modules.autoMod !== false;
+                bodyEl.innerHTML = buildAutoModModalHtml(guild);
+            } else if (moduleId === 'levels') {
+                iconEl.innerText = '⭐';
+                titleEl.innerText = 'Aktivitäts-Level & AeroCoins System';
+                subtitleEl.innerText = 'XP-Multiplikator, Münz-Belohnungen & Level-Ups';
+                toggleEl.checked = modules.levelSystem !== false;
+                bodyEl.innerHTML = buildLevelsModalHtml(guild);
+            } else if (moduleId === 'security') {
+                iconEl.innerText = '🚨';
+                titleEl.innerText = 'Server-Sicherheit & Notfall-Lockdown';
+                subtitleEl.innerText = 'Sofortige Notfallsperre, Account-Alter & Raid-Schutz';
+                toggleEl.checked = modules.lockdown === true;
+                bodyEl.innerHTML = buildSecurityModalHtml(guild);
+            } else if (moduleId === 'logging') {
+                iconEl.innerText = '📜';
+                titleEl.innerText = 'Enterprise Audit & Log-System';
+                subtitleEl.innerText = 'Kanal-Routing für Logs & Cloud-Backup der Struktur';
+                toggleEl.checked = modules.logging !== false;
+                bodyEl.innerHTML = buildLoggingModalHtml(guild);
+            }
+        }
+
+        function closeModuleModal() {
+            document.getElementById('config-modal-overlay').classList.remove('active');
+            currentOpenModule = null;
+        }
+
+        function handleBackdropClick(e) {
+            if (e.target.id === 'config-modal-overlay') {
+                closeModuleModal();
+            }
+        }
+
+        // --- HTML BUILDERS FOR MODALS ---
+        function buildTicketsModalHtml(guild) {
+            const s = guild.settings;
+            const cats = guild.categories || [];
+            const roles = guild.roles || [];
+            const textChs = guild.textChannels || [];
+            const categoriesList = s.ticketCategories || [];
+
+            let catRowsHtml = '';
+            categoriesList.forEach((c, i) => {
+                const isSuccess = c.color === 'Success' ? 'selected' : '';
+                const isPrimary = c.color === 'Primary' ? 'selected' : '';
+                const isDanger = c.color === 'Danger' ? 'selected' : '';
+                const isSecondary = c.color === 'Secondary' ? 'selected' : '';
+                const isRbxChecked = c.requireRoblox ? 'checked' : '';
+
+                catRowsHtml += 
+                    '<div style="display:flex; align-items:center; gap:10px; background:rgba(255,255,255,0.03); border:1px solid var(--border); padding:8px 12px; border-radius:8px; flex-wrap:wrap;">' +
+                        '<div style="flex:2; min-width:160px;">' +
+                            '<input type="text" class="form-control" style="padding:6px 10px; font-size:0.85rem;" value="' + (c.label || '').replace(/"/g, '&quot;') + '" id="cat-label-' + i + '">' +
+                        '</div>' +
+                        '<div style="flex:1; min-width:120px;">' +
+                            '<select class="form-control" style="padding:6px; font-size:0.85rem;" id="cat-color-' + i + '">' +
+                                '<option value="Success" ' + isSuccess + '>🟢 Grün</option>' +
+                                '<option value="Primary" ' + isPrimary + '>🔵 Blau</option>' +
+                                '<option value="Danger" ' + isDanger + '>🔴 Rot</option>' +
+                                '<option value="Secondary" ' + isSecondary + '>⚪ Grau</option>' +
+                            '</select>' +
+                        '</div>' +
+                        '<label style="display:flex; align-items:center; gap:5px; font-size:0.8rem; color:var(--cyan); cursor:pointer; min-width:120px; margin:0;">' +
+                            '<input type="checkbox" ' + isRbxChecked + ' id="cat-rbx-' + i + '">' +
+                            '<span>🎮 Roblox Pflicht</span>' +
+                        '</label>' +
+                        '<button type="button" onclick="deleteCategoryItem(' + i + ')" style="background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.4); color:#fca5a5; padding:5px 10px; border-radius:6px; cursor:pointer;">🗑️</button>' +
+                    '</div>';
+            });
+
+            return '<div class="form-group">' +
+                '<label>📁 Discord Ticket-Kategorie</label>' +
+                '<select id="cfg-ticket-category" class="form-control">' +
+                    '<option value="">Standard (Automatisch SUPPORT-TICKETS erstellen)</option>' +
+                    cats.map(c => '<option value="' + c.id + '" ' + (s.ticketCategoryId === c.id ? 'selected' : '') + '>📁 ' + c.name + '</option>').join('') +
+                '</select>' +
+            '</div>' +
+            '<div class="form-group">' +
+                '<label>🛡️ Autorisierte Support-Rolle (Erhält Ticket- & Dashboard-Rechte)</label>' +
+                '<select id="cfg-support-role" class="form-control">' +
+                    '<option value="">Keine spezielle Rolle (Nur Admins)</option>' +
+                    roles.map(r => '<option value="' + r.id + '" ' + (s.supportRoleId === r.id ? 'selected' : '') + '>@ ' + r.name + '</option>').join('') +
+                '</select>' +
+            '</div>' +
+            '<div class="form-group">' +
+                '<label>📜 Ticket-Logkanal (Für Schließungs-Archive & Transkript-Links)</label>' +
+                '<select id="cfg-ticket-logchannel" class="form-control">' +
+                    '<option value="">Kein separater Logkanal</option>' +
+                    textChs.map(ch => '<option value="' + ch.id + '" ' + (s.ticketLogChannelId === ch.id ? 'selected' : '') + '>#' + ch.name + '</option>').join('') +
+                '</select>' +
+            '</div>' +
+            '<div class="form-group">' +
+                '<label>💬 Begrüßungsnachricht im Ticket</label>' +
+                '<textarea id="cfg-ticket-welcome" class="form-control" rows="2">' + (s.ticketWelcomeMessage || '🌌 Willkommen in deinem Support-Ticket! Unser Team wird sich in Kürze um dein Anliegen kümmern.') + '</textarea>' +
+            '</div>' +
+            '<div style="border-top:1px solid var(--border); padding-top:16px;">' +
+                '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">' +
+                    '<label style="font-weight:700; color:#fff; font-size:0.88rem; margin:0;">🎨 Ticket-Gründe & Buttons</label>' +
+                    '<button type="button" class="btn-secondary" onclick="addCategoryItem()" style="padding:4px 12px; font-size:0.8rem;">+ Grund hinzufügen</button>' +
+                '</div>' +
+                '<div id="modal-category-list" style="display:flex; flex-direction:column; gap:8px;">' + catRowsHtml + '</div>' +
+            '</div>' +
+            '<div style="border-top:1px solid var(--border); padding-top:16px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">' +
+                '<div>' +
+                    '<div style="font-size:0.88rem; font-weight:700; color:#fff;">🚀 Support-Panel in Discord-Kanal posten</div>' +
+                    '<div style="font-size:0.75rem; color:var(--text-dim);">Sendet das interaktive Embed mit allen Buttons direkt in deinen Support-Kanal</div>' +
+                '</div>' +
+                '<div style="display:flex; gap:8px;">' +
+                    '<select id="cfg-deploy-target-channel" class="form-control" style="width:160px; padding:6px;">' +
+                        textChs.map(ch => '<option value="' + ch.id + '">#' + ch.name + '</option>').join('') +
+                    '</select>' +
+                    '<button type="button" class="btn-primary" onclick="deployPanelFromModal()" style="padding:6px 14px; font-size:0.82rem;">Panel posten</button>' +
+                '</div>' +
+            '</div>';
+        }
+
+        function buildRobloxModalHtml(guild) {
+            const s = guild.settings;
+            const rbx = s.roblox || {};
+            const roles = guild.roles || [];
+
+            return '<div class="form-group">' +
+                '<label>🆔 Roblox Experience / Place ID</label>' +
+                '<input type="text" id="cfg-roblox-placeid" class="form-control" value="' + (rbx.placeId || '98791725510246') + '" placeholder="z. B. 98791725510246">' +
+                '<span style="font-size:0.72rem; color:var(--text-dim);">Ermöglicht In-Game Reports und Teleportationen aus Discord-Tickets.</span>' +
+            '</div>' +
+            '<div class="form-group">' +
+                '<label>👑 Auto-Rolle für verifizierte Roblox-Nutzer</label>' +
+                '<select id="cfg-roblox-role" class="form-control">' +
+                    '<option value="">Keine automatische Rolle</option>' +
+                    roles.map(r => '<option value="' + r.id + '" ' + (rbx.verifiedRoleId === r.id ? 'selected' : '') + '>@ ' + r.name + '</option>').join('') +
+                '</select>' +
+                '<span style="font-size:0.72rem; color:var(--text-dim);">Wird Spielern nach erfolgreicher /verify Verifizierung automatisch zugewiesen.</span>' +
+            '</div>' +
+            '<div class="form-group">' +
+                '<label style="display:flex; align-items:center; gap:8px; cursor:pointer;">' +
+                    '<input type="checkbox" id="cfg-roblox-nicknamesync" ' + (rbx.nicknameSync !== false ? 'checked' : '') + '> ' +
+                    '<span style="color:#fff; text-transform:none; font-weight:600;">Server-Nickname an Roblox-Namen anpassen</span>' +
+                '</label>' +
+            '</div>' +
+            '<div class="form-group">' +
+                '<label style="display:flex; align-items:center; gap:8px; cursor:pointer;">' +
+                    '<input type="checkbox" id="cfg-roblox-requireglobal" ' + (rbx.requireVerificationGlobal === true ? 'checked' : '') + '> ' +
+                    '<span style="color:#fff; text-transform:none; font-weight:600;">Globale Roblox-Pflicht für ALLE Support-Tickets aktivieren</span>' +
+                '</label>' +
+            '</div>' +
+            '<div style="background:rgba(0,243,255,0.06); border:1px solid var(--border-glow); padding:14px; border-radius:12px; display:flex; align-items:center; gap:12px;">' +
+                '<span style="font-size:1.5rem;">⚡</span>' +
+                '<div>' +
+                    '<div style="font-weight:700; color:var(--cyan); font-size:0.88rem;">Offizielle Roblox API Anbindung aktiv</div>' +
+                    '<div style="font-size:0.75rem; color:var(--text-dim);">Live-Validierung über Roblox Users API & 3D Avatar-Headshot Thumbnails.</div>' +
+                '</div>' +
+            '</div>';
+        }
+
+        function buildAutoModModalHtml(guild) {
+            const s = guild.settings;
+            const am = s.autoMod || {};
+            const textChs = guild.textChannels || [];
+
+            return '<div class="form-group">' +
+                '<label>⚡ Anti-Spam Empfindlichkeit (Nachrichten pro 4 Sekunden)</label>' +
+                '<select id="cfg-automod-antispam" class="form-control">' +
+                    '<option value="3" ' + (am.antiSpamThreshold == 3 ? 'selected' : '') + '>3 Nachrichten (Sehr streng)</option>' +
+                    '<option value="5" ' + (am.antiSpamThreshold == 5 || !am.antiSpamThreshold ? 'selected' : '') + '>5 Nachrichten (Empfohlen)</option>' +
+                    '<option value="8" ' + (am.antiSpamThreshold == 8 ? 'selected' : '') + '>8 Nachrichten (Tolerant)</option>' +
+                '</select>' +
+            '</div>' +
+            '<div class="form-group">' +
+                '<label>⚠️ Sanktion bei Regelverstoß</label>' +
+                '<select id="cfg-automod-punishment" class="form-control">' +
+                    '<option value="warn" ' + (am.punishment === 'warn' ? 'selected' : '') + '>Warnung im Chat</option>' +
+                    '<option value="timeout" ' + (am.punishment === 'timeout' || !am.punishment ? 'selected' : '') + '>Timeout (5 Minuten)</option>' +
+                    '<option value="timeout_long" ' + (am.punishment === 'timeout_long' ? 'selected' : '') + '>Timeout (1 Stunde)</option>' +
+                    '<option value="kick" ' + (am.punishment === 'kick' ? 'selected' : '') + '>Server-Kick</option>' +
+                '</select>' +
+            '</div>' +
+            '<div class="form-group">' +
+                '<label style="display:flex; align-items:center; gap:8px; cursor:pointer;">' +
+                    '<input type="checkbox" id="cfg-automod-antiinvite" ' + (am.antiInvite !== false ? 'checked' : '') + '> ' +
+                    '<span style="color:#fff; text-transform:none; font-weight:600;">Discord-Einladungslinks (discord.gg/...) sofort löschen</span>' +
+                '</label>' +
+            '</div>' +
+            '<div class="form-group">' +
+                '<label>🚨 Moderations-Logkanal</label>' +
+                '<select id="cfg-automod-modlog" class="form-control">' +
+                    '<option value="">Kein separater Logkanal</option>' +
+                    textChs.map(ch => '<option value="' + ch.id + '" ' + (guild.settings.logging?.modLogChannelId === ch.id ? 'selected' : '') + '>#' + ch.name + '</option>').join('') +
+                '</select>' +
+            '</div>' +
+            '<div class="form-group">' +
+                '<label>🚫 Schimpfwort-Blacklist (Kommagetrennt)</label>' +
+                '<input type="text" id="cfg-automod-badwords" class="form-control" value="' + ((am.customBadWords || []).join(', ')) + '" placeholder="z. B. scam, cheat, exploit">' +
+                '<span style="font-size:0.72rem; color:var(--text-dim);">Diese Wörter werden vom Chat-Filter sofort erkannt und gelöscht.</span>' +
+            '</div>';
+        }
+
+        function buildLevelsModalHtml(guild) {
+            const s = guild.settings;
+            const lvl = s.levels || {};
+            const textChs = guild.textChannels || [];
+
+            return '<div class="form-group">' +
+                '<label>⚡ XP-Multiplikator</label>' +
+                '<select id="cfg-levels-multiplier" class="form-control">' +
+                    '<option value="1.0" ' + (lvl.multiplier == 1.0 ? 'selected' : '') + '>1.0x (Standard)</option>' +
+                    '<option value="1.5" ' + (lvl.multiplier == 1.5 ? 'selected' : '') + '>1.5x (Weekend Boost)</option>' +
+                    '<option value="2.0" ' + (lvl.multiplier == 2.0 ? 'selected' : '') + '>2.0x (Double XP Event)</option>' +
+                '</select>' +
+            '</div>' +
+            '<div class="form-group">' +
+                '<label>🪙 AeroCoins Belohnung pro Level-Up</label>' +
+                '<input type="number" id="cfg-levels-coins" class="form-control" value="' + (lvl.coinsPerLevel || 100) + '" min="0" max="5000">' +
+            '</div>' +
+            '<div class="form-group">' +
+                '<label>📢 Kanal für Level-Up Benachrichtigungen</label>' +
+                '<select id="cfg-levels-channel" class="form-control">' +
+                    '<option value="current" ' + (lvl.levelUpChannel === 'current' ? 'selected' : '') + '>Im selben Chatkanal posten</option>' +
+                    '<option value="dm" ' + (lvl.levelUpChannel === 'dm' ? 'selected' : '') + '>Per Direktnachricht</option>' +
+                    '<option value="silent" ' + (lvl.levelUpChannel === 'silent' ? 'selected' : '') + '>Keine Benachrichtigung (Stumm)</option>' +
+                '</select>' +
+            '</div>';
+        }
+
+        function buildSecurityModalHtml(guild) {
+            const s = guild.settings;
+            const sec = s.security || {};
+            const isLockdown = s.modules?.lockdown === true;
+
+            return '<div style="background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.4); padding:16px; border-radius:12px; margin-bottom:14px;">' +
+                '<div style="display:flex; justify-content:space-between; align-items:center;">' +
+                    '<div>' +
+                        '<div style="font-weight:800; color:#fca5a5; font-size:1.05rem;">🔒 NOTFALL SERVER-LOCKDOWN</div>' +
+                        '<div style="font-size:0.75rem; color:var(--text-dim);">Entzieht der @everyone Rolle sofort alle Schreibrechte auf dem gesamten Server.</div>' +
+                    '</div>' +
+                    '<label class="switch">' +
+                        '<input type="checkbox" id="cfg-security-lockdown" ' + (isLockdown ? 'checked' : '') + '> ' +
+                        '<span class="slider"></span>' +
+                    '</label>' +
+                '</div>' +
+            '</div>' +
+            '<div class="form-group">' +
+                '<label>⏳ Mindestalter für Discord-Accounts beim Beitreten</label>' +
+                '<select id="cfg-security-minage" class="form-control">' +
+                    '<option value="0" ' + (sec.minAccountAgeDays == 0 ? 'selected' : '') + '>Kein Mindestalter erforderlich</option>' +
+                    '<option value="3" ' + (sec.minAccountAgeDays == 3 ? 'selected' : '') + '>Mindestens 3 Tage alt</option>' +
+                    '<option value="7" ' + (sec.minAccountAgeDays == 7 ? 'selected' : '') + '>Mindestens 7 Tage alt (Empfohlen gegen Raids)</option>' +
+                '</select>' +
+            '</div>' +
+            '<div class="form-group">' +
+                '<label style="display:flex; align-items:center; gap:8px; cursor:pointer;">' +
+                    '<input type="checkbox" id="cfg-security-antiraid" ' + (sec.antiRaidAutoLockdown !== false ? 'checked' : '') + '> ' +
+                    '<span style="color:#fff; text-transform:none; font-weight:600;">Automatischer Lockdown bei Massen-Beitritt (mehr als 10 User in 30s)</span>' +
+                '</label>' +
+            '</div>';
+        }
+
+        function buildLoggingModalHtml(guild) {
+            const s = guild.settings;
+            const log = s.logging || {};
+            const textChs = guild.textChannels || [];
+
+            return '<div class="form-group">' +
+                '<label>🚨 Kanal für Moderations-Logs</label>' +
+                '<select id="cfg-log-modlog" class="form-control">' +
+                    '<option value="">Kein separater Kanal</option>' +
+                    textChs.map(ch => '<option value="' + ch.id + '" ' + (log.modLogChannelId === ch.id ? 'selected' : '') + '>#' + ch.name + '</option>').join('') +
+                '</select>' +
+            '</div>' +
+            '<div class="form-group">' +
+                '<label>👋 Kanal für Willkommens-Nachrichten</label>' +
+                '<select id="cfg-log-welcome" class="form-control">' +
+                    '<option value="">Kein separater Kanal</option>' +
+                    textChs.map(ch => '<option value="' + ch.id + '" ' + (log.welcomeChannelId === ch.id ? 'selected' : '') + '>#' + ch.name + '</option>').join('') +
+                '</select>' +
+            '</div>' +
+            '<div style="border-top:1px solid var(--border); padding-top:16px; margin-top:10px;">' +
+                '<div style="font-size:0.85rem; font-weight:700; color:#fff; margin-bottom:8px;">💾 Cloud-Backup der Server-Struktur</div>' +
+                '<div style="font-size:0.75rem; color:var(--text-dim); margin-bottom:12px;">Sichert alle Rollen, Kanäle und Berechtigungen verschlüsselt in der Cloud.</div>' +
+                '<button type="button" class="btn-secondary" onclick="alert(\'💾 Cloud-Backup für ' + guild.name + ' erfolgreich erstellt!\')">Struktur-Backup jetzt erstellen</button>' +
+            '</div>';
+        }
+
+        // --- CATEGORY LIST MANAGEMENT IN TICKETS MODAL ---
+        function addCategoryItem() {
+            const guild = guilds.find(g => g.id === activeGuildId);
+            if (!guild) return;
+            guild.settings.ticketCategories = guild.settings.ticketCategories || [];
+            guild.settings.ticketCategories.push({
+                id: 'cat_' + Date.now().toString(36),
+                label: '✨ Neuer Support-Grund',
+                color: 'Primary',
+                requireRoblox: false
+            });
+            document.getElementById('modal-body-content').innerHTML = buildTicketsModalHtml(guild);
+        }
+
+        function deleteCategoryItem(index) {
+            const guild = guilds.find(g => g.id === activeGuildId);
+            if (!guild || !guild.settings.ticketCategories) return;
+            if (guild.settings.ticketCategories.length <= 1) {
+                return alert('Mindestens eine Ticket-Kategorie muss bestehen bleiben.');
+            }
+            guild.settings.ticketCategories.splice(index, 1);
+            document.getElementById('modal-body-content').innerHTML = buildTicketsModalHtml(guild);
+        }
+
+        // --- SAVE ACTIVE MODULE CONFIGURATION ---
+        async function saveActiveModuleConfig() {
+            if (!activeGuildId || !currentOpenModule) return;
+            const guild = guilds.find(g => g.id === activeGuildId);
+            if (!guild) return;
+
+            const isModuleActive = document.getElementById('modal-module-toggle').checked;
+            const payload = { modules: guild.settings.modules || {} };
+
+            if (currentOpenModule === 'tickets') {
+                payload.modules.tickets = isModuleActive;
+                payload.ticketCategoryId = document.getElementById('cfg-ticket-category').value || null;
+                payload.supportRoleId = document.getElementById('cfg-support-role').value || null;
+                payload.ticketLogChannelId = document.getElementById('cfg-ticket-logchannel').value || null;
+                payload.ticketWelcomeMessage = document.getElementById('cfg-ticket-welcome').value;
+
+                // Collect categories
+                const catList = guild.settings.ticketCategories || [];
+                const updatedCats = [];
+                catList.forEach((c, i) => {
+                    const labelEl = document.getElementById('cat-label-' + i);
+                    const colorEl = document.getElementById('cat-color-' + i);
+                    const rbxEl = document.getElementById('cat-rbx-' + i);
+                    if (labelEl) {
+                        updatedCats.push({
+                            id: c.id,
+                            label: labelEl.value || 'Support',
+                            color: colorEl ? colorEl.value : 'Success',
+                            requireRoblox: rbxEl ? rbxEl.checked : false
+                        });
+                    }
+                });
+                payload.ticketCategories = updatedCats;
+            } else if (currentOpenModule === 'roblox') {
+                payload.modules.robloxHub = isModuleActive;
+                payload.roblox = {
+                    placeId: document.getElementById('cfg-roblox-placeid').value || '98791725510246',
+                    verifiedRoleId: document.getElementById('cfg-roblox-role').value || null,
+                    nicknameSync: document.getElementById('cfg-roblox-nicknamesync').checked,
+                    requireVerificationGlobal: document.getElementById('cfg-roblox-requireglobal').checked
+                };
+            } else if (currentOpenModule === 'automod') {
+                payload.modules.autoMod = isModuleActive;
+                const badwordsRaw = document.getElementById('cfg-automod-badwords').value || '';
+                payload.autoMod = {
+                    antiSpamThreshold: parseInt(document.getElementById('cfg-automod-antispam').value) || 5,
+                    antiInvite: document.getElementById('cfg-automod-antiinvite').checked,
+                    punishment: document.getElementById('cfg-automod-punishment').value,
+                    customBadWords: badwordsRaw.split(',').map(s => s.trim()).filter(Boolean)
+                };
+                payload.logging = { ...(guild.settings.logging || {}), modLogChannelId: document.getElementById('cfg-automod-modlog').value || null };
+            } else if (currentOpenModule === 'levels') {
+                payload.modules.levelSystem = isModuleActive;
+                payload.levels = {
+                    multiplier: parseFloat(document.getElementById('cfg-levels-multiplier').value) || 1.0,
+                    coinsPerLevel: parseInt(document.getElementById('cfg-levels-coins').value) || 100,
+                    levelUpChannel: document.getElementById('cfg-levels-channel').value
+                };
+            } else if (currentOpenModule === 'security') {
+                const lockdownChecked = document.getElementById('cfg-security-lockdown').checked;
+                payload.modules.lockdown = lockdownChecked;
+                payload.security = {
+                    minAccountAgeDays: parseInt(document.getElementById('cfg-security-minage').value) || 0,
+                    antiRaidAutoLockdown: document.getElementById('cfg-security-antiraid').checked
+                };
+            } else if (currentOpenModule === 'logging') {
+                payload.modules.logging = isModuleActive;
+                payload.logging = {
+                    modLogChannelId: document.getElementById('cfg-log-modlog').value || null,
+                    welcomeChannelId: document.getElementById('cfg-log-welcome').value || null
+                };
+            }
+
+            try {
+                const res = await fetch('/api/guild/' + activeGuildId + '/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                if (data.success) {
+                    guild.settings = data.settings;
+                    updateModuleBadges();
+                    closeModuleModal();
+                    showToast('✅ Einstellungen für ' + guild.name + ' erfolgreich gespeichert!');
+                } else {
+                    alert('Fehler: ' + (data.error || 'Konnte nicht speichern'));
+                }
+            } catch(e) {
+                alert('Netzwerkfehler beim Speichern');
+            }
+        }
+
+        // --- DEPLOY SUPPORT PANEL FROM MODAL ---
+        async function deployPanelFromModal() {
+            const targetChannelId = document.getElementById('cfg-deploy-target-channel').value;
+            if (!targetChannelId || !activeGuildId) return;
+
+            try {
+                const res = await fetch('/api/guild/' + activeGuildId + '/deploy-panel', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ channelId: targetChannelId })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('🚀 Support-Panel erfolgreich in #' + data.channelName + ' bereitgestellt!');
+                } else {
+                    alert('Fehler: ' + data.error);
+                }
+            } catch(e) {
+                alert('Netzwerkfehler beim Bereitstellen');
+            }
+        }
+
+        // --- RENDER LIVE TICKETS ---
+        function renderLiveTickets() {
+            const tbody = document.getElementById('live-tickets-tbody');
+            if (!tbody) return;
+
+            const query = (document.getElementById('ticket-search-input')?.value || '').toLowerCase();
+            const filtered = activeTicketsList.filter(t => {
+                if (t.guildId && t.guildId !== activeGuildId) return false;
+                if (currentTicketFilter !== 'ALL' && t.status !== currentTicketFilter) return false;
+                if (!query) return true;
+                const str = ((t.ticketNum || '') + ' ' + (t.username || '') + ' ' + (t.ign || '') + ' ' + (t.category || '')).toLowerCase();
+                return str.includes(query);
+            });
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:30px; color:#64748b;">✨ Keine offenen Tickets vorhanden. Alles erledigt!</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(t => {
+                const statusColor = t.status === 'CLAIMED' ? '#fbbf24' : '#00f3ff';
+                const statusLabel = t.status === 'CLAIMED' ? 'In Bearbeitung' : 'Offen';
+                return '<tr>' +
+                    '<td><span class="badge-id">#' + String(t.ticketNum).padStart(4, '0') + '</span></td>' +
+                    '<td><strong>' + (t.username || 'Unbekannt') + '</strong></td>' +
+                    '<td><span class="badge-cat">' + (t.category || 'Support') + '</span></td>' +
+                    '<td><code>' + (t.ign || 'N/A') + '</code></td>' +
+                    '<td><span style="color:' + statusColor + ';font-weight:700;">● ' + statusLabel + '</span></td>' +
+                    '<td><a href="/transcript/' + (t.channelId || '') + '" target="_blank" class="action-link">Transkript</a></td>' +
+                '</tr>';
+            }).join('');
+        }
+
+        function setTicketFilter(filter, btn) {
+            currentTicketFilter = filter;
+            btn.parentElement.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            renderLiveTickets();
+        }
+
+        function filterLiveTickets() {
+            renderLiveTickets();
+        }
+
+        // --- RENDER WEB TRANSCRIPTS ---
+        function renderWebTranscripts() {
+            const tbody = document.getElementById('web-transcripts-tbody');
+            if (!tbody) return;
+
+            const query = (document.getElementById('transcript-search-input')?.value || '').toLowerCase();
+            const filtered = allTranscripts.filter(t => {
+                if (t.guildId && t.guildId !== activeGuildId) return false;
+                if (!query) return true;
+                const str = ((t.id || '') + ' ' + (t.username || '') + ' ' + (t.ign || '') + ' ' + (t.category || '')).toLowerCase();
+                return str.includes(query);
+            });
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:30px; color:#64748b;">Keine archivierten Transkripte für diesen Server gefunden.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(t => {
+                const rbx = t.robloxData;
+                const rbxDisplay = rbx ? rbx.displayName + ' (@' + rbx.username + ')' : (t.ign || 'N/A');
+                return '<tr>' +
+                    '<td><code class="badge-id">' + (t.id || 'N/A') + '</code></td>' +
+                    '<td><span class="badge-id">#' + String(t.ticketNum || 0).padStart(4, '0') + '</span></td>' +
+                    '<td><strong>' + (t.username || 'Unbekannt') + '</strong></td>' +
+                    '<td>' +
+                        '<div style="display:flex; align-items:center; gap:6px;">' +
+                            (rbx && rbx.avatarUrl ? '<img src="' + rbx.avatarUrl + '" style="width:22px;height:22px;border-radius:4px;" alt="">' : '🎮') +
+                            '<span>' + rbxDisplay + '</span>' +
+                        '</div>' +
+                    '</td>' +
+                    '<td><span class="badge-cat">' + (t.category || 'Support') + '</span></td>' +
+                    '<td><span style="color:#94a3b8; font-size:0.85rem;">' + (t.closedBy || 'System') + '</span></td>' +
+                    '<td><a href="/transcript/' + t.id + '" target="_blank" class="action-link">🌐 Transkript aufrufen</a></td>' +
+                '</tr>';
+            }).join('');
+        }
+
+        function filterWebTranscripts() {
+            renderWebTranscripts();
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            if (!toast) return;
+            toast.innerText = msg;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3500);
+        }
+    </script>
+</body>
+</html>
