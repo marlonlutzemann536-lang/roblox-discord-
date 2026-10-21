@@ -357,6 +357,11 @@
                     <!-- Options populated by client JS -->
                 </select>
 
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <button type="button" class="btn btn-secondary" onclick="triggerStyleChannels()" style="background:rgba(0,243,255,0.08);border:1px solid rgba(0,243,255,0.4);color:var(--cyan);font-weight:700;padding:8px 16px;border-radius:10px;cursor:pointer;display:inline-flex;align-items:center;gap:8px;font-size:0.88rem;transition:all 0.2s;" onmouseover="this.style.background='rgba(0,243,255,0.18)'" onmouseout="this.style.background='rgba(0,243,255,0.08)'">
+                        <span>🎨</span> Kanäle mit Emojis stylen
+                    </button>
+                </div>
                 <div class="telemetry-group">
                     <div class="stat-pill">
                         <span>⚡ Ping:</span>
@@ -444,6 +449,34 @@
                     <div class="feature-card-footer">
                         <span class="feature-subtext">Server-Lockdown Steuerung</span>
                         <button type="button" class="btn-configure">⚙️ Konfigurieren</button>
+                    </div>
+                </div>
+
+                <!-- MODULE 7: VORSCHLÄGE-SYSTEM -->
+                <div class="feature-card" onclick="openModuleModal('suggestions')">
+                    <div class="feature-card-header">
+                        <div class="feature-icon-wrapper" style="color:#00f3ff;">💡</div>
+                        <span id="badge-mod-suggestions" class="feature-badge-active badge-on">● Aktiv</span>
+                    </div>
+                    <div class="feature-title">Vorschläge & Community-Feedback</div>
+                    <div class="feature-desc">Dedizierter Vorschlagskanal mit automatischen Emojis (👍/👎), interaktiven Diskussions-Threads & Team-Status (Angenommen / Abgelehnt).</div>
+                    <div class="feature-card-footer">
+                        <span class="feature-subtext">Voting, Threads & Review</span>
+                        <button type="button" class="btn-configure">⚙️ Konfigurieren</button>
+                    </div>
+                </div>
+
+                <!-- MODULE 8: GIVEAWAY SUITE -->
+                <div class="feature-card" onclick="openModuleModal('giveaways')">
+                    <div class="feature-card-header">
+                        <div class="feature-icon-wrapper" style="color:#c084fc;">🎉</div>
+                        <span id="badge-mod-giveaways" class="feature-badge-active badge-on">● Aktiv</span>
+                    </div>
+                    <div class="feature-title">Giveaway- & Event-Suite</div>
+                    <div class="feature-desc">High-End Verlosungen mit Live-Countdown, 1-Klick-Teilnahmebutton, Manipulationsschutz, automatischer Gewinnerziehung & Roblox-Pflicht.</div>
+                    <div class="feature-card-footer">
+                        <span class="feature-subtext">Countdown & Auto-Draw</span>
+                        <button type="button" class="btn-configure">🎉 Verwalten</button>
                     </div>
                 </div>
 
@@ -626,6 +659,8 @@
             setModuleBadge('badge-mod-levels', m.levelSystem !== false);
             setModuleBadge('badge-mod-security', m.lockdown === true, true);
             setModuleBadge('badge-mod-logging', m.logging !== false);
+            setModuleBadge('badge-mod-suggestions', settings.suggestions ? settings.suggestions.enabled !== false : true);
+            setModuleBadge('badge-mod-giveaways', true);
         }
 
         function setModuleBadge(elementId, isActive, isInverse) {
@@ -707,6 +742,20 @@
                 subtitleEl.innerText = 'Kanal-Routing für Logs & Cloud-Backup der Struktur';
                 toggleEl.checked = modules.logging !== false;
                 bodyEl.innerHTML = buildLoggingModalHtml(guild);
+            } else if (moduleId === 'suggestions') {
+                iconEl.innerText = '💡';
+                titleEl.innerText = 'Vorschläge & Community-Feedback';
+                subtitleEl.innerText = 'Dedizierter Vorschlagskanal, automatische Emojis (👍/👎), Threads & Team-Review';
+                toggleEl.checked = (settings.suggestions && settings.suggestions.enabled !== false);
+                bodyEl.innerHTML = buildSuggestionsModalHtml(guild);
+                loadSuggestionsListModal();
+            } else if (moduleId === 'giveaways') {
+                iconEl.innerText = '🎉';
+                titleEl.innerText = 'Giveaway- & Event-Suite';
+                subtitleEl.innerText = 'Echtzeit-Verlosungen mit Countdown, 1-Klick-Teilnahme & Auto-Draw';
+                toggleEl.checked = true;
+                bodyEl.innerHTML = buildGiveawaysModalHtml(guild);
+                loadGiveawaysListModal();
             }
         }
 

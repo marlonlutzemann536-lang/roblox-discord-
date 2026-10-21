@@ -273,6 +273,8 @@ let cloudStorage = {
     rankingDatabase: {},
     tempVoiceChannels: {},
     activeGiveaways: {},
+    suggestions: {},
+    suggestionCounter: 0,
     serverBackups: {},
     ticketTranscripts: {},
     savedTranscripts: {},
@@ -863,6 +865,54 @@ client.on('messageCreate', async message => {
     // TICKET MESSAGE LOGGER FÜR SERVER-KANÄLE
     if (message.guild && cloudStorage.activeTickets[message.channel.id]) {
         const isSupp = isSupporterOrAdmin(message.member);
+
+    // =========================================================================
+    // VORSCHLÄGE: AUTOMATISCHE FORMATIERUNG IM VORSCHLAGS-KANAL
+    // =========================================================================
+    const gSettingsMessage = getGuildSettings(message.guild.id);
+    if (gSettingsMessage && gSettingsMessage.suggestions && gSettingsMessage.suggestions.enabled !== false && gSettingsMessage.suggestions.channelId === message.channel.id) {
+        if (!rawContent.startsWith('!') && !rawContent.startsWith('/')) {
+            await message.delete().catch(() => {});
+            return await postSuggestionEmbed(message.guild, message.channel, message.author, rawContent, false);
+        }
+    }
+
+    // Prefix-Befehle: !suggest / !vorschlag
+    if (lowerContent.startsWith('!suggest ') || lowerContent.startsWith('!vorschlag ')) {
+        const text = rawContent.replace(/^!(suggest|vorschlag)\s+/i, '').trim();
+        if (!text) return message.reply('ℹ️ Bitte gib deinen Vorschlag an: `!suggest <Deine Idee>`');
+        const targetChannel = (gSettingsMessage.suggestions && gSettingsMessage.suggestions.channelId) 
+            ? message.guild.channels.cache.get(gSettingsMessage.suggestions.channelId) || message.channel 
+            : message.channel;
+        await postSuggestionEmbed(message.guild, targetChannel, message.author, text, false);
+        if (targetChannel.id !== message.channel.id) {
+            return message.reply('✅ Dein Vorschlag wurde erfolgreich in ' + targetChannel.toString() + ' eingereicht!');
+        }
+        return;
+    }
+
+    // Prefix-Befehl: !style-channels / !emojis
+    if (lowerContent === '!style-channels' || lowerContent === '!emojis' || lowerContent === '!stylechannels') {
+        if (!isSupp) return message.reply('⛔ **Zugriff verweigert:** Nur Administratoren können die Kanal-Emojis überarbeiten.');
+        const statusMsg = await message.reply('🎨 **AeroGuard Stylizer:** Analysiere und formatiere alle Server-Kanäle mit passenden Cyberpunk-Emojis...');
+        const result = await styleGuildChannels(message.guild);
+        return statusMsg.edit('✨ **Fertig!** ' + result.changed + ' von ' + result.total + ' Kanälen wurden erfolgreich mit passenden Emojis neu formatiert. (' + result.skipped + ' unverändert).');
+    }
+
+    // Prefix-Befehl: !giveaway <dauer> <gewinner> <preis>
+    if (lowerContent.startsWith('!giveaway ')) {
+        if (!isSupp) return message.reply('⛔ **Zugriff verweigert:** Nur Teammitglieder können Giveaways starten.');
+        const args = rawContent.substring(10).trim().split(/\s+/);
+        if (args.length < 3) {
+            return message.reply('ℹ️ Syntax: `!giveaway <Dauer, z.B. 1h oder 30m> <Gewinneranzahl, z.B. 1> <Preis>`\n*Beispiel:* `!giveaway 1h 1 1000 Robux`');
+        }
+        const durStr = args[0];
+        const winCount = parseInt(args[1], 10) || 1;
+        const prize = args.slice(2).join(' ');
+        const durMs = parseDuration(durStr);
+        await startGiveaway(message.guild, message.channel, message.author, { prize, durationMs: durMs, winnerCount: winCount, robloxRequired: false });
+        return;
+    }
         logTicketMessage(message.channel.id, message.author.tag, message.content, isSupp);
     }
     // =========================================================================
@@ -1161,6 +1211,259 @@ client.on('interactionCreate', async interaction => {
 
         await interaction.update({ embeds: [updatedEmbed] }); 
         return;
+    }
+
+    // =========================================================================
+    // VORSCHLÄGE: UPVOTE / DOWNVOTE BUTTONS
+    // =========================================================================
+    if (interaction.isButton() && (interaction.customId.startsWith('sug_up_') || interaction.customId.startsWith('sug_down_'))) {
+        const isUp = interaction.customId.startsWith('sug_up_');
+        const sugId = interaction.customId.replace(isUp ? 'sug_up_' : 'sug_down_', '');
+        const sug = cloudStorage.suggestions ? cloudStorage.suggestions[sugId] : null;
+
+        if (!sug) {
+            return interaction.reply({ content: '❌ Vorschlag nicht in der Datenbank gefunden.', ephemeral: true });
+        }
+
+        const userId = interaction.user.id;
+        if (!Array.isArray(sug.upvotes)) sug.upvotes = [];
+        if (!Array.isArray(sug.downvotes)) sug.downvotes = [];
+
+        let feedback = '';
+        if (isUp) {
+            if (sug.upvotes.includes(userId)) {
+                sug.upvotes = sug.upvotes.filter(id => id !== userId);
+                feedback = 'Neutralisiert: Deine Zustimmung wurde zurückgezogen.';
+            } else {
+                sug.upvotes.push(userId);
+                sug.downvotes = sug.downvotes.filter(id => id !== userId);
+                feedback = '👍 Du hast diesem Vorschlag zugestimmt!';
+            }
+        } else {
+            if (sug.downvotes.includes(userId)) {
+                sug.downvotes = sug.downvotes.filter(id => id !== userId);
+                feedback = 'Neutralisiert: Deine Ablehnung wurde zurückgezogen.';
+            } else {
+                sug.downvotes.push(userId);
+                sug.upvotes = sug.upvotes.filter(id => id !== userId);
+                feedback = '👎 Du hast gegen diesen Vorschlag gestimmt.';
+            }
+        }
+
+        saveCloudVaultToDisk();
+
+        const totalVotes = sug.upvotes.length + sug.downvotes.length;
+        const upPct = totalVotes > 0 ? Math.round((sug.upvotes.length / totalVotes) * 100) : 0;
+        const downPct = totalVotes > 0 ? Math.round((sug.downvotes.length / totalVotes) * 100) : 0;
+
+        const originalEmbed = interaction.message.embeds[0];
+        if (originalEmbed) {
+            const updatedEmbed = EmbedBuilder.from(originalEmbed)
+                .spliceFields(1, 1, {
+                    name: '🗳️ Stimmen',
+                    value: '👍 **' + sug.upvotes.length + '** (' + upPct + '%)  •  👎 **' + sug.downvotes.length + '** (' + downPct + '%)',
+                    inline: true
+                });
+
+            const updatedRow = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId('sug_up_' + sugId).setLabel('👍 ' + sug.upvotes.length).setStyle(ButtonStyle.Success),
+                new ButtonBuilder().setCustomId('sug_down_' + sugId).setLabel('👎 ' + sug.downvotes.length).setStyle(ButtonStyle.Danger),
+                new ButtonBuilder().setCustomId('sug_mod_' + sugId).setLabel('⚙️ Status verwalten').setStyle(ButtonStyle.Secondary)
+            );
+
+            await interaction.update({ embeds: [updatedEmbed], components: [updatedRow] });
+            return await interaction.followUp({ content: feedback, ephemeral: true });
+        }
+
+        return interaction.reply({ content: feedback, ephemeral: true });
+    }
+
+    // =========================================================================
+    // VORSCHLÄGE: STATUS-VERWALTUNG BUTTON & AUSWAHL
+    // =========================================================================
+    if (interaction.isButton() && interaction.customId.startsWith('sug_mod_')) {
+        const sugId = interaction.customId.replace('sug_mod_', '');
+        const sug = cloudStorage.suggestions ? cloudStorage.suggestions[sugId] : null;
+        if (!sug) return interaction.reply({ content: '❌ Vorschlag nicht gefunden.', ephemeral: true });
+
+        const isSupp = isSupporterOrAdmin(interaction.member);
+        if (!isSupp) {
+            return interaction.reply({ content: '⛔ **Zugriff verweigert:** Nur Teammitglieder (Supporter/Admins) können den Status von Vorschlägen ändern.', ephemeral: true });
+        }
+
+        const actionRow = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('sug_set_accept_' + sugId).setLabel('✅ Annehmen').setStyle(ButtonStyle.Success),
+            new ButtonBuilder().setCustomId('sug_set_reject_' + sugId).setLabel('❌ Ablehnen').setStyle(ButtonStyle.Danger),
+            new ButtonBuilder().setCustomId('sug_set_progress_' + sugId).setLabel('⚙️ In Umsetzung').setStyle(ButtonStyle.Primary),
+            new ButtonBuilder().setCustomId('sug_set_pending_' + sugId).setLabel('⏳ Auf Prüfung').setStyle(ButtonStyle.Secondary)
+        );
+
+        return interaction.reply({
+            content: '⚙️ **Statusverwaltung für Vorschlag #' + String(sug.num).padStart(4, '0') + ':**\nWähle den neuen Status aus:',
+            components: [actionRow],
+            ephemeral: true
+        });
+    }
+
+    if (interaction.isButton() && (
+        interaction.customId.startsWith('sug_set_accept_') ||
+        interaction.customId.startsWith('sug_set_reject_') ||
+        interaction.customId.startsWith('sug_set_progress_') ||
+        interaction.customId.startsWith('sug_set_pending_')
+    )) {
+        const isSupp = isSupporterOrAdmin(interaction.member);
+        if (!isSupp) return interaction.reply({ content: '⛔ Zugriff verweigert.', ephemeral: true });
+
+        let newStatus = 'PENDING';
+        let statusBadge = '⏳ **In Prüfung** (Offen für Feedback)';
+        let embedColor = 0x00f3ff;
+        let note = '';
+
+        let sugId = '';
+        if (interaction.customId.startsWith('sug_set_accept_')) {
+            sugId = interaction.customId.replace('sug_set_accept_', '');
+            newStatus = 'ACCEPTED';
+            statusBadge = '✅ **Angenommen** von ' + interaction.user.tag;
+            embedColor = 0x00ff88;
+            note = 'wurde angenommen und wird umgesetzt';
+        } else if (interaction.customId.startsWith('sug_set_reject_')) {
+            sugId = interaction.customId.replace('sug_set_reject_', '');
+            newStatus = 'REJECTED';
+            statusBadge = '❌ **Abgelehnt** von ' + interaction.user.tag;
+            embedColor = 0xef4444;
+            note = 'wurde abgelehnt';
+        } else if (interaction.customId.startsWith('sug_set_progress_')) {
+            sugId = interaction.customId.replace('sug_set_progress_', '');
+            newStatus = 'PROGRESS';
+            statusBadge = '⚙️ **In Bearbeitung / Umsetzung**';
+            embedColor = 0x9d4edd;
+            note = 'befindet sich nun in Bearbeitung';
+        } else {
+            sugId = interaction.customId.replace('sug_set_pending_', '');
+            newStatus = 'PENDING';
+            statusBadge = '⏳ **In Prüfung** (Offen für Feedback)';
+            embedColor = 0x00f3ff;
+            note = 'wurde zurück auf Prüfung gesetzt';
+        }
+
+        const sug = cloudStorage.suggestions ? cloudStorage.suggestions[sugId] : null;
+        if (!sug) return interaction.reply({ content: '❌ Vorschlag nicht gefunden.', ephemeral: true });
+
+        sug.status = newStatus;
+        sug.handledBy = interaction.user.tag;
+        saveCloudVaultToDisk();
+
+        // Update the original message in channel
+        try {
+            const ch = interaction.guild.channels.cache.get(sug.channelId);
+            if (ch) {
+                const targetMsg = await ch.messages.fetch(sug.messageId).catch(() => null);
+                if (targetMsg && targetMsg.embeds[0]) {
+                    const upEmbed = EmbedBuilder.from(targetMsg.embeds[0])
+                        .setColor(embedColor)
+                        .spliceFields(0, 1, { name: '📊 Status', value: statusBadge, inline: true });
+                    await targetMsg.edit({ embeds: [upEmbed] });
+                }
+            }
+        } catch(e) {}
+
+        // Post notice in thread if thread exists
+        if (sug.threadId) {
+            try {
+                const thread = interaction.guild.channels.cache.get(sug.threadId);
+                if (thread) {
+                    await thread.send('📢 **Status-Update:** Dieser Vorschlag ' + note + ' durch ' + interaction.user.toString() + '.');
+                }
+            } catch(e) {}
+        }
+
+        return interaction.update({
+            content: '✅ Status für **Vorschlag #' + String(sug.num).padStart(4, '0') + '** erfolgreich auf **' + newStatus + '** gesetzt!',
+            components: []
+        });
+    }
+
+    // =========================================================================
+    // GIVEAWAY: TEILNEHMEN BUTTON (Toggle Entry)
+    // =========================================================================
+    if (interaction.isButton() && interaction.customId.startsWith('giveaway_join_')) {
+        const giveawayId = interaction.customId.replace('giveaway_join_', '');
+        const g = cloudStorage.activeGiveaways ? cloudStorage.activeGiveaways[giveawayId] : null;
+
+        if (!g) {
+            return interaction.reply({ content: '❌ Giveaway nicht gefunden oder abgelaufen.', ephemeral: true });
+        }
+        if (g.ended) {
+            return interaction.reply({ content: '⛔ Dieses Giveaway ist bereits beendet!', ephemeral: true });
+        }
+
+        const userId = interaction.user.id;
+
+        // Check Roblox verification requirement if enabled
+        if (g.robloxRequired) {
+            const isVerified = cloudStorage.verifiedRobloxUsers && cloudStorage.verifiedRobloxUsers[userId];
+            if (!isVerified) {
+                return interaction.reply({
+                    content: '🔒 **Roblox-Pflicht:** Für dieses Giveaway musst du dein Roblox-Konto mit AeroGuard verknüpfen!\nNutze den Chat-Befehl `/verify [dein_roblox_name]`, um teilnehmen zu können.',
+                    ephemeral: true
+                });
+            }
+        }
+
+        if (!Array.isArray(g.participants)) g.participants = [];
+
+        let feedback = '';
+        if (g.participants.includes(userId)) {
+            g.participants = g.participants.filter(id => id !== userId);
+            feedback = '👋 Du hast das Giveaway wieder verlassen.';
+        } else {
+            g.participants.push(userId);
+            feedback = '🎉 **Du nimmst am Giveaway teil!** Viel Glück bei der Verlosung! 🍀';
+        }
+
+        saveCloudVaultToDisk();
+
+        // Update button label and embed participant counter
+        try {
+            const origEmbed = interaction.message.embeds[0];
+            if (origEmbed) {
+                const updatedEmbed = EmbedBuilder.from(origEmbed)
+                    .spliceFields(4, 1, {
+                        name: '👥 Teilnehmer',
+                        value: '**' + g.participants.length + ' Teilnehmer**',
+                        inline: true
+                    });
+
+                const updatedRow = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder().setCustomId('giveaway_join_' + g.id).setLabel('🎉 Teilnehmen (' + g.participants.length + ')').setStyle(ButtonStyle.Primary),
+                    new ButtonBuilder().setCustomId('giveaway_info_' + g.id).setLabel('ℹ️ Details').setStyle(ButtonStyle.Secondary)
+                );
+
+                await interaction.update({ embeds: [updatedEmbed], components: [updatedRow] });
+                return await interaction.followUp({ content: feedback, ephemeral: true });
+            }
+        } catch(e) {}
+
+        return interaction.reply({ content: feedback, ephemeral: true });
+    }
+
+    if (interaction.isButton() && interaction.customId.startsWith('giveaway_info_')) {
+        const giveawayId = interaction.customId.replace('giveaway_info_', '');
+        const g = cloudStorage.activeGiveaways ? cloudStorage.activeGiveaways[giveawayId] : null;
+        if (!g) return interaction.reply({ content: '❌ Giveaway nicht gefunden.', ephemeral: true });
+
+        const isEntered = g.participants && g.participants.includes(interaction.user.id);
+        const infoEmbed = new EmbedBuilder()
+            .setTitle('ℹ️ Giveaway Telemetrie & Details')
+            .setColor(0x00f3ff)
+            .addFields(
+                { name: '🎁 Preis', value: g.prize, inline: true },
+                { name: '👥 Gesamtteilnehmer', value: String(g.participants ? g.participants.length : 0), inline: true },
+                { name: '👤 Dein Status', value: isEntered ? '✅ **Du bist angemeldet**' : '❌ **Noch nicht angemeldet**', inline: true },
+                { name: '🎮 Roblox-Pflicht', value: g.robloxRequired ? 'Aktiv (Verifizierung erforderlich)' : 'Keine', inline: true }
+            );
+
+        return interaction.reply({ embeds: [infoEmbed], ephemeral: true });
     }
 
     if (interaction.isButton() && interaction.customId.startsWith('server_panel_trigger_')) {
@@ -1718,7 +2021,7 @@ client.on('interactionCreate', async interaction => {
         const userId = interaction.user.id;
         const isWhitelisted = cloudStorage.systemSettings.whitelistedUsers.includes(userId);
 
-        const adminCmds = ['status', 'restart', 'clear', 'warn', 'ticket', 'setup-ticketpanel', 'setup-infohub', 'poll', 'rbx-shout', 'rbx-serverlogs', 'rbx-shutdown', 'clan-war', 'rbx-savedata', 'rbx-cleardata', 'nuke', 'lockdown', 'unlockdown', 'slowmode', 'addrole', 'removerole', 'set-placeid', 'mute', 'unmute', 'warnlist', 'clearwarns', 'lockchannel', 'unlockchannel', 'dm', 'whitelist', 'supporter', 'setup-modlog', 'backup-server', 'give-premium', 'setup-welcome', 'setup-livestatus', 'setup-autorole', 'blacklist'];
+        const adminCmds = ['status', 'restart', 'clear', 'warn', 'ticket', 'setup-ticketpanel', 'setup-infohub', 'poll', 'rbx-shout', 'rbx-serverlogs', 'rbx-shutdown', 'clan-war', 'rbx-savedata', 'rbx-cleardata', 'nuke', 'lockdown', 'unlockdown', 'slowmode', 'addrole', 'removerole', 'set-placeid', 'mute', 'unmute', 'warnlist', 'clearwarns', 'lockchannel', 'unlockchannel', 'dm', 'whitelist', 'supporter', 'setup-modlog', 'backup-server', 'give-premium', 'setup-welcome', 'setup-livestatus', 'setup-autorole', 'blacklist', 'style-channels', 'suggest-setup', 'giveaway'];
         
         if (adminCmds.includes(commandName) && !isWhitelisted) {
             return interaction.reply({ content: '🔒 **Zugriff verweigert:** Dein Benutzerkonto verfügt nicht über die erforderlichen administrativen Schlüssel.', ephemeral: true });
@@ -2479,6 +2782,461 @@ client.on('messageCreate', async message => {
 });
 
 
+
+// =========================================================================
+// HELPER: CHANNEL EMOJI STYLIZER (Cyberpunk Auto-Formatting)
+// =========================================================================
+function cleanChannelName(rawName) {
+    if (!rawName) return '';
+    return rawName
+        .replace(/^[\p{Emoji}\u200d\uFE0F\uFE0E\u{1F300}-\u{1FAFF}\u{2600}-\u{26FF}\s・\-_|~📁📌💬🎫🎮🔊🛡️📜👋📢🎉💡🚀🤣📸🤖🏆🤝📊🎪✨💻💭🔴🎵💤🎙️🚨]+/gu, '')
+        .trim() || rawName;
+}
+
+async function styleGuildChannels(guild) {
+    if (!guild) return { total: 0, changed: 0, skipped: 0 };
+    
+    const textDict = [
+        { keys: ['regel', 'rule', 'leitfaden', 'gesetz'], emoji: '📜' },
+        { keys: ['willkommen', 'welcome', 'eingang', 'start', 'intro'], emoji: '👋' },
+        { keys: ['ankündigung', 'announcement', 'news', 'neuigkeiten', 'info', 'information'], emoji: '📢' },
+        { keys: ['giveaway', 'verlosung', 'drops', 'gewinn', 'gift'], emoji: '🎉' },
+        { keys: ['vorschlag', 'vorschläge', 'suggest', 'feedback', 'ideen', 'ideensammlung'], emoji: '💡' },
+        { keys: ['ticket', 'tickets', 'support', 'hilfe', 'help', 'leitstelle', 'kundenservice'], emoji: '🎫' },
+        { keys: ['update', 'updates', 'changelog', 'patch', 'patchnotes'], emoji: '🚀' },
+        { keys: ['roblox', 'game', 'spiel', 'server', 'ingame', 'place'], emoji: '🎮' },
+        { keys: ['meme', 'memes', 'lustig', 'clip', 'clips', 'funny'], emoji: '🤣' },
+        { keys: ['medien', 'media', 'bild', 'bilder', 'fotos', 'screenshots', 'galerie', 'art'], emoji: '📸' },
+        { keys: ['bot', 'bots', 'command', 'commands', 'befehle', 'spam'], emoji: '🤖' },
+        { keys: ['rang', 'level', 'xp', 'leaderboard', 'top', 'highscore'], emoji: '🏆' },
+        { keys: ['partner', 'partnerschaft', 'promo', 'werbung', 'kooperation'], emoji: '🤝' },
+        { keys: ['umfrage', 'umfragen', 'poll', 'polls', 'abstimmung', 'voting'], emoji: '📊' },
+        { keys: ['event', 'events', 'turnier', 'meisterschaft'], emoji: '🎪' },
+        { keys: ['boost', 'booster', 'vip', 'donator', 'spenden', 'perks'], emoji: '✨' },
+        { keys: ['dev', 'develop', 'code', 'coding', 'script', 'skript', 'programmieren', 'github'], emoji: '💻' },
+        { keys: ['offtopic', 'off-topic', 'quatsch', 'laberecke', 'spam-channel'], emoji: '💭' },
+        { keys: ['social', 'youtube', 'twitch', 'tiktok', 'instagram', 'twitter', 'socials'], emoji: '🔴' },
+        { keys: ['log', 'logs', 'audit', 'modlog', 'sicherheit', 'security', 'ban', 'kick'], emoji: '🛡️' },
+        { keys: ['chat', 'general', 'allgemein', 'hauptchat', 'lounge', 'main', 'unterhaltung'], emoji: '💬' }
+    ];
+
+    const voiceDict = [
+        { keys: ['musik', 'music', 'radio', 'song', 'groove'], emoji: '🎵' },
+        { keys: ['gaming', 'zocken', 'game', 'duo', 'trio', 'squad', 'roblox'], emoji: '🎮' },
+        { keys: ['afk', 'abwesend', 'schlafen', 'sleep'], emoji: '💤' },
+        { keys: ['team', 'staff', 'meeting', 'besprechung', 'konferenz'], emoji: '🎙️' },
+        { keys: ['support', 'hilfe', 'warten', 'warteraum', 'leitung'], emoji: '🚨' },
+        { keys: ['lounge', 'chill', 'talk', 'voice', 'labern', 'quasseln', 'redner'], emoji: '🔊' }
+    ];
+
+    const categoryDict = [
+        { keys: ['info', 'start', 'wichtig', 'regeln', 'willkommen', 'leitfaden'], prefix: '📌 ┃ ' },
+        { keys: ['support', 'hilfe', 'ticket', 'leitstelle', 'kundendienst'], prefix: '🎫 ┃ ' },
+        { keys: ['community', 'chat', 'allgemein', 'text', 'öffentlich'], prefix: '💬 ┃ ' },
+        { keys: ['gaming', 'roblox', 'game', 'server', 'spielzone'], prefix: '🎮 ┃ ' },
+        { keys: ['voice', 'talk', 'audio', 'sprachkanäle', 'talks', 'sprachzonen'], prefix: '🔊 ┃ ' },
+        { keys: ['team', 'staff', 'verwaltung', 'moderation', 'intern', 'führung'], prefix: '🛡️ ┃ ' },
+        { keys: ['logs', 'archiv', 'backup', 'verlauf'], prefix: '📜 ┃ ' }
+    ];
+
+    let total = 0;
+    let changed = 0;
+    let skipped = 0;
+
+    const channels = Array.from(guild.channels.cache.values());
+    for (const ch of channels) {
+        total++;
+        const rawName = ch.name;
+        const clean = cleanChannelName(rawName);
+        const lower = clean.toLowerCase();
+        let newName = rawName;
+
+        if (ch.type === ChannelType.GuildCategory) {
+            let matched = categoryDict.find(item => item.keys.some(k => lower.includes(k)));
+            const prefix = matched ? matched.prefix : '📁 ┃ ';
+            newName = prefix + clean.toUpperCase();
+        } else if (ch.type === ChannelType.GuildVoice || ch.type === ChannelType.GuildStageVoice) {
+            let matched = voiceDict.find(item => item.keys.some(k => lower.includes(k)));
+            const emoji = matched ? matched.emoji : '🔊';
+            newName = emoji + '・' + clean;
+        } else if (ch.type === ChannelType.GuildText || ch.type === ChannelType.GuildAnnouncement) {
+            let matched = textDict.find(item => item.keys.some(k => lower.includes(k)));
+            const emoji = matched ? matched.emoji : '💬';
+            newName = emoji + '・' + clean.toLowerCase().replace(/\s+/g, '-');
+        }
+
+        if (newName === rawName || !newName) {
+            skipped++;
+            continue;
+        }
+
+        try {
+            await ch.setName(newName);
+            changed++;
+            // Gentle sleep to respect Discord rate limits
+            await new Promise(resolve => setTimeout(resolve, 350));
+        } catch(err) {
+            skipped++;
+        }
+    }
+
+    return { total, changed, skipped };
+}
+
+// =========================================================================
+// HELPER: VORSCHLÄGE-SYSTEM (Suggestions & Feedback Engine)
+// =========================================================================
+async function postSuggestionEmbed(guild, channel, authorUser, text, isAnonymous = false) {
+    if (!cloudStorage.suggestions) cloudStorage.suggestions = {};
+    cloudStorage.suggestionCounter = (cloudStorage.suggestionCounter || 0) + 1;
+    const sugNum = cloudStorage.suggestionCounter;
+    const sugId = 'sug_' + Date.now() + '_' + sugNum;
+
+    const embed = new EmbedBuilder()
+        .setTitle('💡 Community-Vorschlag #' + String(sugNum).padStart(4, '0'))
+        .setColor(0x00f3ff)
+        .setDescription('>>> ' + text)
+        .addFields(
+            { name: '📊 Status', value: '⏳ **In Prüfung** (Offen für Feedback)', inline: true },
+            { name: '🗳️ Stimmen', value: '👍 **0** (0%)  •  👎 **0** (0%)', inline: true }
+        )
+        .setFooter({ text: 'AeroGuard Feedback-Engine • Klicke auf die Buttons, um abzustimmen!' })
+        .setTimestamp();
+
+    if (isAnonymous) {
+        embed.setAuthor({ name: '👤 Anonymer Einsender' });
+    } else {
+        embed.setAuthor({ 
+            name: authorUser.tag + ' (' + authorUser.id + ')', 
+            iconURL: authorUser.displayAvatarURL ? authorUser.displayAvatarURL() : undefined 
+        });
+        if (authorUser.displayAvatarURL) embed.setThumbnail(authorUser.displayAvatarURL());
+    }
+
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('sug_up_' + sugId).setLabel('👍 0').setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId('sug_down_' + sugId).setLabel('👎 0').setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId('sug_mod_' + sugId).setLabel('⚙️ Status verwalten').setStyle(ButtonStyle.Secondary)
+    );
+
+    const msg = await channel.send({ embeds: [embed], components: [row] });
+
+    let threadId = null;
+    const gSettings = getGuildSettings(guild.id);
+    if (!gSettings.suggestions || gSettings.suggestions.autoThread !== false) {
+        try {
+            const shortTitle = text.length > 30 ? text.substring(0, 30) + '...' : text;
+            const thread = await msg.startThread({
+                name: '💡・Vorschlag #' + String(sugNum).padStart(4, '0') + ': ' + shortTitle,
+                autoArchiveDuration: 1440
+            });
+            threadId = thread.id;
+            await thread.send('💬 **Diskussion eröffnet:** Teilt hier eure Gedanken zum Vorschlag von ' + (isAnonymous ? 'einem Community-Mitglied' : authorUser.toString()) + ' mit!');
+        } catch(e) {}
+    }
+
+    const sugObj = {
+        id: sugId,
+        num: sugNum,
+        guildId: guild.id,
+        channelId: channel.id,
+        messageId: msg.id,
+        threadId: threadId,
+        authorId: authorUser.id,
+        authorTag: authorUser.tag,
+        isAnonymous: !!isAnonymous,
+        text: text,
+        status: 'PENDING',
+        statusReason: '',
+        upvotes: [],
+        downvotes: [],
+        createdAt: Date.now()
+    };
+
+    cloudStorage.suggestions[sugId] = sugObj;
+    saveCloudVaultToDisk();
+
+    return { success: true, suggestion: sugObj, messageId: msg.id };
+}
+
+// =========================================================================
+// HELPER: GIVEAWAY-SYSTEM (High-End Verlosungs-Engine)
+// =========================================================================
+function parseDuration(str) {
+    if (!str) return 3600000;
+    const match = str.trim().match(/^(\d+)\s*(m|min|h|std|d|tage?|s|sek)?$/i);
+    if (!match) return 3600000;
+    const val = parseInt(match[1], 10);
+    const unit = (match[2] || 'm').toLowerCase();
+    if (unit.startsWith('s')) return val * 1000;
+    if (unit.startsWith('h') || unit.startsWith('std')) return val * 3600000;
+    if (unit.startsWith('d') || unit.startsWith('tag')) return val * 86400000;
+    return val * 60000; // default minutes
+}
+
+async function startGiveaway(guild, channel, hostUser, { prize, durationMs, winnerCount = 1, robloxRequired = false }) {
+    if (!cloudStorage.activeGiveaways) cloudStorage.activeGiveaways = {};
+    const endTime = Date.now() + durationMs;
+    const endSeconds = Math.floor(endTime / 1000);
+
+    const embed = new EmbedBuilder()
+        .setTitle('🎉 **AEROGUARD HIGH-END GIVEAWAY** 🎉')
+        .setDescription('Klicke auf den Button **🎉 Teilnehmen**, um bei der Verlosung mitzumachen!\n\n🎁 **Preis:** ' + prize)
+        .setColor(0x00f3ff)
+        .addFields(
+            { name: '🏆 Gewinner', value: '**' + winnerCount + '**', inline: true },
+            { name: '👑 Veranstalter', value: hostUser.toString(), inline: true },
+            { name: '🎮 Roblox-Pflicht', value: robloxRequired ? '🔒 **Nur verifizierte Accounts**' : '🔓 Für alle Mitglieder', inline: true },
+            { name: '⏰ Endet in', value: '<t:' + endSeconds + ':R> (<t:' + endSeconds + ':f>)', inline: true },
+            { name: '👥 Teilnehmer', value: '**0 Teilnehmer**', inline: true }
+        )
+        .setFooter({ text: 'AeroGuard Giveaway Suite • Fair & Manipulationssicher' })
+        .setTimestamp();
+
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('giveaway_join_pending').setLabel('🎉 Teilnehmen (0)').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId('giveaway_info_pending').setLabel('ℹ️ Details').setStyle(ButtonStyle.Secondary)
+    );
+
+    const msg = await channel.send({ embeds: [embed], components: [row] });
+
+    // Update customIds with actual msg.id
+    const updatedRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('giveaway_join_' + msg.id).setLabel('🎉 Teilnehmen (0)').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId('giveaway_info_' + msg.id).setLabel('ℹ️ Details').setStyle(ButtonStyle.Secondary)
+    );
+    await msg.edit({ components: [updatedRow] });
+
+    const giveawayObj = {
+        id: msg.id,
+        guildId: guild.id,
+        channelId: channel.id,
+        hostId: hostUser.id,
+        hostTag: hostUser.tag,
+        prize: prize,
+        winnerCount: Math.max(1, winnerCount),
+        robloxRequired: !!robloxRequired,
+        endTime: endTime,
+        participants: [],
+        ended: false,
+        winners: []
+    };
+
+    cloudStorage.activeGiveaways[msg.id] = giveawayObj;
+    saveCloudVaultToDisk();
+    return giveawayObj;
+}
+
+async function endGiveaway(messageId) {
+    if (!cloudStorage.activeGiveaways || !cloudStorage.activeGiveaways[messageId]) return null;
+    const g = cloudStorage.activeGiveaways[messageId];
+    if (g.ended) return g;
+    g.ended = true;
+
+    try {
+        const guild = client.guilds.cache.get(g.guildId);
+        if (!guild) return g;
+        const channel = guild.channels.cache.get(g.channelId);
+        if (!channel) return g;
+        const msg = await channel.messages.fetch(g.id).catch(() => null);
+        if (!msg) return g;
+
+        const participants = g.participants || [];
+        if (participants.length === 0) {
+            const endedEmbed = EmbedBuilder.from(msg.embeds[0])
+                .setTitle('❌ **GIVEAWAY BEENDET** ❌')
+                .setColor(0x64748b)
+                .spliceFields(3, 2, 
+                    { name: '⏰ Status', value: '🔴 **Abgelaufen**', inline: true },
+                    { name: '🏆 Gewinner', value: '❌ *Keine Teilnehmer vorhanden*', inline: true }
+                );
+
+            const disabledRow = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId('giveaway_ended_' + g.id).setLabel('❌ Beendet (0 Teilnehmer)').setStyle(ButtonStyle.Secondary).setDisabled(true)
+            );
+
+            await msg.edit({ embeds: [endedEmbed], components: [disabledRow] });
+            await channel.send('⚠️ Das Giveaway für **' + g.prize + '** ist abgelaufen, aber niemand hat teilgenommen!');
+        } else {
+            // Pick random winners
+            const shuffled = [...participants].sort(() => 0.5 - Math.random());
+            const winCount = Math.min(g.winnerCount, shuffled.length);
+            const winners = shuffled.slice(0, winCount);
+            g.winners = winners;
+
+            const winnerMentions = winners.map(wId => '<@' + wId + '>').join(', ');
+
+            const endedEmbed = EmbedBuilder.from(msg.embeds[0])
+                .setTitle('🎊 **GIVEAWAY BEENDET** 🎊')
+                .setColor(0x00ff88)
+                .spliceFields(3, 2, 
+                    { name: '⏰ Status', value: '🟢 **Erfolgreich beendet**', inline: true },
+                    { name: '🏆 Gewinner (' + winners.length + ')', value: winnerMentions, inline: false }
+                );
+
+            const disabledRow = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId('giveaway_ended_' + g.id).setLabel('🎉 Beendet (' + participants.length + ' Teilnehmer)').setStyle(ButtonStyle.Success).setDisabled(true)
+            );
+
+            await msg.edit({ embeds: [endedEmbed], components: [disabledRow] });
+            await channel.send('🎉 **HERZLICHEN GLÜCKWUNSCH!** ' + winnerMentions + ' ' + (winners.length > 1 ? 'haben' : 'hat') + ' **' + g.prize + '** gewonnen! 🎁✨');
+        }
+
+        saveCloudVaultToDisk();
+    } catch(e) {
+        console.error('Fehler beim Beenden des Giveaways:', e);
+    }
+    return g;
+}
+
+async function rerollGiveaway(messageId) {
+    if (!cloudStorage.activeGiveaways || !cloudStorage.activeGiveaways[messageId]) return null;
+    const g = cloudStorage.activeGiveaways[messageId];
+    if (!g.participants || g.participants.length === 0) return { error: 'Keine Teilnehmer vorhanden zum Rerollen.' };
+
+    const guild = client.guilds.cache.get(g.guildId);
+    if (!guild) return { error: 'Server nicht gefunden' };
+    const channel = guild.channels.cache.get(g.channelId);
+    if (!channel) return { error: 'Kanal nicht gefunden' };
+
+    const shuffled = [...g.participants].sort(() => 0.5 - Math.random());
+    const winCount = Math.min(g.winnerCount, shuffled.length);
+    const newWinners = shuffled.slice(0, winCount);
+    g.winners = newWinners;
+    saveCloudVaultToDisk();
+
+    const winnerMentions = newWinners.map(wId => '<@' + wId + '>').join(', ');
+    await channel.send('🔄 **GIVEAWAY REROLL:** Die neuen Gewinner für **' + g.prize + '** sind: ' + winnerMentions + '! 🎁✨');
+    return { success: true, winners: newWinners };
+}
+
+// Background Interval for Giveaway Expiry (checks every 10 seconds)
+setInterval(async () => {
+    if (!cloudStorage.activeGiveaways) return;
+    const now = Date.now();
+    for (const [id, g] of Object.entries(cloudStorage.activeGiveaways)) {
+        if (!g.ended && g.endTime <= now) {
+            await endGiveaway(id);
+        }
+    }
+}, 10000);
+
+
+// =========================================================================
+// EXPANDED REGISTER COMMAND DEFINITIONS MATRIX
+// =========================================================================
+const extendedCommandDefinitions = [
+    new SlashCommandBuilder().setName('status').setDescription('AeroGuard Live-Status, Telemetrie & RAM-Auslastung'),
+    new SlashCommandBuilder().setName('cloud-inspect').setDescription('Prüft den persistenten Speicherzustand der Cloud-Datenbank'),
+    new SlashCommandBuilder().setName('ping').setDescription('Gibt die Websocket-Latenz zurück'),
+    new SlashCommandBuilder().setName('clear').setDescription('Löscht Chatnachrichten & bereinigt flüchtige RAM-Zuweisungen').addIntegerOption(o => o.setName('anzahl').setDescription('1-100').setRequired(true)),
+    new SlashCommandBuilder().setName('warn').setDescription('Verwarnt ein Mitglied formell').addUserOption(o => o.setName('target').setDescription('Nutzer').setRequired(true)).addStringOption(o => o.setName('grund').setDescription('Grund').setRequired(true)),
+    new SlashCommandBuilder().setName('warnlist').setDescription('Zeigt alle Warnungen eines Nutzers an').addUserOption(o => o.setName('ziel').setDescription('Nutzer').setRequired(true)),
+    new SlashCommandBuilder().setName('clearwarns').setDescription('Löscht alle Warnungen eines Nutzers').addUserOption(o => o.setName('ziel').setDescription('Nutzer').setRequired(true)),
+    new SlashCommandBuilder().setName('setup-ticketpanel').setDescription('Projiziert das Support-Startpanel in einen spezifischen Kanal'),
+    new SlashCommandBuilder().setName('setup-modlog').setDescription('Legt den Kanal für automatische Snapshot-Beweisfotos und Warn-Logs fest'),
+    new SlashCommandBuilder().setName('setup-infohub').setDescription('Konfiguriere den offiziellen Spiele-Info-Kanal mit Direktstart-Links für Roblox'),
+    new SlashCommandBuilder().setName('poll').setDescription('Erstellt eine live Umfrage').addStringOption(o => o.setName('frage').setDescription('Thema').setRequired(true)).addStringOption(o => o.setName('option_a').setDescription('A').setRequired(true)).addStringOption(o => o.setName('option_b').setDescription('B').setRequired(true)),
+    new SlashCommandBuilder().setName('wallet').setDescription('Zeigt dein aktuelles Münzguthaben an'),
+    new SlashCommandBuilder().setName('daily').setDescription('Belohnung abholen'),
+    new SlashCommandBuilder().setName('rbx-shout').setDescription('Aktualisiert die offizielle Gruppenmeldung deiner Roblox-Gruppe direkt via Open Cloud API').addStringOption(o => o.setName('meldung').setDescription('Inhalt des Gruppenshouts').setRequired(true)),
+    new SlashCommandBuilder().setName('rbx-serverlogs').setDescription('Ruft die Echtzeit-Fehlerprotokolle und Crash-Dumps der laufenden Roblox Serverinstanzen ab'),
+    new SlashCommandBuilder().setName('rbx-shutdown').setDescription('Schließt augenblicklich alle aktiven Spielserver-Instanzen zur Einspielung eines kritischen Updates'),
+    new SlashCommandBuilder().setName('rbx-savedata').setDescription('Schreibt In-Game-Daten direkt via Open Cloud um').addStringOption(o => o.setName('userid').setDescription('Roblox ID').setRequired(true)).addIntegerOption(o => o.setName('coins').setDescription('AeroCoins').setRequired(true)),
+    new SlashCommandBuilder().setName('rbx-cleardata').setDescription('Löscht das Profil eines Spielers komplett im Roblox-DataStore').addStringOption(o => o.setName('userid').setDescription('Roblox ID').setRequired(true)),
+    new SlashCommandBuilder().setName('clan-war').setDescription('Startet eine Sektor-Herausforderung gegen eine verfeindete Fraktion').addStringOption(o => o.setName('gegnerclan').setDescription('Name des feindlichen Clans').setRequired(true)),
+    new SlashCommandBuilder().setName('nuke').setDescription('Löscht den aktuellen Kanal und erstellt ihn komplett leer neu (Anti-Raid)'),
+    new SlashCommandBuilder().setName('lockdown').setDescription('Sperrt den gesamten Server (verhindert Nachrichten von allen normalen Spielern)'),
+    new SlashCommandBuilder().setName('unlockdown').setDescription('Entsperrt den Server wieder nach einem Lockdown'),
+    new SlashCommandBuilder().setName('slowmode').setDescription('Aktiviert den Chat-Slowmode').addIntegerOption(o => o.setName('sekunden').setDescription('Zeit in Sekunden').setRequired(true)),
+    new SlashCommandBuilder().setName('addrole').setDescription('Vergibt eine Rolle an einen Spieler').addUserOption(o => o.setName('ziel').setDescription('Der User').setRequired(true)).addRoleOption(o => o.setName('rolle').setDescription('Die Rolle').setRequired(true)),
+    new SlashCommandBuilder().setName('removerole').setDescription('Entzieht einem Spieler eine Rolle').addUserOption(o => o.setName('ziel').setDescription('Der User').setRequired(true)).addRoleOption(o => o.setName('rolle').setDescription('Die Rolle').setRequired(true)),
+    new SlashCommandBuilder().setName('8ball').setDescription('Befragt die magische Miesmuschel').addStringOption(o => o.setName('frage').setDescription('Deine Frage').setRequired(true)),
+    new SlashCommandBuilder().setName('coinflip').setDescription('Wirft eine Münze'),
+    new SlashCommandBuilder().setName('slots').setDescription('Spielt eine Runde am Casino-Automaten').addIntegerOption(o => o.setName('einsatz').setDescription('AeroCoins Einsatz').setRequired(true)),
+    new SlashCommandBuilder().setName('set-placeid').setDescription('Ändert die Roblox Place ID für das Info-Hub live').addStringOption(o => o.setName('placeid').setDescription('Die neue Roblox ID').setRequired(true)),
+    new SlashCommandBuilder().setName('mute').setDescription('Schaltet einen User temporär auf dem Server stumm').addUserOption(o => o.setName('ziel').setDescription('User').setRequired(true)).addIntegerOption(o => o.setName('minuten').setDescription('Dauer').setRequired(true)).addStringOption(o => o.setName('grund').setDescription('Grund').setRequired(true)),
+    new SlashCommandBuilder().setName('unmute').setDescription('Hebt den Timeout eines Users auf').addUserOption(o => o.setName('ziel').setDescription('User').setRequired(true)),
+    new SlashCommandBuilder().setName('lockchannel').setDescription('Sperrt den aktuellen Kanal für alle Mitglieder ab'),
+    new SlashCommandBuilder().setName('unlockchannel').setDescription('Gibt den Kanal nach einer Sperrung wieder frei'),
+    new SlashCommandBuilder().setName('dm').setDescription('Sendet eine private Nachricht an ein Mitglied').addUserOption(o => o.setName('target').setDescription('Nutzer').setRequired(true)).addStringOption(o => o.setName('nachricht').setDescription('Inhalt').setRequired(true)),
+    new SlashCommandBuilder().setName('whitelist').setDescription('Verwalte die administrative Whitelist').addStringOption(o => o.setName('aktion').setDescription('add/remove').setRequired(true)).addUserOption(o => o.setName('target').setDescription('Nutzer').setRequired(true)),
+    new SlashCommandBuilder().setName('supporter').setDescription('Verwalte die Support-Berechtigungen').addStringOption(o => o.setName('aktion').setDescription('add/remove').setRequired(true)).addUserOption(o => o.setName('target').setDescription('Nutzer').setRequired(true)),
+    new SlashCommandBuilder().setName('backup-server').setDescription('Erstellt ein massives JSON-Cloud-Backup der gesamten Server-Struktur (Rollen & Kanäle)'),
+    new SlashCommandBuilder().setName('verify').setDescription('Verknüpft deinen Discord-Account offiziell mit deinem Roblox-Profil').addStringOption(o => o.setName('roblox_name').setDescription('Dein genauer Roblox Benutzername').setRequired(true)),
+    new SlashCommandBuilder().setName('buy-premium').setDescription('Zeigt dir den Stripe-Link an, um Premium-Funktionen freizuschalten'),
+    new SlashCommandBuilder().setName('premium-status').setDescription('Zeigt an, ob dein Account als Premium registriert ist'),
+    new SlashCommandBuilder().setName('give-premium').setDescription('Gibt einem User manuell den Premium-Status (Admin)').addUserOption(o => o.setName('target').setDescription('Nutzer').setRequired(true)),
+    new SlashCommandBuilder().setName('setup-welcome').setDescription('Legt den Kanal fest, in dem der Bot neue Spieler mit einem Embed begrüßt').addChannelOption(o => o.setName('kanal').setDescription('Kanal wählen').setRequired(true)),
+    new SlashCommandBuilder().setName('setup-livestatus').setDescription('Richtet ein Live-Embed ein, das die Roblox Spielerzahlen in Echtzeit synchronisiert'),
+    new SlashCommandBuilder().setName('setup-autorole').setDescription('Legt die automatische Rolle (z.B. verifiziert) beim Server-Beitritt fest').addRoleOption(o => o.setName('rolle').setDescription('Die Rolle, die neue User erhalten').setRequired(true)),
+    new SlashCommandBuilder().setName('blacklist').setDescription('Sperrt oder entsperrt einen Nutzer für das Ticket-System').addStringOption(o => o.setName('aktion').setDescription('add/remove').setRequired(true)).addUserOption(o => o.setName('target').setDescription('Nutzer').setRequired(true)),
+    
+    // 💡 NEU: VORSCHLÄGE
+    new SlashCommandBuilder().setName('suggest').setDescription('Reiche einen Vorschlag oder eine Idee für den Server ein').addStringOption(o => o.setName('vorschlag').setDescription('Deine Idee').setRequired(true)).addBooleanOption(o => o.setName('anonym').setDescription('Anonym einreichen?').setRequired(false)),
+    new SlashCommandBuilder().setName('vorschlag').setDescription('Reiche einen Vorschlag oder eine Idee für den Server ein').addStringOption(o => o.setName('vorschlag').setDescription('Deine Idee').setRequired(true)).addBooleanOption(o => o.setName('anonym').setDescription('Anonym einreichen?').setRequired(false)),
+    new SlashCommandBuilder().setName('suggest-setup').setDescription('Richte den automatischen Vorschlagskanal ein (Admin)').addChannelOption(o => o.setName('kanal').setDescription('Der Vorschlagskanal').setRequired(true)),
+
+    // 🎨 NEU: EMOJIS ÜBERARBEITEN
+    new SlashCommandBuilder().setName('style-channels').setDescription('Überarbeitet alle Server-Kanäle & Kategorien mit passenden Cyberpunk-Emojis (Admin)'),
+
+    // 🎉 NEU: GIVEAWAY SUITE
+    new SlashCommandBuilder()
+        .setName('giveaway')
+        .setDescription('AeroGuard High-End Giveaway-Suite')
+        .addSubcommand(sub => sub
+            .setName('start')
+            .setDescription('Startet ein neues Giveaway mit Countdown und Buttons')
+            .addStringOption(o => o.setName('preis').setDescription('Der Preis (z.B. 1.000 Robux)').setRequired(true))
+            .addStringOption(o => o.setName('dauer').setDescription('Dauer (z.B. 10m, 1h, 24h, 3d)').setRequired(true))
+            .addIntegerOption(o => o.setName('gewinner').setDescription('Anzahl der Gewinner').setRequired(false))
+            .addBooleanOption(o => o.setName('roblox_pflicht').setDescription('Nur für Spieler mit verknüpftem Roblox-Konto?').setRequired(false))
+            .addChannelOption(o => o.setName('kanal').setDescription('Kanal für das Giveaway').setRequired(false))
+        )
+        .addSubcommand(sub => sub
+            .setName('reroll')
+            .setDescription('Lost neue Gewinner für ein beendetes Giveaway aus')
+            .addStringOption(o => o.setName('nachricht_id').setDescription('Die Nachrichten-ID des Giveaways').setRequired(true))
+        )
+        .addSubcommand(sub => sub
+            .setName('end')
+            .setDescription('Beendet ein aktives Giveaway vorzeitig')
+            .addStringOption(o => o.setName('nachricht_id').setDescription('Die Nachrichten-ID des Giveaways').setRequired(true))
+        )
+        .addSubcommand(sub => sub
+            .setName('list')
+            .setDescription('Listet alle laufenden Giveaways auf')
+        ),
+
+    // 🎫 TICKET SLASH COMMAND
+    new SlashCommandBuilder()
+        .setName('ticket')
+        .setDescription('Ticket-System Administration & Verwaltung')
+        .addSubcommand(sub => sub.setName('setup').setDescription('Ticket-Kategorie & Support-Rolle einrichten').addChannelOption(o => o.setName('kategorie').setDescription('Kategorie').setRequired(true)).addRoleOption(o => o.setName('support_rolle').setDescription('Rolle').setRequired(true)).addChannelOption(o => o.setName('log_kanal').setDescription('Logs').setRequired(false)))
+        .addSubcommand(sub => sub.setName('panel').setDescription('Support-Panel in einen Kanal projizieren').addChannelOption(o => o.setName('kanal').setDescription('Kanal').setRequired(true)))
+        .addSubcommand(sub => sub.setName('close').setDescription('Schließt das aktuelle Ticket').addStringOption(o => o.setName('grund').setDescription('Schließungsgrund').setRequired(false)))
+        .addSubcommand(sub => sub.setName('claim').setDescription('Beansprucht das Ticket als Supporter'))
+        .addSubcommand(sub => sub.setName('add').setDescription('Fügt einen Nutzer zum Ticket hinzu').addUserOption(o => o.setName('nutzer').setDescription('Nutzer').setRequired(true)))
+        .addSubcommand(sub => sub.setName('remove').setDescription('Entfernt einen Nutzer aus dem Ticket').addUserOption(o => o.setName('nutzer').setDescription('Nutzer').setRequired(true)))
+        .addSubcommand(sub => sub.setName('transcript').setDescription('Erstellt ein HTML-Transkript des Tickets'))
+].map(cmd => cmd.toJSON());
+
+async function deployExtendedCommands(guildId) {
+    if (!process.env.DISCORD_TOKEN || !client.user) return;
+    try {
+        const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
+        await rest.put(Routes.applicationGuildCommands(client.user.id, guildId), { body: extendedCommandDefinitions });
+    } catch(e) {
+        addLog('error', 'Slash-Command Sync Fehler für ' + guildId + ': ' + e.message);
+    }
+}
+
+client.on('guildCreate', async guild => {
+    try {
+        await deployExtendedCommands(guild.id);
+    } catch(e) {}
+});
+
 client.once('ready', async () => {
     addLog('info', 'AeroGuard Cloud Engine Online als: ' + client.user.tag);
     
@@ -2771,10 +3529,177 @@ app.post('/api/guild/:guildId/settings', async (req, res) => {
     if (req.body.levels) gSettings.levels = { ...(gSettings.levels || {}), ...req.body.levels };
     if (req.body.security) gSettings.security = { ...(gSettings.security || {}), ...req.body.security };
     if (req.body.logging) gSettings.logging = { ...(gSettings.logging || {}), ...req.body.logging };
+    if (req.body.suggestions) gSettings.suggestions = { ...(gSettings.suggestions || {}), ...req.body.suggestions };
 
     saveCloudVaultToDisk();
     addLog('info', `Dashboard: Einstellungen für Server "${guild.name}" von ${req.session.user.username} (${perm.roleLabel}) gespeichert.`);
     res.json({ success: true, settings: gSettings });
+});
+
+
+// =========================================================================
+// API: SERVER-KANÄLE MIT EMOJIS STYLEN (Cyberpunk Auto-Formatter)
+// =========================================================================
+app.post('/api/guild/:guildId/style-channels', async (req, res) => {
+    if (!req.session.user) return res.status(401).json({ error: 'Nicht angemeldet' });
+
+    const perm = await getUserGuildPermission(req.session.user.id, req.params.guildId);
+    if (!perm.authorized) {
+        return res.status(403).json({ error: 'Zugriff verweigert.' });
+    }
+
+    const guild = client.guilds.cache.get(req.params.guildId);
+    if (!guild) return res.status(404).json({ error: 'Server nicht gefunden' });
+
+    try {
+        const result = await styleGuildChannels(guild);
+        addLog('info', 'Dashboard: Kanäle auf ' + guild.name + ' mit Cyberpunk-Emojis formatiert von ' + req.session.user.username + ' (' + result.changed + ' geändert)');
+        res.json({ success: true, ...result });
+    } catch(e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// =========================================================================
+// API: VORSCHLÄGE-SYSTEM (Suggestions Data & Channel Auto-Setup)
+// =========================================================================
+app.get('/api/guild/:guildId/suggestions', async (req, res) => {
+    if (!req.session.user) return res.status(401).json({ error: 'Nicht angemeldet' });
+    const gId = req.params.guildId;
+    const all = Object.values(cloudStorage.suggestions || {}).filter(s => s.guildId === gId);
+    res.json(all);
+});
+
+app.post('/api/guild/:guildId/suggestions/setup-channel', async (req, res) => {
+    if (!req.session.user) return res.status(401).json({ error: 'Nicht angemeldet' });
+    const perm = await getUserGuildPermission(req.session.user.id, req.params.guildId);
+    if (!perm.authorized) return res.status(403).json({ error: 'Zugriff verweigert.' });
+
+    const guild = client.guilds.cache.get(req.params.guildId);
+    if (!guild) return res.status(404).json({ error: 'Server nicht gefunden' });
+
+    try {
+        let ch = guild.channels.cache.find(c => c.name.includes('vorschlag') || c.name.includes('suggest'));
+        if (!ch) {
+            ch = await guild.channels.create({
+                name: '💡・vorschläge',
+                type: ChannelType.GuildText,
+                topic: 'Offizieller AeroGuard Vorschlags-Kanal • Reiche Ideen mit /suggest ein oder schreibe direkt hier rein!'
+            });
+        }
+        const gSettings = getGuildSettings(guild.id);
+        if (!gSettings.suggestions) gSettings.suggestions = { enabled: true, channelId: null, autoVote: true, autoThread: true };
+        gSettings.suggestions.channelId = ch.id;
+        saveCloudVaultToDisk();
+
+        res.json({ success: true, channelId: ch.id, channelName: ch.name });
+    } catch(e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/api/guild/:guildId/suggestions/:id/status', async (req, res) => {
+    if (!req.session.user) return res.status(401).json({ error: 'Nicht angemeldet' });
+    const perm = await getUserGuildPermission(req.session.user.id, req.params.guildId);
+    if (!perm.authorized) return res.status(403).json({ error: 'Zugriff verweigert.' });
+
+    const sug = cloudStorage.suggestions ? cloudStorage.suggestions[req.params.id] : null;
+    if (!sug) return res.status(404).json({ error: 'Vorschlag nicht gefunden' });
+
+    const newStatus = req.body.status || 'PENDING';
+    const reason = req.body.reason || '';
+
+    sug.status = newStatus;
+    sug.statusReason = reason;
+    sug.handledBy = req.session.user.username;
+    saveCloudVaultToDisk();
+
+    // Update Discord message
+    try {
+        const guild = client.guilds.cache.get(req.params.guildId);
+        if (guild) {
+            const ch = guild.channels.cache.get(sug.channelId);
+            if (ch) {
+                const msg = await ch.messages.fetch(sug.messageId).catch(() => null);
+                if (msg && msg.embeds[0]) {
+                    let color = 0x00f3ff;
+                    let badge = '⏳ **In Prüfung**';
+                    if (newStatus === 'ACCEPTED') { color = 0x00ff88; badge = '✅ **Angenommen** (' + req.session.user.username + ')'; }
+                    else if (newStatus === 'REJECTED') { color = 0xef4444; badge = '❌ **Abgelehnt** (' + req.session.user.username + ')'; }
+                    else if (newStatus === 'PROGRESS') { color = 0x9d4edd; badge = '⚙️ **In Bearbeitung**'; }
+
+                    const upEmbed = EmbedBuilder.from(msg.embeds[0])
+                        .setColor(color)
+                        .spliceFields(0, 1, { name: '📊 Status', value: badge + (reason ? '\n*Notiz:* ' + reason : ''), inline: true });
+                    await msg.edit({ embeds: [upEmbed] });
+                }
+            }
+        }
+    } catch(e) {}
+
+    res.json({ success: true, suggestion: sug });
+});
+
+// =========================================================================
+// API: GIVEAWAY-SYSTEM (List, Create, End, Reroll)
+// =========================================================================
+app.get('/api/guild/:guildId/giveaways', async (req, res) => {
+    if (!req.session.user) return res.status(401).json({ error: 'Nicht angemeldet' });
+    const gId = req.params.guildId;
+    const all = Object.values(cloudStorage.activeGiveaways || {}).filter(g => g.guildId === gId);
+    res.json(all);
+});
+
+app.post('/api/guild/:guildId/giveaways/create', async (req, res) => {
+    if (!req.session.user) return res.status(401).json({ error: 'Nicht angemeldet' });
+    const perm = await getUserGuildPermission(req.session.user.id, req.params.guildId);
+    if (!perm.authorized) return res.status(403).json({ error: 'Zugriff verweigert.' });
+
+    const guild = client.guilds.cache.get(req.params.guildId);
+    if (!guild) return res.status(404).json({ error: 'Server nicht gefunden' });
+
+    const targetChannelId = req.body.channelId;
+    const targetChannel = guild.channels.cache.get(targetChannelId);
+    if (!targetChannel) return res.status(400).json({ error: 'Ungültiger Kanal' });
+
+    const prize = req.body.prize || 'AeroGuard VIP';
+    const durationMs = parseDuration(req.body.duration || '1h');
+    const winnerCount = parseInt(req.body.winnerCount, 10) || 1;
+    const robloxRequired = req.body.robloxRequired === true || req.body.robloxRequired === 'true';
+
+    try {
+        const fakeHost = { id: req.session.user.id, tag: req.session.user.username, toString: () => '<@' + req.session.user.id + '>' };
+        const gObj = await startGiveaway(guild, targetChannel, fakeHost, {
+            prize,
+            durationMs,
+            winnerCount,
+            robloxRequired
+        });
+
+        res.json({ success: true, giveaway: gObj });
+    } catch(e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/api/guild/:guildId/giveaways/:id/end', async (req, res) => {
+    if (!req.session.user) return res.status(401).json({ error: 'Nicht angemeldet' });
+    const perm = await getUserGuildPermission(req.session.user.id, req.params.guildId);
+    if (!perm.authorized) return res.status(403).json({ error: 'Zugriff verweigert.' });
+
+    const g = await endGiveaway(req.params.id);
+    if (!g) return res.status(404).json({ error: 'Giveaway nicht gefunden' });
+    res.json({ success: true, giveaway: g });
+});
+
+app.post('/api/guild/:guildId/giveaways/:id/reroll', async (req, res) => {
+    if (!req.session.user) return res.status(401).json({ error: 'Nicht angemeldet' });
+    const perm = await getUserGuildPermission(req.session.user.id, req.params.guildId);
+    if (!perm.authorized) return res.status(403).json({ error: 'Zugriff verweigert.' });
+
+    const result = await rerollGiveaway(req.params.id);
+    if (result.error) return res.status(400).json({ error: result.error });
+    res.json({ success: true, ...result });
 });
 
 app.post('/api/guild/:guildId/deploy-panel', async (req, res) => {
