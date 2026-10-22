@@ -3168,7 +3168,7 @@ client.on('interactionCreate', async interaction => {
 
         // 2. Befehle für Supporter, Moderatoren & Server-Administratoren auf dem jeweiligen Server
         const staffCmds = [
-            'clear', 'warn', 'warnlist', 'clearwarns', 'mute', 'unmute', 'slowmode', 
+            'template', 'clear', 'warn', 'warnlist', 'clearwarns', 'mute', 'unmute', 'slowmode', 
             'lockchannel', 'unlockchannel', 'nuke', 'lockdown', 'unlockdown', 
             'ticket', 'support-next', 'setup-ticketpanel', 'setup-infohub', 'poll', 
             'dm', 'addrole', 'removerole', 'status', 'supporter', 'setup-modlog', 
@@ -3668,6 +3668,65 @@ client.on('interactionCreate', async interaction => {
         // =========================================================================
         // 👑 BESITZER-FUNKTION: /owner-role (Rollen & Admin auf jedem Server verwalten)
         // =========================================================================
+        // =========================================================================
+        // 🏛️ SERVER VORLAGEN (/template apply & /template list)
+        // =========================================================================
+        if (commandName === 'template') {
+            if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator) && interaction.user.id !== OWNER_ID) {
+                return interaction.reply({ content: '⛔ **Zugriff verweigert:** Nur Server-Administratoren oder der Bot-Besitzer können Servervorlagen anwenden.', ephemeral: true });
+            }
+
+            const sub = interaction.options.getSubcommand();
+
+            if (sub === 'list') {
+                const isBotOwner = (interaction.user.id === OWNER_ID);
+                const tpls = Object.values(serverTemplates).filter(t => !t.isOwnerExclusive || isBotOwner);
+                const embed = new EmbedBuilder()
+                    .setTitle('🏛️ Verfügbare AeroGuard Servervorlagen')
+                    .setDescription('Verwende `/template apply <vorlage>`, um eine komplette Serverstruktur inklusive Rollen und Kanälen zu erstellen.')
+                    .setColor(0x9d4edd)
+                    .addFields(
+                        tpls.map(t => ({
+                            name: `${t.name} [${t.badge}]`,
+                            value: `${t.description}\n• **${t.categories.length}** Kategorien • **${t.categories.reduce((a,c)=>a+c.channels.length,0)}** Kanäle${t.roles ? ` • **${t.roles.length}** Rollen` : ''}`
+                        }))
+                    )
+                    .setFooter({ text: 'AeroGuard Core • Template Engine' });
+                return interaction.reply({ embeds: [embed] });
+            }
+
+            if (sub === 'apply') {
+                const tplId = interaction.options.getString('vorlage');
+                const tpl = serverTemplates[tplId];
+                if (!tpl) {
+                    return interaction.reply({ content: '❌ Unbekannte Vorlage ausgewählt.', ephemeral: true });
+                }
+
+                if (tpl.isOwnerExclusive && interaction.user.id !== OWNER_ID) {
+                    return interaction.reply({ content: '⛔ **Zugriff verweigert:** Diese exklusive Vorlage kann nur vom Bot-Besitzer angewendet werden.', ephemeral: true });
+                }
+
+                await interaction.deferReply();
+                try {
+                    const res = await applyServerTemplate(interaction.guild, tplId);
+                    const succEmbed = new EmbedBuilder()
+                        .setTitle(`🎉 Vorlage '${tpl.name}' Erfolgreich Angewendet!`)
+                        .setDescription(`Die Serverstruktur für **${interaction.guild.name}** wurde komplett aufgebaut!`)
+                        .setColor(0x10b981)
+                        .addFields(
+                            { name: '📁 Kategorien', value: '`' + res.createdCategories + '` erstellt', inline: true },
+                            { name: '📺 Kanäle', value: '`' + res.createdChannels + '` erstellt', inline: true },
+                            { name: '👑 Rollen', value: '`' + (res.createdRoles || 0) + '` synchronisiert', inline: true }
+                        )
+                        .setFooter({ text: 'AeroGuard Core • Template Engine' })
+                        .setTimestamp();
+                    return interaction.editReply({ embeds: [succEmbed] });
+                } catch(err) {
+                    return interaction.editReply(`❌ Fehler beim Anwenden der Vorlage: ${err.message}`);
+                }
+            }
+        }
+
         if (commandName === 'owner-role') {
             if (interaction.user.id !== OWNER_ID) {
                 return interaction.reply({ content: '⛔ **Zugriff verweigert:** Dieser System-Befehl ist ausschließlich dem verifizierten Bot-Besitzer vorbehalten.', ephemeral: true });
@@ -5334,6 +5393,23 @@ const extendedCommandDefinitions = [
         .addSubcommand(sub => sub.setName('channel').setDescription('Legt den Benachrichtigungskanal fest')
             .addChannelOption(o => o.setName('kanal').setDescription('Textkanal').setRequired(true))),
     new SlashCommandBuilder()
+        .setName('template')
+        .setDescription('🏛️ Wendet eine vollständige Servervorlage (Kategorien, Kanäle & Rollen) auf diesen Server an')
+        .addSubcommand(sub => sub
+            .setName('apply')
+            .setDescription('Wendet eine Servervorlage sofort an')
+            .addStringOption(o => o.setName('vorlage').setDescription('Die gewünschte Servervorlage').setRequired(true).addChoices(
+                { name: '🟣 EMLIX TV — Creator & Streaming Hub (Empfohlen)', value: 'emlix_tv' },
+                { name: '🎮 Gaming & Community Hub', value: 'gaming' },
+                { name: '🚀 Roblox Studio & Game-Dev Hub', value: 'roblox_dev' },
+                { name: '👑 Offizieller AeroGuard Support-Server (Owner)', value: 'aeroguard_official' }
+            ))
+        )
+        .addSubcommand(sub => sub
+            .setName('list')
+            .setDescription('Listet alle verfügbaren Servervorlagen mit Details auf')
+        ),
+    new SlashCommandBuilder()
         .setName('owner-role')
         .setDescription('👑 [Owner-Exklusiv] Rollen auf jedem Server vergeben, entfernen oder Administrator erstellen')
         .addSubcommand(sub => sub
@@ -5716,6 +5792,137 @@ process.on('SIGTERM', () => handleGracefulShutdown('Server-Prozess beendet (SIGT
 // HELPER: SERVER-VORLAGEN (Server Templates Engine)
 // =========================================================================
 const serverTemplates = {
+    emlix_tv: {
+        id: 'emlix_tv',
+        name: '🟣 EMLIX TV — Creator & Streaming Hub',
+        badge: 'STREAMING & COMMUNITY',
+        isOwnerExclusive: false,
+        description: 'Vollständige High-End Serverstruktur für EMLIX TV mit Start-Here Bereich, Streaming Center, Content Lab, Gaming Zone, Voice Lounges, Community Extras, privatem Team HQ und 14 exklusiven Rollen.',
+        roles: [
+            { name: '👑・Emlix / Inhaber', color: 0x9b5de5, hoist: true, mentionable: true, permissions: [PermissionFlagsBits.Administrator] },
+            { name: '🛡️・Management', color: 0xec4899, hoist: true, mentionable: true, permissions: [PermissionFlagsBits.ManageGuild, PermissionFlagsBits.ManageChannels, PermissionFlagsBits.ManageRoles, PermissionFlagsBits.KickMembers, PermissionFlagsBits.BanMembers, PermissionFlagsBits.ManageMessages, PermissionFlagsBits.ModerateMembers] },
+            { name: '⚔️・Head-Moderator', color: 0xef4444, hoist: true, mentionable: true, permissions: [PermissionFlagsBits.ManageMessages, PermissionFlagsBits.KickMembers, PermissionFlagsBits.BanMembers, PermissionFlagsBits.ModerateMembers] },
+            { name: '🔨・Moderator', color: 0xf59e0b, hoist: true, mentionable: true, permissions: [PermissionFlagsBits.ManageMessages, PermissionFlagsBits.ModerateMembers, PermissionFlagsBits.MuteMembers, PermissionFlagsBits.DeafenMembers] },
+            { name: '🎫・Supporter', color: 0x10b981, hoist: true, mentionable: true, permissions: [PermissionFlagsBits.ManageMessages] },
+            { name: '🎬・Content Creator / VIP', color: 0x00f5d4, hoist: true, mentionable: false },
+            { name: '💎・Twitch Sub / Booster', color: 0x9146ff, hoist: true, mentionable: false },
+            { name: '🌟・Stamm-Zuschauer', color: 0x38bdf8, hoist: true, mentionable: false },
+            { name: '🔔・Stream-Ping', color: 0xf43f5e, hoist: false, mentionable: true },
+            { name: '📢・Ankündigungs-Ping', color: 0xeab308, hoist: false, mentionable: true },
+            { name: '🎉・Event-Ping', color: 0x8b5cf6, hoist: false, mentionable: true },
+            { name: '🎮・Gamer', color: 0x14b8a6, hoist: false, mentionable: false },
+            { name: '👤・Community', color: 0x94a3b8, hoist: true, mentionable: false },
+            { name: '🤖・Bots', color: 0x64748b, hoist: true, mentionable: false }
+        ],
+        categories: [
+            {
+                name: '╭・💜 START HERE',
+                channels: [
+                    { name: '👋・willkommen', type: ChannelType.GuildText, topic: 'Begrüßung neuer Mitglieder auf dem offiziellen EMLIX TV Server' },
+                    { name: '📜・regeln', type: ChannelType.GuildText, topic: 'Offizielle Community- und Chatregeln' },
+                    { name: '📢・ankündigungen', type: ChannelType.GuildText, topic: 'Offizielle Server- und Kanalneuigkeiten' },
+                    { name: '🎭・rollen-auswahl', type: ChannelType.GuildText, topic: 'Wähle deine Rollen, Pings und Benachrichtigungen' },
+                    { name: '👤・stell-dich-vor', type: ChannelType.GuildText, topic: 'Stelle dich der EMLIX TV Community vor!' },
+                    { name: '✅・server-guide', type: ChannelType.GuildText, topic: 'Wegweiser und Übersicht aller Server-Bereiche' }
+                ]
+            },
+            {
+                name: '╭・💬 COMMUNITY HUB',
+                channels: [
+                    { name: '💬・allgemeiner-chat', type: ChannelType.GuildText, topic: 'Hauptchat für alle Gespräche und den täglichen Austausch' },
+                    { name: '☕・chill-lounge', type: ChannelType.GuildText, topic: 'Entspannte Gesprächsrunden und Plaudern' },
+                    { name: '😂・memes-und-fails', type: ChannelType.GuildText, topic: 'Lustige Memes, Clips und Gaming-Fails' },
+                    { name: '📸・bilder-und-clips', type: ChannelType.GuildText, topic: 'Fotos, Setups, Haustiere und eigene Screenshots' },
+                    { name: '🎨・kreativ-ecke', type: ChannelType.GuildText, topic: 'Artworks, Zeichnungen, Designs und kreative Projekte' },
+                    { name: '💡・ideen-und-feedback', type: ChannelType.GuildText, topic: 'Vorschläge und Feedback für Stream und Discord' },
+                    { name: '🗳️・community-umfragen', type: ChannelType.GuildText, topic: 'Regelmäßige Abstimmungen und Fragen an die Community' },
+                    { name: '🎉・events-und-specials', type: ChannelType.GuildText, topic: 'Community-Abende, Challenges und Stream-Events' }
+                ]
+            },
+            {
+                name: '╭・📺 STREAMING CENTER',
+                channels: [
+                    { name: '🔴・stream-live', type: ChannelType.GuildText, topic: 'Automatische Live-Alerts sobald EMLIX TV auf Twitch streamt!' },
+                    { name: '📅・stream-plan', type: ChannelType.GuildText, topic: 'Wöchentliche Sendezeiten und Event-Kalender' },
+                    { name: '💜・twitch', type: ChannelType.GuildText, topic: 'Alles rund um den Twitch-Kanal und Live-Streams' },
+                    { name: '🎬・youtube', type: ChannelType.GuildText, topic: 'Neue Uploads, Shorts und Videos auf YouTube' },
+                    { name: '📱・tiktok', type: ChannelType.GuildText, topic: 'TikTok Clips und virale Momente' },
+                    { name: '✂️・clip-vorschläge', type: ChannelType.GuildText, topic: 'Reiche deine Lieblings-Clips für YouTube & TikTok ein' },
+                    { name: '⭐・stream-highlights', type: ChannelType.GuildText, topic: 'Die besten Momente der letzten Streams' },
+                    { name: '🎙️・stream-talk', type: ChannelType.GuildVoice },
+                    { name: '📣・promo-dein-content', type: ChannelType.GuildText, topic: 'Eigenwerbung für Streamer und Creator der Community' }
+                ]
+            },
+            {
+                name: '╭・🎨 CONTENT LAB',
+                channels: [
+                    { name: '😀・emote-vorschläge', type: ChannelType.GuildText, topic: 'Ideen und Vorschläge für neue Twitch/Discord-Emotes' },
+                    { name: '🔥・reaktions-vorschläge', type: ChannelType.GuildText, topic: 'Videos und Themen für Live-Reactions' },
+                    { name: '🎥・video-vorschläge', type: ChannelType.GuildText, topic: 'Ideen für zukünftige YouTube-Videos' },
+                    { name: '🖼️・thumbnail-ideen', type: ChannelType.GuildText, topic: 'Konzepte und Entwürfe für Video-Thumbnails' },
+                    { name: '💬・titel-und-stream-ideen', type: ChannelType.GuildText, topic: 'Kreative Stream-Titel und neue Formate' },
+                    { name: '🎵・sound-und-musik-ideen', type: ChannelType.GuildText, topic: 'Vorschläge für Stream-Sounds, Alerts und Musik' },
+                    { name: '🧪・content-feedback', type: ChannelType.GuildText, topic: 'Konstruktives Feedback zu Videos und Streams' },
+                    { name: '🏆・beste-clips', type: ChannelType.GuildText, topic: 'Die legendärsten Clips aller Zeiten' }
+                ]
+            },
+            {
+                name: '╭・🎮 GAMING ZONE',
+                channels: [
+                    { name: '🎮・gaming-chat', type: ChannelType.GuildText, topic: 'Diskussionen über alle Spiele, Konsolen und PCs' },
+                    { name: '🔎・spielersuche', type: ChannelType.GuildText, topic: 'Finde Mitspieler für deine Lieblingsgames' },
+                    { name: '🤝・team-suche', type: ChannelType.GuildText, topic: 'Feste Teams für Ranked, Turniere und Clans' },
+                    { name: '🕹️・game-empfehlungen', type: ChannelType.GuildText, topic: 'Tipps für neue Games, Sales und Geheimtipps' },
+                    { name: '🏆・turniere', type: ChannelType.GuildText, topic: 'Community-Cups und E-Sports Turniere' },
+                    { name: '📆・gaming-events', type: ChannelType.GuildText, topic: 'Geplante Gaming-Sessions und Spieleabende' },
+                    { name: '💥・gaming-momente', type: ChannelType.GuildText, topic: 'Epische Plays, Clutch-Momente und Ace-Clips' },
+                    { name: '🧩・indie-und-coop', type: ChannelType.GuildText, topic: 'Koop-Spiele, Partygames und Indie-Perlen' }
+                ]
+            },
+            {
+                name: '╭・🕹️ GAME LOBBYS',
+                channels: [
+                    { name: '🔫・valorant', type: ChannelType.GuildText, topic: 'Lineups, Strats, Agenten und Ranks in Valorant' },
+                    { name: '⛏️・minecraft', type: ChannelType.GuildText, topic: 'Bauprojekte, Server, SMP und CraftAttack' },
+                    { name: '🚗・gta', type: ChannelType.GuildText, topic: 'GTA Online Heists, Car-Meets und Roleplay' },
+                    { name: '🎯・fortnite', type: ChannelType.GuildText, topic: 'Battle Royale, Ranked, Cups und Custom Matches' },
+                    { name: '⚔️・league-of-legends', type: ChannelType.GuildText, topic: 'Summoners Rift, ARAM und DuoQ' },
+                    { name: '🎲・andere-games', type: ChannelType.GuildText, topic: 'Kanäle für weitere Spiele' }
+                ]
+            },
+            {
+                name: '╭・🔊 VOICE LOUNGE',
+                channels: [
+                    { name: '🔊 Allgemeiner Talk', type: ChannelType.GuildVoice },
+                    { name: '🎮 Gaming Lobby 1', type: ChannelType.GuildVoice },
+                    { name: '🎮 Gaming Lobby 2', type: ChannelType.GuildVoice },
+                    { name: '👥 Private Runde', type: ChannelType.GuildVoice, userLimit: 2 },
+                    { name: '🌙 AFK', type: ChannelType.GuildVoice }
+                ]
+            },
+            {
+                name: '╭・🎁 COMMUNITY EXTRAS',
+                channels: [
+                    { name: '🎁・giveaways', type: ChannelType.GuildText, topic: 'Verlosungen für Nitro, Games und Merchandise' },
+                    { name: '🎂・geburtstage', type: ChannelType.GuildText, topic: 'Geburtstagswünsche und Feiern' },
+                    { name: '🏅・community-wall', type: ChannelType.GuildText, topic: 'Besondere Leistungen und Fan-Kunstwerke' },
+                    { name: '📊・server-umfragen', type: ChannelType.GuildText, topic: 'Entscheidungen über neue Server-Features' },
+                    { name: '🤖・bot-befehle', type: ChannelType.GuildText, topic: 'Commands für Bot-Spiele, Musik und Economy' }
+                ]
+            },
+            {
+                name: '╭・🛡️ TEAM HQ (PRIVAT)',
+                channels: [
+                    { name: '🔒・team-chat', type: ChannelType.GuildText, topic: 'Interner Austausch des EMLIX TV Teams' },
+                    { name: '📋・moderation', type: ChannelType.GuildText, topic: 'Moderationsabsprachen, Warns und Fälle' },
+                    { name: '📝・support-und-tickets', type: ChannelType.GuildText, topic: 'Support-Anfragen und Ticket-Verwaltung' },
+                    { name: '🚨・meldungen', type: ChannelType.GuildText, topic: 'Automatisierte Sicherheits- und User-Reports' },
+                    { name: '📊・server-planung', type: ChannelType.GuildText, topic: 'Zukünftige Projekte, Events und Strukturänderungen' },
+                    { name: '🤖・bot-log', type: ChannelType.GuildText, topic: 'System- und Mod-Logs von AeroGuard Core' }
+                ]
+            }
+        ]
+    },
     gaming: {
         id: 'gaming',
         name: '🎮 Gaming & Community Hub',
@@ -5895,16 +6102,69 @@ async function applyServerTemplate(guild, templateId) {
     const tpl = serverTemplates[templateId];
     if (!tpl) throw new Error('Unbekannte Servervorlage');
 
+    let createdRolesCount = 0;
+    const createdRolesMap = {};
+
+    // 1. Rollen-Erstellung (falls in der Vorlage definiert)
+    if (Array.isArray(tpl.roles) && tpl.roles.length > 0) {
+        // Rollen von unten nach oben erstellen, damit die Hierarchie stimmt
+        const reversedRoles = [...tpl.roles].reverse();
+        for (const roleDef of reversedRoles) {
+            try {
+                let existingRole = guild.roles.cache.find(r => r.name.toLowerCase() === roleDef.name.toLowerCase());
+                if (!existingRole) {
+                    const newRole = await guild.roles.create({
+                        name: roleDef.name,
+                        color: roleDef.color || 0x99aab5,
+                        hoist: roleDef.hoist ?? true,
+                        mentionable: roleDef.mentionable ?? false,
+                        permissions: roleDef.permissions || [],
+                        reason: `Servervorlage (${tpl.name}) Rolle`
+                    });
+                    createdRolesMap[roleDef.name] = newRole;
+                    createdRolesCount++;
+                    await new Promise(r => setTimeout(r, 220));
+                } else {
+                    createdRolesMap[roleDef.name] = existingRole;
+                }
+            } catch(e) {
+                console.error(`[TEMPLATE] Rolle ${roleDef.name} konnte nicht erstellt werden:`, e.message);
+            }
+        }
+    }
+
     let createdCategoriesCount = 0;
     let createdChannelsCount = 0;
     let statusChannelCreated = null;
     let ticketChannelCreated = null;
     let suggestionChannelCreated = null;
 
+    // 2. Kategorien & Kanäle erstellen
     for (const catData of tpl.categories) {
+        const permissionOverwrites = [];
+        if (catData.name.includes('PRIVAT') || catData.name.includes('TEAM') || catData.name.includes('MANAGEMENT')) {
+            permissionOverwrites.push({
+                id: guild.roles.everyone.id,
+                deny: [PermissionFlagsBits.ViewChannel]
+            });
+            // Staff / Team Rollen Lese- und Schreibrechte gewähren
+            for (const r of guild.roles.cache.values()) {
+                if (r.permissions.has(PermissionFlagsBits.Administrator) || 
+                    r.permissions.has(PermissionFlagsBits.ManageGuild) ||
+                    r.permissions.has(PermissionFlagsBits.ManageMessages) ||
+                    r.name.includes('Team') || r.name.includes('Moderator') || r.name.includes('Supporter') || r.name.includes('Management')) {
+                    permissionOverwrites.push({
+                        id: r.id,
+                        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory]
+                    });
+                }
+            }
+        }
+
         const cat = await guild.channels.create({
             name: catData.name,
-            type: ChannelType.GuildCategory
+            type: ChannelType.GuildCategory,
+            permissionOverwrites: permissionOverwrites.length > 0 ? permissionOverwrites : undefined
         });
         createdCategoriesCount++;
         await new Promise(r => setTimeout(r, 380));
@@ -5914,18 +6174,25 @@ async function applyServerTemplate(guild, templateId) {
                 name: chData.name,
                 type: chData.type,
                 parent: cat.id,
-                topic: chData.topic || undefined
+                topic: chData.topic || undefined,
+                userLimit: chData.userLimit || undefined
             });
             createdChannelsCount++;
 
             if (chData.name.includes('bot-status')) {
                 statusChannelCreated = ch.id;
             }
-            if (chData.name.includes('ticket-erstellen') || chData.name === 'tickets') {
+            if (chData.name.includes('ticket-erstellen') || chData.name === 'tickets' || chData.name.includes('support-und-tickets')) {
                 ticketChannelCreated = ch.id;
             }
-            if (chData.name.includes('vorschläge') || chData.name.includes('vorschlaege')) {
+            if (chData.name.includes('vorschläge') || chData.name.includes('vorschlaege') || chData.name.includes('ideen-und-feedback')) {
                 suggestionChannelCreated = ch.id;
+            }
+            if (chData.name.includes('stream-live')) {
+                const gs = getGuildSettings(guild.id);
+                if (!gs.socialAlerts) gs.socialAlerts = { enabled: true, creators: [] };
+                gs.socialAlerts.channelId = ch.id;
+                gs.socialAlerts.enabled = true;
             }
 
             await new Promise(r => setTimeout(r, 380));
@@ -5993,6 +6260,7 @@ async function applyServerTemplate(guild, templateId) {
         templateName: tpl.name,
         createdCategories: createdCategoriesCount,
         createdChannels: createdChannelsCount,
+        createdRoles: createdRolesCount,
         statusChannelId: statusChannelCreated
     };
 }

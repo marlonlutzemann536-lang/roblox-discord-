@@ -655,10 +655,10 @@
                 <div class="feature-card" onclick="openModuleModal('templates')">
                     <div class="feature-card-header">
                         <div class="feature-icon-wrapper" style="color:#f59e0b;">🏛️</div>
-                        <span id="badge-mod-templates" class="feature-badge-active badge-on">● 3 Presets</span>
+                        <span id="badge-mod-templates" class="feature-badge-active badge-on">● 4 Presets</span>
                     </div>
                     <div class="feature-title">Server-Vorlagen & Setup Presets</div>
-                    <div class="feature-desc">Vollständige Server-Infrastrukturen per Knopfdruck aufbauen: Gaming-Community, Roblox Studio Dev oder die exklusive offizielle AeroGuard Support-Server Vorlage.</div>
+                    <div class="feature-desc">Vollständige Server-Infrastrukturen per Knopfdruck aufbauen: EMLIX TV Creator-Hub, Gaming-Community, Roblox Studio Dev oder die offizielle AeroGuard Support-Server Vorlage.</div>
                     <div class="feature-card-footer">
                         <span class="feature-subtext">Automatischer Kanalaufbau</span>
                         <button type="button" class="btn-configure">🏛️ Vorlagen ansehen</button>
@@ -2802,6 +2802,29 @@ function buildTemplatesModalHtml(guild) {
 
                 // STATUS / NOTICE BOX
                 '<div id="template-status-box" style="display:none; padding:14px 18px; border-radius:12px; font-size:0.88rem; line-height:1.5;"></div>' +
+
+                // TEMPLATE 0: EMLIX TV
+                '<div style="background:rgba(155,93,229,0.06); border:1px solid rgba(155,93,229,0.35); border-radius:14px; padding:20px; box-shadow:0 0 25px rgba(155,93,229,0.08);">' +
+                    '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">' +
+                        '<div style="display:flex; align-items:center; gap:8px;">' +
+                            '<span style="font-size:1.6rem;">🟣</span>' +
+                            '<strong style="color:#fff; font-size:1.15rem;">EMLIX TV — Creator & Streaming Hub</strong>' +
+                        '</div>' +
+                        '<span style="background:rgba(155,93,229,0.2); color:#c084fc; border:1px solid rgba(155,93,229,0.4); padding:3px 12px; border-radius:20px; font-size:0.75rem; font-weight:800;">STREAMING & COMMUNITY</span>' +
+                    '</div>' +
+                    '<p style="color:#cbd5e1; font-size:0.88rem; line-height:1.5; margin-bottom:14px;">' +
+                        'Komplette EMLIX TV Infrastruktur mit Start Here, Streaming Center, Content Lab, Gaming Zone & Lobbys, Voice Lounges, Community Extras, privatem Team HQ und 14 exklusiven Rollen.' +
+                    '</p>' +
+                    '<div style="background:rgba(0,0,0,0.3); border-radius:10px; padding:12px 16px; margin-bottom:16px; font-size:0.8rem; color:#94a3b8; font-family:\'JetBrains Mono\', monospace;">' +
+                        '💜 START HERE • 💬 COMMUNITY HUB • 📺 STREAMING CENTER<br>' +
+                        '🎨 CONTENT LAB • 🎮 GAMING ZONE • 🕹️ GAME LOBBYS<br>' +
+                        '🔊 VOICE LOUNGE • 🎁 COMMUNITY EXTRAS • 🛡️ TEAM HQ (PRIVAT)<br>' +
+                        '👑 14 Rollen (Emlix/Inhaber, Management, Mods, VIPs, Twitch Subs, Community & Pings)' +
+                    '</div>' +
+                    '<button type="button" class="btn-primary" style="width:100%; justify-content:center; padding:10px 20px; background:linear-gradient(135deg, #9b5de5, #f15bb5);" onclick="executeApplyTemplate(\'emlix_tv\')">' +
+                        '✨ EMLIX TV Vorlage jetzt auf ' + guild.name + ' anwenden' +
+                    '</button>' +
+                '</div>' +
 
                 // TEMPLATE 1: GAMING
                 '<div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.1); border-radius:14px; padding:20px;">' +
