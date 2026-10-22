@@ -1916,6 +1916,18 @@ function buildTicketsModalHtml(guild) {
             }
             if (!guild.settings.socialAlerts) guild.settings.socialAlerts = { enabled: true, creators: [] };
             if (!guild.settings.socialAlerts.creators) guild.settings.socialAlerts.creators = [];
+
+            // Formularstatus vor dem Re-Render sichern
+            const curChan = document.getElementById('cfg-social-channel')?.value;
+            if (curChan !== undefined) guild.settings.socialAlerts.channelId = curChan || null;
+            const curPing = document.getElementById('cfg-social-ping')?.value;
+            if (curPing !== undefined) guild.settings.socialAlerts.pingType = curPing;
+            const curMsg = document.getElementById('cfg-social-message')?.value;
+            if (curMsg !== undefined) guild.settings.socialAlerts.customMessage = curMsg;
+            if (document.getElementById('cfg-social-ftwitch')) guild.settings.socialAlerts.filterTwitch = document.getElementById('cfg-social-ftwitch').checked;
+            if (document.getElementById('cfg-social-fyoutube')) guild.settings.socialAlerts.filterYoutube = document.getElementById('cfg-social-fyoutube').checked;
+            if (document.getElementById('cfg-social-ftiktok')) guild.settings.socialAlerts.filterTiktok = document.getElementById('cfg-social-ftiktok').checked;
+
             guild.settings.socialAlerts.creators.push({
                 id: 'c_' + Date.now().toString(36),
                 platform,
@@ -1928,6 +1940,18 @@ function buildTicketsModalHtml(guild) {
         function removeCreatorFromSocialList(idx) {
             const guild = guilds.find(g => g.id === activeGuildId);
             if (!guild || !guild.settings.socialAlerts || !guild.settings.socialAlerts.creators) return;
+
+            // Formularstatus vor dem Re-Render sichern
+            const curChan = document.getElementById('cfg-social-channel')?.value;
+            if (curChan !== undefined) guild.settings.socialAlerts.channelId = curChan || null;
+            const curPing = document.getElementById('cfg-social-ping')?.value;
+            if (curPing !== undefined) guild.settings.socialAlerts.pingType = curPing;
+            const curMsg = document.getElementById('cfg-social-message')?.value;
+            if (curMsg !== undefined) guild.settings.socialAlerts.customMessage = curMsg;
+            if (document.getElementById('cfg-social-ftwitch')) guild.settings.socialAlerts.filterTwitch = document.getElementById('cfg-social-ftwitch').checked;
+            if (document.getElementById('cfg-social-fyoutube')) guild.settings.socialAlerts.filterYoutube = document.getElementById('cfg-social-fyoutube').checked;
+            if (document.getElementById('cfg-social-ftiktok')) guild.settings.socialAlerts.filterTiktok = document.getElementById('cfg-social-ftiktok').checked;
+
             guild.settings.socialAlerts.creators.splice(idx, 1);
             document.getElementById('modal-body-content').innerHTML = buildSocialAlertsModalHtml(guild);
         }
@@ -2116,11 +2140,13 @@ function deleteCategoryItem(index) {
                 payload.ticketCategories = updatedCats;
             } else if (currentOpenModule === 'roblox') {
                 payload.modules.robloxHub = isModuleActive;
+                const vMode = document.getElementById('cfg-roblox-vmode')?.value || 'optional';
                 payload.roblox = {
-                    placeId: document.getElementById('cfg-roblox-placeid').value || '98791725510246',
-                    verifiedRoleId: document.getElementById('cfg-roblox-role').value || null,
-                    nicknameSync: document.getElementById('cfg-roblox-nicknamesync').checked,
-                    requireVerificationGlobal: document.getElementById('cfg-roblox-requireglobal').checked
+                    placeId: document.getElementById('cfg-roblox-placeid')?.value || '98791725510246',
+                    verifiedRoleId: document.getElementById('cfg-roblox-role')?.value || null,
+                    nicknameSync: document.getElementById('cfg-roblox-nicknamesync')?.checked !== false,
+                    verificationMode: vMode,
+                    requireVerificationGlobal: (vMode === 'global')
                 };
             } else if (currentOpenModule === 'automod') {
                 payload.modules.autoMod = isModuleActive;

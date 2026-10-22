@@ -1502,39 +1502,51 @@ async function sendModLogSnapshot(guild, offender, reason, originChannel) {
 // =========================================================================
 async function handleHoneypotTrigger(message, honeypot, gSettings) {
     const author = message.author;
-    const member = message.member;
     const guild = message.guild;
     const rawContent = message.content || '[Kein Inhalt / Anhang]';
     const punishment = honeypot.punishment || 'ban';
 
     await message.delete().catch(() => {});
 
+    let member = message.member;
+    if (!member && guild) {
+        member = await guild.members.fetch(author.id).catch(() => null);
+    }
+
     let executedAction = 'Keine Sanktion';
     try {
         if (punishment === 'ban') {
-            if (member && member.bannable) {
-                await member.ban({ deleteMessageSeconds: 86400, reason: '🚨 AeroGuard Honeypot-Falle: Automatischer Raid/Bot-Schutz' }).catch(() => {});
+            try {
+                await guild.bans.create(author.id, {
+                    deleteMessageSeconds: 86400,
+                    reason: '🚨 AeroGuard Honeypot-Falle: Automatischer Raid/Bot-Schutz'
+                });
                 executedAction = '🔨 Permanent gebannt';
-            } else {
-                executedAction = '⚠️ Bann fehlgeschlagen (Fehlende Bot-Rechte)';
+            } catch (banErr) {
+                if (member && member.bannable) {
+                    await member.ban({ deleteMessageSeconds: 86400, reason: '🚨 AeroGuard Honeypot-Falle' }).catch(() => {});
+                    executedAction = '🔨 Permanent gebannt';
+                } else {
+                    executedAction = '⚠️ Bann fehlgeschlagen (' + banErr.message + ')';
+                }
             }
         } else if (punishment === 'kick') {
             if (member && member.kickable) {
                 await member.kick('🚨 AeroGuard Honeypot-Falle').catch(() => {});
                 executedAction = '👢 Gekickt';
             } else {
-                executedAction = '⚠️ Kick fehlgeschlagen';
+                executedAction = '⚠️ Kick fehlgeschlagen (Rechte prüfen)';
             }
         } else if (punishment === 'timeout') {
             if (member && member.moderatable) {
                 await member.timeout(7 * 24 * 60 * 60 * 1000, '🚨 AeroGuard Honeypot-Falle').catch(() => {});
                 executedAction = '⏳ 7 Tage Timeout verhängt';
             } else {
-                executedAction = '⚠️ Timeout fehlgeschlagen';
+                executedAction = '⚠️ Timeout fehlgeschlagen (Rechte prüfen)';
             }
         }
     } catch(err) {
-        executedAction = `Fehler: ${err.message}`;
+        executedAction = 'Fehler: ' + err.message;
     }
 
     const accountAgeDays = Math.floor((Date.now() - author.createdTimestamp) / (1000 * 60 * 60 * 24));
@@ -1549,7 +1561,7 @@ async function handleHoneypotTrigger(message, honeypot, gSettings) {
                 .setColor(0xff0055)
                 .setDescription(`Ein verdächtiger Nutzer oder Bot hat im gesicherten Fallenkanal <#${message.channel.id}> geschrieben und wurde vom **AeroGuard Core v4.0** Schutzschild neutralisiert.`)
                 .addFields(
-                    { name: '👤 Verdächtiger', value: `${author} (${author.tag} • ID: ${author.id})`, inline: true },
+                    { name: '👤 Verdächtiger', value: `${author} (${author.tag} • ID: \`${author.id}\`)`, inline: true },
                     { name: '📅 Account-Alter', value: `${accountAgeDays} Tage alt`, inline: true },
                     { name: '⚡ Sanktion', value: `**${executedAction}**`, inline: true },
                     { name: '📝 Abgefangene Nachricht', value: '```\n' + rawContent.substring(0, 500) + '\n```' }
@@ -1580,26 +1592,24 @@ async function sendSocialAlert(guild, creator, options = {}) {
     let platformName = 'Twitch';
     let platformColor = 0x9146FF;
     let platformIcon = '🟣';
-    let defaultUrl = `https://twitch.tv/${creator.username}`;
-    let sampleTitle = options.title || '🔴 LIVE: Große Community-Runde & Special Event!';
-    let sampleGame = options.game || 'Just Chatting';
+    let defaultUrl = options.videoUrl || (platform === 'twitch' ? `https://twitch.tv/${creator.username.trim().replace(/^@/, '')}` : `https://youtube.com/${creator.username.trim()}`);
+    let sampleTitle = options.title || (platform === 'twitch' ? '🔴 LIVE: Große Community-Runde & Special Event!' : '🎬 NEUES VIDEO online!');
+    let sampleGame = options.game || (platform === 'twitch' ? 'Just Chatting' : 'Gaming / Entertainment');
     let sampleBanner = 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=1200&q=80';
 
     if (platform === 'youtube') {
         platformName = 'YouTube';
         platformColor = 0xFF0000;
         platformIcon = '🔴';
-        defaultUrl = creator.username.startsWith('http') ? creator.username : `https://youtube.com/${creator.username.startsWith('@') ? creator.username : '@' + creator.username}`;
-        sampleTitle = options.title || '🎬 NEUES VIDEO: Ich habe 24 Stunden überlebt!';
-        sampleGame = 'Gaming / Entertainment';
+        if (!options.videoUrl) {
+            defaultUrl = creator.username.startsWith('http') ? creator.username : `https://youtube.com/${creator.username.startsWith('@') ? creator.username : '@' + creator.username}`;
+        }
         sampleBanner = 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?auto=format&fit=crop&w=1200&q=80';
     } else if (platform === 'tiktok') {
         platformName = 'TikTok';
         platformColor = 0x00f2fe;
         platformIcon = '🎵';
         defaultUrl = `https://tiktok.com/@${creator.username.replace('@', '')}`;
-        sampleTitle = options.title || '🔥 Neuer viraler Clip online! Schaut unbedingt vorbei.';
-        sampleGame = 'Trending Clips';
         sampleBanner = 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1200&q=80';
     }
 
@@ -1632,6 +1642,10 @@ async function sendSocialAlert(guild, creator, options = {}) {
         .setFooter({ text: `AeroGuard Social Alerts v4.0 • ${guild.name}`, iconURL: guild.iconURL() })
         .setTimestamp();
 
+    if (options.avatarUrl) {
+        embed.setThumbnail(options.avatarUrl);
+    }
+
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setLabel(`🔴 Auf ${platformName} ansehen`)
@@ -1650,18 +1664,36 @@ async function sendSocialAlert(guild, creator, options = {}) {
 }
 
 client.on('messageCreate', async message => {
-    if (message.author.bot || !message.guild) return;
+    // 🍯 1. HONEYPOT ANTI-RAID & BOT-TRAP CHECK (v4.0)
+    // Läuft vor allen anderen Filtern, damit auch Fremd-Bots zuverlässig in die Falle tappen!
+    if (message.guild && message.channel) {
+        // Niemals auf eigene Bot-Nachrichten reagieren
+        if (message.author.id === client.user.id) return;
 
-    // 🍯 HONEYPOT ANTI-RAID & BOT-TRAP CHECK (v4.0)
-    const gSettingsHoneypot = getGuildSettings(message.guild.id);
-    const honeypot = gSettingsHoneypot?.security?.honeypot;
-    if (honeypot && honeypot.enabled && honeypot.channelId === message.channel.id) {
-        const isStaffUser = isSupporterOrAdmin(message.member, message.guild);
-        if (!isStaffUser) {
-            await handleHoneypotTrigger(message, honeypot, gSettingsHoneypot);
-            return;
+        const gSettingsHoneypot = getGuildSettings(message.guild.id);
+        const honeypot = gSettingsHoneypot?.security?.honeypot;
+        if (honeypot && honeypot.enabled && honeypot.channelId === message.channel.id) {
+            const isStaffUser = isSupporterOrAdmin(message.member, message.guild);
+            if (isStaffUser) {
+                // Team/Admin Schutz: Nachricht löschen & Feedback-Meldung zur Bestätigung senden (selbstlöschend nach 6s)
+                await message.delete().catch(() => {});
+                const staffNotice = await message.channel.send({
+                    content: `🛡️ **Honeypot-Falle ist AKTIV:** Deine Test-Nachricht wurde gelöscht. Dein Team-Account (<@${message.author.id}>) ist geschützt — unbefugte Nutzer und Bots werden hier sofort gebannt!`
+                }).catch(() => null);
+                if (staffNotice) {
+                    setTimeout(() => {
+                        staffNotice.delete().catch(() => {});
+                    }, 6000);
+                }
+                return;
+            } else {
+                // Unbefugter Nutzer oder Raid-Bot: Sofortige Sanktion & Mod-Log
+                await handleHoneypotTrigger(message, honeypot, gSettingsHoneypot);
+                return;
+            }
         }
     }
+
     if (message.author.bot || !message.guild) return;
 
     const rawContent = message.content.trim();
@@ -2557,7 +2589,7 @@ client.on('interactionCreate', async interaction => {
         return await interaction.showModal(verifyModal);
     }
 
-    // MODAL SUBMIT: Roblox Account Verification via Real API
+    // MODAL SUBMIT: Roblox Account Verification via Real API (v4.0 mit Auto-Rolle & Nickname-Sync)
     if (interaction.isModalSubmit() && interaction.customId.startsWith('modal_rbx_link_')) {
         await interaction.deferReply({ ephemeral: true });
         const parts = interaction.customId.split('_');
@@ -2576,6 +2608,24 @@ client.on('interactionCreate', async interaction => {
         cloudStorage.verifiedRobloxUsers[interaction.user.id] = rbxData;
         saveCloudVaultToDisk();
 
+        const gSettings = getGuildSettings(guildId);
+        const rbxSettings = gSettings.roblox || {};
+        let roleStatus = '';
+        let nickStatus = '';
+
+        if (rbxSettings.verifiedRoleId && interaction.member) {
+            try {
+                await interaction.member.roles.add(rbxSettings.verifiedRoleId);
+                roleStatus = '✅ Rolle zugewiesen';
+            } catch(e) {}
+        }
+        if (rbxSettings.nicknameSync !== false && interaction.member) {
+            try {
+                await interaction.member.setNickname(rbxData.username);
+                nickStatus = '✅ Nickname synchronisiert';
+            } catch(e) {}
+        }
+
         const successEmbed = new EmbedBuilder()
             .setTitle('✅ Roblox-Account erfolgreich verknüpft!')
             .setDescription(`Dein Discord-Account ist jetzt dauerhaft mit **${rbxData.displayName} (@${rbxData.username})** verknüpft.\n\nDu kannst jetzt dein Ticket öffnen!`)
@@ -2585,6 +2635,14 @@ client.on('interactionCreate', async interaction => {
             )
             .setThumbnail(rbxData.avatarUrl)
             .setColor(0x00f5d4);
+
+        if (roleStatus || nickStatus) {
+            successEmbed.addFields({
+                name: '⚙️ Auto-Konfiguration',
+                value: [roleStatus, nickStatus].filter(Boolean).join(' • '),
+                inline: false
+            });
+        }
 
         const continueRow = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
@@ -3557,12 +3615,25 @@ client.on('interactionCreate', async interaction => {
                 return interaction.reply('✅ **Creator hinzugefügt:** ' + b + name + b + ' (' + platform.toUpperCase() + ') wird ab sofort überwacht!');
             }
 
+            if (sub === 'remove') {
+                const targetUser = interaction.options.getString('username').toLowerCase();
+                const creators = gSettings.socialAlerts.creators || [];
+                const initLen = creators.length;
+                gSettings.socialAlerts.creators = creators.filter(c => c.username.toLowerCase() !== targetUser && (c.displayName || '').toLowerCase() !== targetUser);
+                if (gSettings.socialAlerts.creators.length < initLen) {
+                    saveCloudVaultToDisk();
+                    return interaction.reply(`✅ **Creator entfernt:** \`${targetUser}\` wurde aus der Überwachung gelöscht.`);
+                } else {
+                    return interaction.reply({ content: `⚠️ Kein Creator mit dem Namen \`${targetUser}\` gefunden. Nutze \`/social-alert list\`, um alle anzuzeigen.`, ephemeral: true });
+                }
+            }
+
             if (sub === 'list') {
                 const creators = gSettings.socialAlerts.creators || [];
                 if (creators.length === 0) {
                     return interaction.reply({ content: 'ℹ️ Es sind aktuell keine Creator in der Überwachung hinterlegt.', ephemeral: true });
                 }
-                const listText = creators.map((c, idx) => (idx + 1) + '. **' + (c.displayName || c.username) + '** [' + c.platform.toUpperCase() + '] (' + b + c.username + b + ')').join('\n');
+                const listText = creators.map((c, idx) => (idx + 1) + '. **' + (c.displayName || c.username) + '** [' + c.platform.toUpperCase() + '] (' + b + c.username + b + ')' + (c.isLive ? ' 🔴 *LIVE*' : '')).join('\n');
                 const listEmbed = new EmbedBuilder()
                     .setTitle('📡 Überwachte Streamer & Creator')
                     .setDescription(listText)
@@ -3603,17 +3674,64 @@ client.on('interactionCreate', async interaction => {
                 await interaction.deferReply({ ephemeral: true });
                 let ch = null;
                 if (honeypot?.channelId) {
-                    ch = guild.channels.cache.get(honeypot.channelId);
+                    ch = guild.channels.cache.get(honeypot.channelId) || await guild.channels.fetch(honeypot.channelId).catch(() => null);
                 }
                 if (!ch) {
                     ch = await guild.channels.create({
                         name: '🍯・bot-falle',
                         type: ChannelType.GuildText,
-                        topic: '⚠️ SICHERHEITS-FALLE: Schreibe hier NICHTS! Jeder, der hier schreibt, wird automatisch gebannt (Anti-Raid Trap).'
+                        topic: '⚠️ SICHERHEITS-FALLE: Schreibe hier NICHTS! Jeder, der hier schreibt, wird automatisch gebannt (Anti-Raid Trap).',
+                        permissionOverwrites: [
+                            {
+                                id: guild.id, // @everyone
+                                allow: [
+                                    PermissionFlagsBits.ViewChannel,
+                                    PermissionFlagsBits.SendMessages,
+                                    PermissionFlagsBits.ReadMessageHistory
+                                ],
+                                deny: [
+                                    PermissionFlagsBits.AddReactions,
+                                    PermissionFlagsBits.AttachFiles
+                                ]
+                            },
+                            {
+                                id: client.user.id,
+                                allow: [
+                                    PermissionFlagsBits.ViewChannel,
+                                    PermissionFlagsBits.SendMessages,
+                                    PermissionFlagsBits.ManageMessages,
+                                    PermissionFlagsBits.BanMembers,
+                                    PermissionFlagsBits.EmbedLinks,
+                                    PermissionFlagsBits.ReadMessageHistory
+                                ]
+                            }
+                        ]
                     });
+
+                    // Offizielles Warn-Embed in den Fallen-Kanal projizieren
+                    const trapBannerEmbed = new EmbedBuilder()
+                        .setTitle('🍯 AeroGuard Core v4.0 • Anti-Raid Sicherheits-Falle')
+                        .setColor(0xf59e0b)
+                        .setDescription(
+                            '⚠️ **ACHTUNG: DIESER KANAL IST EINE BOT-FALLE!**\n\n' +
+                            '⛔ **Schreibe hier unter keinen Umständen eine Nachricht!**\n\n' +
+                            'Dieser Kanal dient als automatische Schutzfalle gegen schädliche Raid-Bots, Scammer und Spam-Accounts. ' +
+                            'Jeder Bot oder reguläre Nutzer, der in diesem Kanal schreibt, wird vom AeroGuard-Schutzschild **sofort permanent gebannt** (oder sanktioniert).'
+                        )
+                        .setFooter({ text: 'AeroGuard Security Core • Fallen-Kanal scharfgestellt' });
+
+                    await ch.send({ embeds: [trapBannerEmbed] }).catch(() => {});
+                } else {
+                    // Berechtigungen auf bestehendem Kanal sicherstellen
+                    await ch.permissionOverwrites.edit(guild.id, {
+                        ViewChannel: true,
+                        SendMessages: true,
+                        ReadMessageHistory: true
+                    }).catch(() => {});
                 }
+
                 if (!gSettings.security) gSettings.security = {};
-                gSettings.security.honeypot = { enabled: true, channelId: ch.id, punishment: 'ban' };
+                gSettings.security.honeypot = { enabled: true, channelId: ch.id, punishment: honeypot?.punishment || 'ban' };
                 saveCloudVaultToDisk();
                 return interaction.followUp('✅ **Honeypot-Falle erfolgreich eingerichtet:** <#' + ch.id + '> ist nun scharfgestellt! Jeder Raid-Bot, der dort schreibt, wird augenblicklich gebannt.');
             }
@@ -3694,6 +3812,24 @@ client.on('interactionCreate', async interaction => {
             cloudStorage.verifiedRobloxUsers[userId] = rbxData;
             saveCloudVaultToDisk();
 
+            const gSettings = getGuildSettings(interaction.guild.id);
+            const rbxSettings = gSettings.roblox || {};
+            let roleStatus = '';
+            let nickStatus = '';
+
+            if (rbxSettings.verifiedRoleId && interaction.member) {
+                try {
+                    await interaction.member.roles.add(rbxSettings.verifiedRoleId);
+                    roleStatus = '✅ Verifiziert-Rolle zugewiesen';
+                } catch(e) {}
+            }
+            if (rbxSettings.nicknameSync !== false && interaction.member) {
+                try {
+                    await interaction.member.setNickname(rbxData.username);
+                    nickStatus = '✅ Nickname synchronisiert';
+                } catch(e) {}
+            }
+
             const verifyEmbed = new EmbedBuilder()
                 .setTitle('✅ Roblox-Account erfolgreich verknüpft!')
                 .setDescription(`Dein Discord-Account ist nun offiziell mit **${rbxData.displayName} (@${rbxData.username})** verknüpft.`)
@@ -3703,6 +3839,14 @@ client.on('interactionCreate', async interaction => {
                 )
                 .setThumbnail(rbxData.avatarUrl)
                 .setColor(0x00f5d4);
+
+            if (roleStatus || nickStatus) {
+                verifyEmbed.addFields({
+                    name: '⚙️ Auto-Konfiguration',
+                    value: [roleStatus, nickStatus].filter(Boolean).join(' • '),
+                    inline: false
+                });
+            }
 
             return interaction.editReply({ embeds: [verifyEmbed] });
         }
@@ -4538,6 +4682,136 @@ setInterval(async () => {
     }
 }, 10000);
 
+// =========================================================================
+// 📡 SOCIAL ALERTS REALTIME BACKGROUND ENGINE (Twitch & YouTube Live Tracker)
+// =========================================================================
+let isCheckingSocialAlerts = false;
+
+async function checkSocialAlertsEngine() {
+    if (isCheckingSocialAlerts) return;
+    isCheckingSocialAlerts = true;
+
+    try {
+        if (!cloudStorage || !cloudStorage.guildSettings) return;
+
+        for (const [guildId, gSettings] of Object.entries(cloudStorage.guildSettings)) {
+            const sa = gSettings.socialAlerts;
+            if (!sa || !sa.enabled || !sa.channelId) continue;
+            if (!Array.isArray(sa.creators) || sa.creators.length === 0) continue;
+
+            const guild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+            if (!guild) continue;
+
+            for (const creator of sa.creators) {
+                const platform = (creator.platform || 'twitch').toLowerCase();
+
+                // 🟣 TWITCH LIVE TRACKING
+                if (platform === 'twitch' && sa.filterTwitch !== false) {
+                    try {
+                        const cleanUser = encodeURIComponent(creator.username.trim().replace(/^@/, ''));
+                        const res = await fetch(`https://decapi.me/twitch/uptime/${cleanUser}`, {
+                            signal: AbortSignal.timeout(6000)
+                        });
+                        const text = (await res.text()).trim();
+
+                        const isOffline = text.toLowerCase().includes('offline') || 
+                                          text.toLowerCase().includes('does not exist') || 
+                                          text.toLowerCase().includes('not found') ||
+                                          text.toLowerCase().includes('error');
+
+                        if (!isOffline && text.length > 0) {
+                            // Stream ist LIVE!
+                            if (!creator.isLive) {
+                                creator.isLive = true;
+                                creator.lastLiveAt = Date.now();
+
+                                let streamTitle = '🔴 LIVE: Stream gestartet!';
+                                let streamGame = 'Just Chatting';
+                                let avatarUrl = null;
+
+                                try {
+                                    const tRes = await fetch(`https://decapi.me/twitch/title/${cleanUser}`, { signal: AbortSignal.timeout(4000) });
+                                    const gRes = await fetch(`https://decapi.me/twitch/game/${cleanUser}`, { signal: AbortSignal.timeout(4000) });
+                                    const aRes = await fetch(`https://decapi.me/twitch/avatar/${cleanUser}`, { signal: AbortSignal.timeout(4000) });
+                                    if (tRes.ok) streamTitle = (await tRes.text()).trim() || streamTitle;
+                                    if (gRes.ok) streamGame = (await gRes.text()).trim() || streamGame;
+                                    if (aRes.ok) avatarUrl = (await aRes.text()).trim();
+                                } catch(e) {}
+
+                                await sendSocialAlert(guild, creator, {
+                                    title: streamTitle,
+                                    game: streamGame,
+                                    avatarUrl: avatarUrl,
+                                    isTest: false
+                                });
+                                saveCloudVaultToDisk();
+                            }
+                        } else {
+                            if (creator.isLive) {
+                                creator.isLive = false;
+                                saveCloudVaultToDisk();
+                            }
+                        }
+                    } catch(e) {}
+                }
+
+                // 🔴 YOUTUBE VIDEO TRACKING
+                else if (platform === 'youtube' && sa.filterYoutube !== false) {
+                    try {
+                        let rawUser = creator.username.trim().replace(/^@/, '');
+                        let feedUrl = rawUser.startsWith('UC')
+                            ? `https://www.youtube.com/feeds/videos.xml?channel_id=${rawUser}`
+                            : `https://www.youtube.com/feeds/videos.xml?user=${rawUser}`;
+
+                        let feedRes = await fetch(feedUrl, { signal: AbortSignal.timeout(6000) });
+                        if (!feedRes.ok) {
+                            const handleRes = await fetch(`https://www.youtube.com/@${rawUser}`, { signal: AbortSignal.timeout(6000) });
+                            if (handleRes.ok) {
+                                const html = await handleRes.text();
+                                const chMatch = html.match(/channel_id=([a-zA-Z0-9_-]+)/) || html.match(/"channelId":"([a-zA-Z0-9_-]+)"/);
+                                if (chMatch) {
+                                    feedRes = await fetch(`https://www.youtube.com/feeds/videos.xml?channel_id=${chMatch[1]}`, { signal: AbortSignal.timeout(6000) });
+                                }
+                            }
+                        }
+
+                        if (feedRes && feedRes.ok) {
+                            const xml = await feedRes.text();
+                            const videoIdMatch = xml.match(/<yt:videoId>(.*?)<\/yt:videoId>/);
+                            const titleMatch = xml.match(/<entry>[\s\S]*?<title>(.*?)<\/title>/);
+
+                            if (videoIdMatch) {
+                                const latestVideoId = videoIdMatch[1];
+                                const latestTitle = titleMatch ? titleMatch[1] : 'Neues YouTube Video!';
+
+                                if (!creator.lastVideoId) {
+                                    creator.lastVideoId = latestVideoId;
+                                    saveCloudVaultToDisk();
+                                } else if (creator.lastVideoId !== latestVideoId) {
+                                    creator.lastVideoId = latestVideoId;
+                                    await sendSocialAlert(guild, creator, {
+                                        title: latestTitle,
+                                        videoUrl: `https://www.youtube.com/watch?v=${latestVideoId}`,
+                                        isTest: false
+                                    });
+                                    saveCloudVaultToDisk();
+                                }
+                            }
+                        }
+                    } catch(e) {}
+                }
+            }
+        }
+    } catch(err) {
+        console.error('[SOCIAL ALERTS ENGINE ERROR]', err);
+    } finally {
+        isCheckingSocialAlerts = false;
+    }
+}
+
+// Prüft alle konfigurierten Creator alle 90 Sekunden
+setInterval(checkSocialAlertsEngine, 90000);
+
 
 // =========================================================================
 // EXPANDED REGISTER COMMAND DEFINITIONS MATRIX
@@ -4603,6 +4877,8 @@ const extendedCommandDefinitions = [
             ))
             .addStringOption(o => o.setName('username').setDescription('Kanal- oder Benutzername').setRequired(true))
             .addStringOption(o => o.setName('name').setDescription('Anzeigename (optional)').setRequired(false)))
+        .addSubcommand(sub => sub.setName('remove').setDescription('Entfernt einen Creator aus der Überwachung')
+            .addStringOption(o => o.setName('username').setDescription('Benutzername oder Handle').setRequired(true)))
         .addSubcommand(sub => sub.setName('channel').setDescription('Legt den Benachrichtigungskanal fest')
             .addChannelOption(o => o.setName('kanal').setDescription('Textkanal').setRequired(true))),
     new SlashCommandBuilder()
@@ -6504,15 +6780,61 @@ app.post('/api/guild/:guildId/setup-honeypot', async (req, res) => {
         const gSettings = getGuildSettings(guild.id);
         let ch = null;
         if (gSettings.security?.honeypot?.channelId) {
-            ch = guild.channels.cache.get(gSettings.security.honeypot.channelId);
+            ch = guild.channels.cache.get(gSettings.security.honeypot.channelId) || await guild.channels.fetch(gSettings.security.honeypot.channelId).catch(() => null);
         }
 
         if (!ch) {
             ch = await guild.channels.create({
                 name: '🍯・bot-falle',
                 type: ChannelType.GuildText,
-                topic: '⚠️ SICHERHEITS-FALLE: Schreibe hier NICHTS! Jeder, der hier schreibt, wird automatisch gebannt (Anti-Raid Trap).'
+                topic: '⚠️ SICHERHEITS-FALLE: Schreibe hier NICHTS! Jeder, der hier schreibt, wird automatisch gebannt (Anti-Raid Trap).',
+                permissionOverwrites: [
+                    {
+                        id: guild.id, // @everyone
+                        allow: [
+                            PermissionFlagsBits.ViewChannel,
+                            PermissionFlagsBits.SendMessages,
+                            PermissionFlagsBits.ReadMessageHistory
+                        ],
+                        deny: [
+                            PermissionFlagsBits.AddReactions,
+                            PermissionFlagsBits.AttachFiles
+                        ]
+                    },
+                    {
+                        id: client.user.id,
+                        allow: [
+                            PermissionFlagsBits.ViewChannel,
+                            PermissionFlagsBits.SendMessages,
+                            PermissionFlagsBits.ManageMessages,
+                            PermissionFlagsBits.BanMembers,
+                            PermissionFlagsBits.EmbedLinks,
+                            PermissionFlagsBits.ReadMessageHistory
+                        ]
+                    }
+                ]
             });
+
+            // Warnung im Fallenkanal posten
+            const trapBannerEmbed = new EmbedBuilder()
+                .setTitle('🍯 AeroGuard Core v4.0 • Anti-Raid Sicherheits-Falle')
+                .setColor(0xf59e0b)
+                .setDescription(
+                    '⚠️ **ACHTUNG: DIESER KANAL IST EINE BOT-FALLE!**\n\n' +
+                    '⛔ **Schreibe hier unter keinen Umständen eine Nachricht!**\n\n' +
+                    'Dieser Kanal dient als automatische Schutzfalle gegen schädliche Raid-Bots, Scammer und Spam-Accounts. ' +
+                    'Jeder Bot oder reguläre Nutzer, der in diesem Kanal schreibt, wird vom AeroGuard-Schutzschild **sofort permanent gebannt** (oder sanktioniert).'
+                )
+                .setFooter({ text: 'AeroGuard Security Core • Fallen-Kanal scharfgestellt' });
+
+            await ch.send({ embeds: [trapBannerEmbed] }).catch(() => {});
+        } else {
+            // Berechtigungen auf bestehendem Kanal sicherstellen
+            await ch.permissionOverwrites.edit(guild.id, {
+                ViewChannel: true,
+                SendMessages: true,
+                ReadMessageHistory: true
+            }).catch(() => {});
         }
 
         if (!gSettings.security) gSettings.security = {};
