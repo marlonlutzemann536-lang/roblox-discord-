@@ -631,6 +631,178 @@ function loadCloudVaultFromDisk() {
 
 loadCloudVaultFromDisk();
 // =========================================================================
+// AEROGUARD PERSISTENT TICKET RESTORATION & SYNC ENGINE
+// =========================================================================
+async function getOrRestoreTicket(channelId, channelObj) {
+    if (!channelId) return null;
+    if (cloudStorage.activeTickets && cloudStorage.activeTickets[channelId]) {
+        return cloudStorage.activeTickets[channelId];
+    }
+
+    let channel = channelObj;
+    if (!channel) {
+        channel = client.channels?.cache?.get(channelId);
+        if (!channel && client.channels?.fetch) {
+            channel = await client.channels.fetch(channelId).catch(() => null);
+        }
+    }
+    if (!channel || channel.type !== ChannelType.GuildText || !channel.guild) return null;
+
+    const gSettings = getGuildSettings(channel.guild.id);
+    const isTicketName = channel.name.startsWith('ticket-') || channel.name.startsWith('support-');
+    const isTicketTopic = channel.topic && channel.topic.includes('AeroGuard Ticket');
+    const isTicketCategory = gSettings.ticketCategoryId && channel.parentId === gSettings.ticketCategoryId;
+
+    if (!isTicketName && !isTicketTopic && !isTicketCategory) {
+        return null;
+    }
+
+    let ticketNum = 1;
+    let username = 'Discord User';
+    let userId = null;
+    let category = 'Allgemeiner Support';
+    let reason = 'Support-Ticket';
+    let ign = 'Nicht angegeben';
+    let robloxData = null;
+    let claimedBy = null;
+    let status = 'OPEN';
+    let createdAt = channel.createdTimestamp || Date.now();
+
+    if (channel.topic) {
+        const numMatch = channel.topic.match(/#(\d+)/);
+        if (numMatch) ticketNum = parseInt(numMatch[1]);
+
+        const userMatch = channel.topic.match(/Ersteller:\s*([^\(]+)\s*\((\d{16,21})\)/);
+        if (userMatch) {
+            username = userMatch[1].trim();
+            userId = userMatch[2].trim();
+        }
+
+        const catMatch = channel.topic.match(/Kategorie:\s*([^|]+)/);
+        if (catMatch) category = catMatch[1].trim();
+    }
+
+    try {
+        const msgs = await channel.messages.fetch({ limit: 15 }).catch(() => null);
+        if (msgs) {
+            const botEmbedMsg = msgs.find(m => m.author.id === client.user?.id && m.embeds && m.embeds.length > 0);
+            if (botEmbedMsg) {
+                const emb = botEmbedMsg.embeds[0];
+                if (emb.title && ticketNum === 1) {
+                    const m = emb.title.match(/#(\d+)/);
+                    if (m) ticketNum = parseInt(m[1]);
+                }
+                emb.fields?.forEach(f => {
+                    if (f.name.includes('Ersteller') && !userId) {
+                        const uidM = f.value.match(/<@!?(\d{16,21})>/);
+                        if (uidM) userId = uidM[1];
+                        const tagM = f.value.match(/\(([^\)]+)\)/);
+                        if (tagM) username = tagM[1];
+                    }
+                    if (f.name.includes('Kategorie')) category = f.value;
+                    if (f.name.includes('Roblox')) ign = f.value;
+                    if (f.name.includes('Anliegen')) reason = f.value;
+                    if (f.name.includes('Status') && f.value.includes('Bearbeitung')) status = 'CLAIMED';
+                    if (f.name.includes('Zuständig') && !f.value.includes('nicht zugewiesen')) {
+                        const uidM = f.value.match(/<@!?(\d{16,21})>/);
+                        if (uidM) claimedBy = uidM[1];
+                    }
+                });
+            }
+        }
+    } catch(e) {}
+
+    if (!userId && channel.permissionOverwrites) {
+        for (const [id, overwrite] of channel.permissionOverwrites.cache) {
+            if ((overwrite.type === OverwriteType?.Member || overwrite.type === 1) && id !== client.user?.id) {
+                userId = id;
+                break;
+            }
+        }
+    }
+
+    if (ticketNum === 1) {
+        const nameNum = channel.name.match(/\d+/);
+        if (nameNum) ticketNum = parseInt(nameNum[0]);
+    }
+
+    if (userId && cloudStorage.verifiedRobloxUsers && cloudStorage.verifiedRobloxUsers[userId]) {
+        robloxData = cloudStorage.verifiedRobloxUsers[userId];
+    }
+
+    const reconstructed = {
+        ticketNum: ticketNum,
+        channelId: channel.id,
+        guildId: channel.guild.id,
+        guildName: channel.guild.name,
+        userId: userId || channel.guild.ownerId,
+        username: username,
+        category: category,
+        categoryId: 'support',
+        reason: reason,
+        ign: ign,
+        robloxData: robloxData,
+        createdAt: createdAt,
+        claimedBy: claimedBy,
+        status: status
+    };
+
+    cloudStorage.activeTickets[channel.id] = reconstructed;
+    saveCloudVaultToDisk();
+    addLog('info', `Ticket #${ticketNum} in #${channel.name} (${channel.guild.name}) persistent wiederhergestellt.`);
+    return reconstructed;
+}
+
+async function syncActiveTicketsFromDiscord() {
+    try {
+        if (!cloudStorage.activeTickets) cloudStorage.activeTickets = {};
+        let recoveredCount = 0;
+        let activeCount = 0;
+
+        for (const guild of client.guilds.cache.values()) {
+            const gSettings = getGuildSettings(guild.id);
+            const ticketCatId = gSettings.ticketCategoryId || cloudStorage.systemSettings?.ticketCategoryId;
+
+            const channels = await guild.channels.fetch().catch(() => guild.channels.cache);
+            if (!channels) continue;
+
+            for (const [chId, ch] of channels) {
+                if (!ch || ch.type !== ChannelType.GuildText) continue;
+
+                const isTicketName = ch.name.startsWith('ticket-') || ch.name.startsWith('support-');
+                const isTicketTopic = ch.topic && ch.topic.includes('AeroGuard Ticket');
+                const isTicketCategory = ticketCatId && ch.parentId === ticketCatId;
+
+                if (isTicketName || isTicketTopic || isTicketCategory) {
+                    if (!cloudStorage.activeTickets[chId]) {
+                        await getOrRestoreTicket(chId, ch);
+                        recoveredCount++;
+                    } else {
+                        activeCount++;
+                    }
+                }
+            }
+        }
+
+        // Clean up tickets whose channels no longer exist
+        for (const chId of Object.keys(cloudStorage.activeTickets)) {
+            const channel = client.channels?.cache?.get(chId);
+            if (!channel) {
+                const fetched = await client.channels?.fetch(chId).catch(() => null);
+                if (!fetched) {
+                    delete cloudStorage.activeTickets[chId];
+                }
+            }
+        }
+
+        saveCloudVaultToDisk();
+        addLog('info', `[TICKET PERSISTENCE ENGINE] Sync abgeschlossen: ${recoveredCount} wiederhergestellt, ${activeCount + recoveredCount} aktive Tickets im System.`);
+    } catch(err) {
+        console.error('[TICKET PERSISTENCE ERROR]', err);
+    }
+}
+
+// =========================================================================
 // AEROGUARD TICKET & PERMISSION UTILITIES
 // =========================================================================
 function isSupporterOrAdmin(member, guildOrGuildId) {
@@ -1213,7 +1385,11 @@ client.on('messageCreate', async message => {
     // =========================================================================
     // TICKET MESSAGE LOGGER FÜR SERVER-KANÄLE
     // =========================================================================
-    if (message.guild && cloudStorage.activeTickets[message.channel.id]) {
+    let liveTicket = cloudStorage.activeTickets[message.channel.id];
+    if (!liveTicket && message.channel.name && (message.channel.name.startsWith('ticket-') || message.channel.name.startsWith('support-') || (message.channel.topic && message.channel.topic.includes('AeroGuard Ticket')))) {
+        liveTicket = await getOrRestoreTicket(message.channel.id, message.channel);
+    }
+    if (message.guild && liveTicket) {
         logTicketMessage(message.channel.id, message.author.tag, message.content, isSupp);
     }
 
@@ -1364,12 +1540,16 @@ client.on('messageCreate', async message => {
     }
 
     // In-Ticket Channel Commands (!close, !claim, !transcript, !add, !remove)
-    if (cloudStorage.activeTickets[message.channel.id]) {
+    let inTicket = cloudStorage.activeTickets[message.channel.id];
+    if (!inTicket && message.channel.name && (message.channel.name.startsWith('ticket-') || message.channel.name.startsWith('support-') || (message.channel.topic && message.channel.topic.includes('AeroGuard Ticket')))) {
+        inTicket = await getOrRestoreTicket(message.channel.id, message.channel);
+    }
+    if (inTicket) {
         const gSettings = getGuildSettings(message.guild.id);
         if (gSettings && gSettings.modules && gSettings.modules.tickets === false) {
             return message.reply('⚠️ **Funktion deaktiviert:** Ticket-Funktionen sind auf diesem Server aktuell über das Web-Dashboard abgeschaltet.\n👉 *Bitte aktiviere es im Dashboard wieder:* `http://localhost:3000/dashboard`');
         }
-        const ticket = cloudStorage.activeTickets[message.channel.id];
+        const ticket = inTicket;
 
         // IN-TICKET COMMAND: !add @user
         if (lowerContent.startsWith('!add ') || lowerContent.startsWith('/ticket add ')) {
@@ -2303,6 +2483,7 @@ client.on('interactionCreate', async interaction => {
             }
         }
         const chId = interaction.customId.replace('ticket_ch_close_', '');
+        let ticket = cloudStorage.activeTickets[chId] || await getOrRestoreTicket(chId, interaction.channel);
         const confirmRow = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('ticket_ch_confirm_close_' + chId).setLabel('Ja, schließen & archivieren').setEmoji('✅').setStyle(ButtonStyle.Danger),
             new ButtonBuilder().setCustomId('ticket_ch_cancel_close_' + chId).setLabel('Abbrechen').setEmoji('❌').setStyle(ButtonStyle.Secondary)
@@ -2320,7 +2501,7 @@ client.on('interactionCreate', async interaction => {
     if (interaction.isButton() && interaction.customId.startsWith('ticket_ch_confirm_close_')) {
         await interaction.deferUpdate().catch(() => {});
         const chId = interaction.customId.replace('ticket_ch_confirm_close_', '');
-        const ticket = cloudStorage.activeTickets[chId];
+        let ticket = cloudStorage.activeTickets[chId] || await getOrRestoreTicket(chId, interaction.channel);
         if (!ticket) return;
 
         ticket.status = 'CLOSED';
@@ -2434,7 +2615,7 @@ client.on('interactionCreate', async interaction => {
 
     if (interaction.isButton() && interaction.customId.startsWith('ticket_ch_claim_')) {
         const chId = interaction.customId.replace('ticket_ch_claim_', '');
-        const ticket = cloudStorage.activeTickets[chId];
+        let ticket = cloudStorage.activeTickets[chId] || await getOrRestoreTicket(chId, interaction.channel);
         if (!ticket) return interaction.reply({ content: 'Ticket nicht gefunden.', ephemeral: true });
 
         if (ticket.claimedBy) {
@@ -2474,7 +2655,7 @@ client.on('interactionCreate', async interaction => {
 
     if (interaction.isButton() && interaction.customId.startsWith('ticket_ch_transcript_')) {
         const chId = interaction.customId.replace('ticket_ch_transcript_', '');
-        const ticket = cloudStorage.activeTickets[chId];
+        let ticket = cloudStorage.activeTickets[chId] || await getOrRestoreTicket(chId, interaction.channel);
         if (!ticket) return interaction.reply({ content: 'Ticket nicht gefunden.', ephemeral: true });
 
         const htmlContent = generateHtmlTranscript(chId, ticket);
@@ -2488,7 +2669,7 @@ client.on('interactionCreate', async interaction => {
 
     if (interaction.isButton() && interaction.customId.startsWith('ticket_ch_ai_')) {
         const chId = interaction.customId.replace('ticket_ch_ai_', '');
-        const ticket = cloudStorage.activeTickets[chId];
+        let ticket = cloudStorage.activeTickets[chId] || await getOrRestoreTicket(chId, interaction.channel);
         if (!ticket) return interaction.reply({ content: 'Ticket nicht gefunden.', ephemeral: true });
 
         const aiResponse = analyzeTicketWithAI(ticket.reason);
@@ -2778,7 +2959,7 @@ client.on('interactionCreate', async interaction => {
             }
             const sub = interaction.options.getSubcommand();
             const chId = interaction.channel.id;
-            const ticket = cloudStorage.activeTickets[chId];
+            let ticket = cloudStorage.activeTickets[chId] || await getOrRestoreTicket(chId, interaction.channel);
 
             if (sub === 'setup') {
                 if (!isSupporterOrAdmin(interaction.member, guild)) {
@@ -5263,8 +5444,18 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
     }
 });
 
+
+// Ticket Persistence: Kanal-Löschung überwachen & bereinigen
+client.on('channelDelete', channel => {
+    if (channel && cloudStorage.activeTickets && cloudStorage.activeTickets[channel.id]) {
+        delete cloudStorage.activeTickets[channel.id];
+        saveCloudVaultToDisk();
+        addLog('info', `Ticket-Kanal #${channel.name} (${channel.id}) gelöscht. Aus System ausgetragen.`);
+    }
+});
 client.once('ready', async () => {
     addLog('info', 'AeroGuard Cloud Engine Online als: ' + client.user.tag);
+    await syncActiveTicketsFromDiscord();
     
     // Auto-Sync Slash-Commands auf allen verbundenen Servern
     client.guilds.cache.forEach(async guild => {
