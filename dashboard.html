@@ -509,6 +509,20 @@
             </div>
 
             <div class="modules-grid">
+                                <!-- MODULE: SUPPORTER & RECHTE-VERWALTUNG -->
+                <div class="feature-card" onclick="openModuleModal('staff_permissions')" style="border: 1px solid rgba(0, 243, 255, 0.4); background: linear-gradient(135deg, rgba(14, 18, 34, 0.95), rgba(0, 243, 255, 0.08));">
+                    <div class="feature-card-header">
+                        <div class="feature-icon-wrapper" style="color:var(--cyan);">🛡️</div>
+                        <span id="badge-mod-staff" class="feature-badge-active badge-on">● Aktiv</span>
+                    </div>
+                    <div class="feature-title">Supporter & Dashboard-Rechte</div>
+                    <div class="feature-desc">Autorisiere Support- & Moderations-Rollen oder einzelne Discord-Nutzer. Bestimme exakt, wer Zugriff auf das Dashboard, Tickets, Bewerbungen & Einstellungen erhält.</div>
+                    <div class="feature-card-footer">
+                        <span class="feature-subtext">Rollen, Nutzer & Berechtigungen</span>
+                        <button type="button" class="btn-configure">⚙️ Verwalten</button>
+                    </div>
+                </div>
+
                 <!-- MODULE 1: TICKETS -->
                 <div class="feature-card" onclick="openModuleModal('tickets')">
                     <div class="feature-card-header">
@@ -1103,7 +1117,8 @@
         function updateModuleBadges() {
             const guild = guilds.find(g => g.id === activeGuildId);
             if (!guild) return;
-            const m = guild.settings.modules || {};
+            const gSettings = guild.settings || {};
+            const m = gSettings.modules || {};
 
             setModuleBadge('badge-mod-tickets', m.tickets !== false);
             setModuleBadge('badge-mod-roblox', m.robloxHub !== false);
@@ -1111,9 +1126,13 @@
             setModuleBadge('badge-mod-levels', m.levelSystem !== false);
             setModuleBadge('badge-mod-security', m.lockdown === true, true);
             setModuleBadge('badge-mod-logging', m.logging !== false);
-            setModuleBadge('badge-mod-suggestions', settings.suggestions ? settings.suggestions.enabled !== false : true);
+            setModuleBadge('badge-mod-suggestions', (gSettings.suggestions ? gSettings.suggestions.enabled !== false : true));
             setModuleBadge('badge-mod-giveaways', true);
             setModuleBadge('badge-mod-stylizer', true);
+
+            const staff = gSettings.staffSettings || {};
+            const hasStaff = (m.staffPermissions !== false) && ((staff.supportRoleIds && staff.supportRoleIds.length > 0) || !!gSettings.supportRoleId || (staff.supporterUserIds && staff.supporterUserIds.length > 0));
+            setModuleBadge('badge-mod-staff', hasStaff);
         }
 
         function setModuleBadge(elementId, isActive, isInverse) {
@@ -1167,7 +1186,13 @@
 
             overlay.classList.add('active');
 
-            if (moduleId === 'tickets') {
+                        if (moduleId === 'staff_permissions') {
+                iconEl.innerText = '🛡️';
+                titleEl.innerText = 'Supporter & Dashboard-Rechte konfigurieren';
+                subtitleEl.innerText = 'Support-Rollen, berechtigte Team-Mitglieder & Dashboard-Berechtigungen';
+                toggleEl.checked = modules.staffPermissions !== false;
+                bodyEl.innerHTML = buildStaffPermissionsModalHtml(guild);
+            } else if (moduleId === 'tickets') {
                 iconEl.innerText = '🎫';
                 titleEl.innerText = 'Ticket- & Support-System konfigurieren';
                 subtitleEl.innerText = 'Support-Panel, Kategorien, Roblox-Pflicht & Rollen';
@@ -1250,7 +1275,134 @@
         }
 
         // --- HTML BUILDERS FOR MODALS ---
-        function buildTicketsModalHtml(guild) {
+                // --- BUILD STAFF & PERMISSIONS MODAL ---
+        function buildStaffPermissionsModalHtml(guild) {
+            const s = guild.settings || {};
+            const staff = s.staffSettings || {};
+            const roles = guild.roles || [];
+            
+            const configuredRoleIds = new Set(Array.isArray(staff.supportRoleIds) ? staff.supportRoleIds : []);
+            if (s.supportRoleId) configuredRoleIds.add(s.supportRoleId);
+            
+            const configuredUserIds = Array.isArray(staff.supporterUserIds) ? staff.supporterUserIds : [];
+            const perms = staff.defaultPermissions || {
+                dashboardAccess: true,
+                manageTickets: true,
+                manageApplications: true,
+                manageSettings: false,
+                manageCommunity: true
+            };
+
+            let rolesHtml = '';
+            if (roles.length === 0) {
+                rolesHtml = '<div style="color:var(--text-dim); font-size:0.85rem; padding:10px; text-align:center;">Keine Rollen auf diesem Server gefunden.</div>';
+            } else {
+                roles.forEach(r => {
+                    const isChecked = configuredRoleIds.has(r.id) ? 'checked' : '';
+                    const roleColor = (r.color && r.color !== '#000000') ? r.color : '#00f3ff';
+                    rolesHtml += 
+                        '<label style="display:flex; align-items:center; gap:10px; padding:8px 12px; background:rgba(255,255,255,0.03); border:1px solid ' + (isChecked ? 'rgba(0,243,255,0.4)' : 'var(--border)') + '; border-radius:8px; cursor:pointer; transition:all 0.2s;">' +
+                            '<input type="checkbox" class="staff-role-checkbox" value="' + r.id + '" ' + isChecked + ' style="width:18px; height:18px; accent-color:var(--cyan); cursor:pointer;">' +
+                            '<span style="width:10px; height:10px; border-radius:50%; background-color:' + roleColor + '; display:inline-block; box-shadow:0 0 8px ' + roleColor + '66;"></span>' +
+                            '<span style="font-weight:600; color:#fff; font-size:0.88rem;">@ ' + r.name + '</span>' +
+                            '<span style="margin-left:auto; font-size:0.75rem; color:var(--text-dim); font-family:monospace;">' + r.id + '</span>' +
+                        '</label>';
+                });
+            }
+
+            let userBadgesHtml = '';
+            if (configuredUserIds.length === 0) {
+                userBadgesHtml = '<div id="staff-user-ids-empty" style="color:var(--text-dim); font-size:0.82rem; padding:4px 0;">Keine einzelnen User-IDs eingetragen (Zugriff erfolgt primär über Rollen).</div>';
+            } else {
+                configuredUserIds.forEach(uId => {
+                    userBadgesHtml += 
+                        '<span class="staff-user-id-item" data-userid="' + uId + '" style="display:inline-flex; align-items:center; gap:8px; background:rgba(0,243,255,0.1); border:1px solid rgba(0,243,255,0.3); border-radius:8px; padding:5px 12px; font-size:0.84rem; color:var(--cyan); font-family:monospace;">' +
+                            '<span>ID: ' + uId + '</span>' +
+                            '<button type="button" onclick="this.parentElement.remove()" style="background:none; border:none; color:#ef4444; cursor:pointer; font-weight:bold; font-size:0.9rem; padding:0 2px;" title="Entfernen">✕</button>' +
+                        '</span>';
+                });
+            }
+
+            return '<div style="background:rgba(0, 243, 255, 0.05); border:1px solid rgba(0, 243, 255, 0.2); border-radius:12px; padding:14px; margin-bottom:18px;">' +
+                '<div style="font-size:0.9rem; font-weight:700; color:var(--cyan); margin-bottom:4px;">🛡️ Team- & Dashboard-Zugriffssteuerung</div>' +
+                '<div style="font-size:0.8rem; color:#94a3b8; line-height:1.4;">' +
+                    'Autorisiere Rollen oder Nutzer für das Dashboard. Berechtigte Personen können sich mit ihrem Discord-Account auf <code>roblox-discord-g44u.onrender.com/dashboard</code> einloggen und Tickets, Bewerbungen oder Einstellungen verwalten.' +
+                '</div>' +
+            '</div>' +
+            '<div class="form-group">' +
+                '<label style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">' +
+                    '<span style="font-weight:700; color:#fff; font-size:0.88rem;">1. Autorisierte Support- & Moderations-Rollen</span>' +
+                    '<span style="font-size:0.75rem; color:var(--cyan);">Alle markierten Rollen erhalten Zugang</span>' +
+                '</label>' +
+                '<div style="max-height:220px; overflow-y:auto; border:1px solid var(--border); border-radius:10px; background:rgba(0,0,0,0.3); padding:10px; display:flex; flex-direction:column; gap:6px;">' +
+                    rolesHtml +
+                '</div>' +
+            '</div>' +
+            '<div class="form-group" style="margin-top:14px;">' +
+                '<label style="font-weight:700; color:#fff; font-size:0.88rem; margin-bottom:6px;">Primäre Ticket-Rolle (Wird bei neuen Tickets erwähnt)</label>' +
+                '<select id="staff-primary-role" class="form-control">' +
+                    '<option value="">Automatisch (Erste ausgewählte Rolle oder Admin)</option>' +
+                    roles.map(r => '<option value="' + r.id + '" ' + (s.supportRoleId === r.id ? 'selected' : '') + '>@ ' + r.name + '</option>').join('') +
+                '</select>' +
+            '</div>' +
+            '<div class="form-group" style="margin-top:18px; border-top:1px solid var(--border); padding-top:16px;">' +
+                '<label style="font-weight:700; color:#fff; font-size:0.88rem; margin-bottom:4px;">2. Direkt autorisierte Supporter (Discord User-IDs)</label>' +
+                '<div style="font-size:0.76rem; color:var(--text-dim); margin-bottom:10px;">Füge einzelne Personen direkt per User-ID hinzu, falls sie keine feste Rolle besitzen:</div>' +
+                '<div style="display:flex; gap:8px; margin-bottom:10px;">' +
+                    '<input type="text" id="staff-new-userid-input" class="form-control" placeholder="Discord User-ID einfügen (z. B. 1075845857875873852)" style="font-family:monospace; font-size:0.85rem;">' +
+                    '<button type="button" class="btn-primary" onclick="addStaffUserId()" style="white-space:nowrap; padding:8px 16px; font-size:0.82rem;">+ Hinzufügen</button>' +
+                '</div>' +
+                '<div id="staff-user-ids-container" style="display:flex; flex-wrap:wrap; gap:8px; min-height:36px; padding:8px; background:rgba(0,0,0,0.2); border:1px dashed var(--border); border-radius:8px;">' +
+                    userBadgesHtml +
+                '</div>' +
+            '</div>' +
+            '<div style="border-top:1px solid var(--border); padding-top:18px; margin-top:18px;">' +
+                '<div style="font-weight:700; color:#fff; font-size:0.9rem; margin-bottom:4px;">3. Rechte-Matrix für autorisierte Supporter</div>' +
+                '<div style="font-size:0.76rem; color:var(--text-dim); margin-bottom:14px;">Definiere, welche Bereiche des Dashboards und Bots autorisierte Teammitglieder bedienen dürfen:</div>' +
+                '<div style="display:flex; flex-direction:column; gap:10px;">' +
+                    '<div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:10px; padding:12px 14px;">' +
+                        '<div>' +
+                            '<div style="font-weight:700; color:#fff; font-size:0.88rem;">🌐 Dashboard-Login & Statistiken</div>' +
+                            '<div style="font-size:0.75rem; color:var(--text-dim);">Darf sich auf der Web-Oberfläche einloggen und Server-Metriken einsehen</div>' +
+                        '</div>' +
+                        '<label class="switch"><input type="checkbox" id="perm-dashboard-access" ' + (perms.dashboardAccess !== false ? 'checked' : '') + '><span class="slider"></span></label>' +
+                    '</div>' +
+                    '<div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:10px; padding:12px 14px;">' +
+                        '<div>' +
+                            '<div style="font-weight:700; color:#fff; font-size:0.88rem;">🎫 Tickets verwalten & beantworten</div>' +
+                            '<div style="font-size:0.75rem; color:var(--text-dim);">Darf Tickets claimen, chatten, schließen und Web-Transkripte ansehen</div>' +
+                        '</div>' +
+                        '<label class="switch"><input type="checkbox" id="perm-manage-tickets" ' + (perms.manageTickets !== false ? 'checked' : '') + '><span class="slider"></span></label>' +
+                    '</div>' +
+                    '<div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:10px; padding:12px 14px;">' +
+                        '<div>' +
+                            '<div style="font-weight:700; color:#fff; font-size:0.88rem;">📋 Bewerbungen prüfen & bearbeiten</div>' +
+                            '<div style="font-size:0.75rem; color:var(--text-dim);">Darf Team-Bewerbungen einsehen, im Live-Chat antworten und Bewerbungen bearbeiten</div>' +
+                        '</div>' +
+                        '<label class="switch"><input type="checkbox" id="perm-manage-applications" ' + (perms.manageApplications !== false ? 'checked' : '') + '><span class="slider"></span></label>' +
+                    '</div>' +
+                    '<div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:10px; padding:12px 14px;">' +
+                        '<div>' +
+                            '<div style="font-weight:700; color:#fff; font-size:0.88rem;">⚙️ Bot-Module & Server-Einstellungen ändern</div>' +
+                            '<div style="font-size:0.75rem; color:var(--text-dim);">Darf Module ein-/ausschalten, Kanäle umkonfigurieren & AutoMod anpassen</div>' +
+                        '</div>' +
+                        '<label class="switch"><input type="checkbox" id="perm-manage-settings" ' + (perms.manageSettings === true ? 'checked' : '') + '><span class="slider"></span></label>' +
+                    '</div>' +
+                    '<div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:10px; padding:12px 14px;">' +
+                        '<div>' +
+                            '<div style="font-weight:700; color:#fff; font-size:0.88rem;">🎁 Giveaways & Community-Vorschläge</div>' +
+                            '<div style="font-size:0.75rem; color:var(--text-dim);">Darf Giveaways erstellen/auslosen und Community-Vorschläge annehmen/ablehnen</div>' +
+                        '</div>' +
+                        '<label class="switch"><input type="checkbox" id="perm-manage-community" ' + (perms.manageCommunity !== false ? 'checked' : '') + '><span class="slider"></span></label>' +
+                    '</div>' +
+                '</div>' +
+            '</div>' +
+            '<div style="margin-top:14px; font-size:0.74rem; color:#94a3b8; line-height:1.4;">' +
+                '💡 <em>Hinweis:</em> Server-Besitzer und Discord-Administratoren behalten immer uneingeschränkten Vollzugriff (Root) auf alle Funktionen.' +
+            '</div>';
+        }
+
+function buildTicketsModalHtml(guild) {
             const s = guild.settings;
             const cats = guild.categories || [];
             const roles = guild.roles || [];
@@ -1299,6 +1451,10 @@
                     '<option value="">Keine spezielle Rolle (Nur Admins)</option>' +
                     roles.map(r => '<option value="' + r.id + '" ' + (s.supportRoleId === r.id ? 'selected' : '') + '>@ ' + r.name + '</option>').join('') +
                 '</select>' +
+                '<div style="margin-top:6px; font-size:0.78rem; display:flex; justify-content:space-between; align-items:center;">' +
+                    '<span style="color:var(--text-dim);">Mehrere Rollen oder genaue Rechte vergeben?</span>' +
+                    '<a href="javascript:void(0)" onclick="closeModuleModal(); openModuleModal(\'staff_permissions\');" style="color:var(--cyan); font-weight:700; text-decoration:none;">🛡️ Supporter- & Rechte-Manager öffnen →</a>' +
+                '</div>' +
             '</div>' +
             '<div class="form-group">' +
                 '<label>📜 Ticket-Logkanal (Für Schließungs-Archive & Transkript-Links)</label>' +
@@ -1513,7 +1669,32 @@
             document.getElementById('modal-body-content').innerHTML = buildTicketsModalHtml(guild);
         }
 
-        function deleteCategoryItem(index) {
+        
+        function addStaffUserId() {
+            const input = document.getElementById('staff-new-userid-input');
+            if (!input) return;
+            const val = input.value.trim();
+            if (!val || !/^\d{16,21}$/.test(val)) {
+                return alert('Bitte gib eine gültige Discord User-ID ein (16 bis 21 Ziffern). Rechtsklick auf den Nutzer in Discord -> "Nutzer-ID kopieren".');
+            }
+            const container = document.getElementById('staff-user-ids-container');
+            const emptyEl = document.getElementById('staff-user-ids-empty');
+            if (emptyEl) emptyEl.remove();
+
+            const existing = Array.from(document.querySelectorAll('.staff-user-id-item')).some(el => el.getAttribute('data-userid') === val);
+            if (existing) {
+                return alert('Diese User-ID ist bereits eingetragen.');
+            }
+
+            const item = document.createElement('span');
+            item.className = 'staff-user-id-item';
+            item.setAttribute('data-userid', val);
+            item.style.cssText = 'display:inline-flex; align-items:center; gap:8px; background:rgba(0,243,255,0.1); border:1px solid rgba(0,243,255,0.3); border-radius:8px; padding:5px 12px; font-size:0.84rem; color:var(--cyan); font-family:\'JetBrains Mono\', monospace;';
+            item.innerHTML = '<span>ID: ' + val + '</span><button type="button" onclick="this.parentElement.remove()" style="background:none; border:none; color:#ef4444; cursor:pointer; font-weight:bold; font-size:0.9rem; padding:0 2px;" title="Entfernen">✕</button>';
+            container.appendChild(item);
+            input.value = '';
+        }
+function deleteCategoryItem(index) {
             const guild = guilds.find(g => g.id === activeGuildId);
             if (!guild || !guild.settings.ticketCategories) return;
             if (guild.settings.ticketCategories.length <= 1) {
@@ -1540,10 +1721,51 @@
                     enabled: isModuleActive,
                     channelId: selCh ? selCh.value : null
                 };
-            } else if (currentOpenModule === 'tickets') {
+                        } else if (currentOpenModule === 'staff_permissions') {
+                payload.modules.staffPermissions = isModuleActive;
+                
+                const checkedBoxes = document.querySelectorAll('.staff-role-checkbox:checked');
+                const selectedRoleIds = Array.from(checkedBoxes).map(cb => cb.value);
+                
+                const userItems = document.querySelectorAll('.staff-user-id-item');
+                const selectedUserIds = Array.from(userItems).map(el => el.getAttribute('data-userid')).filter(Boolean);
+
+                const primaryRoleSelect = document.getElementById('staff-primary-role');
+                const primaryRole = (primaryRoleSelect && primaryRoleSelect.value) ? primaryRoleSelect.value : (selectedRoleIds[0] || null);
+
+                if (primaryRole && !selectedRoleIds.includes(primaryRole)) {
+                    selectedRoleIds.unshift(primaryRole);
+                }
+
+                payload.supportRoleId = primaryRole;
+                payload.staffSettings = {
+                    enabled: isModuleActive,
+                    supportRoleId: primaryRole,
+                    supportRoleIds: selectedRoleIds,
+                    supporterUserIds: selectedUserIds,
+                    defaultPermissions: {
+                        dashboardAccess: document.getElementById('perm-dashboard-access')?.checked !== false,
+                        manageTickets: document.getElementById('perm-manage-tickets')?.checked !== false,
+                        manageApplications: document.getElementById('perm-manage-applications')?.checked !== false,
+                        manageSettings: document.getElementById('perm-manage-settings')?.checked === true,
+                        manageCommunity: document.getElementById('perm-manage-community')?.checked !== false
+                    }
+                };
+} else if (currentOpenModule === 'tickets') {
                 payload.modules.tickets = isModuleActive;
                 payload.ticketCategoryId = document.getElementById('cfg-ticket-category').value || null;
                 payload.supportRoleId = document.getElementById('cfg-support-role').value || null;
+                if (guild.settings.staffSettings) {
+                    const existingRoleIds = Array.isArray(guild.settings.staffSettings.supportRoleIds) ? [...guild.settings.staffSettings.supportRoleIds] : [];
+                    if (payload.supportRoleId && !existingRoleIds.includes(payload.supportRoleId)) {
+                        existingRoleIds.unshift(payload.supportRoleId);
+                    }
+                    payload.staffSettings = {
+                        ...guild.settings.staffSettings,
+                        supportRoleId: payload.supportRoleId,
+                        supportRoleIds: existingRoleIds
+                    };
+                }
                 payload.ticketLogChannelId = document.getElementById('cfg-ticket-logchannel').value || null;
                 payload.ticketWelcomeMessage = document.getElementById('cfg-ticket-welcome').value;
 
@@ -1610,17 +1832,19 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
-                const data = await res.json();
-                if (data.success) {
+                const data = await res.json().catch(() => null);
+                if (res.ok && data && data.success) {
                     guild.settings = data.settings;
-                    updateModuleBadges();
+                    try { updateModuleBadges(); } catch(err) { console.error('Badge update error:', err); }
                     closeModuleModal();
                     showToast('✅ Einstellungen für ' + guild.name + ' erfolgreich gespeichert!');
                 } else {
-                    alert('Fehler: ' + (data.error || 'Konnte nicht speichern'));
+                    const errMsg = (data && data.error) ? data.error : ('Serverfehler (Status ' + res.status + ')');
+                    alert('Fehler beim Speichern: ' + errMsg);
                 }
             } catch(e) {
-                alert('Netzwerkfehler beim Speichern');
+                console.error('Save settings error:', e);
+                alert('Netzwerkfehler beim Speichern: ' + (e.message || 'Verbindung fehlgeschlagen'));
             }
         }
 

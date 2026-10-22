@@ -156,6 +156,7 @@ const crypto = require('crypto');
 // [GOOGLE STT PURGED - BOT IS TEXT & TICKET ONLY]
 
 const app = express();
+app.set('trust proxy', 1);
 // Middleware für JSON-Parsing & Form-Daten
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -177,13 +178,40 @@ const port = process.env.PORT || 3000;
 // =========================================================================
 async function getUserGuildPermission(userId, guildId) {
     if (userId === OWNER_ID) {
-        return { authorized: true, roleLabel: '👑 System Owner (Root)', isOwner: true, isStaff: true };
+        return { 
+            authorized: true, 
+            roleLabel: '👑 System Owner (Root)', 
+            isOwner: true, 
+            isStaff: true,
+            permissions: {
+                dashboardAccess: true,
+                manageTickets: true,
+                manageApplications: true,
+                manageSettings: true,
+                manageCommunity: true
+            }
+        };
     }
-    const guild = client.guilds.cache.get(guildId);
+    let guild = client.guilds.cache.get(guildId);
+    if (!guild) {
+        guild = await client.guilds.fetch(guildId).catch(() => null);
+    }
     if (!guild) return { authorized: false, roleLabel: 'Keine Berechtigung' };
 
     if (guild.ownerId === userId) {
-        return { authorized: true, roleLabel: '👑 Server-Besitzer', isOwner: true, isStaff: true };
+        return { 
+            authorized: true, 
+            roleLabel: '👑 Server-Besitzer', 
+            isOwner: true, 
+            isStaff: true,
+            permissions: {
+                dashboardAccess: true,
+                manageTickets: true,
+                manageApplications: true,
+                manageSettings: true,
+                manageCommunity: true
+            }
+        };
     }
 
     try {
@@ -191,17 +219,72 @@ async function getUserGuildPermission(userId, guildId) {
         if (!member) return { authorized: false, roleLabel: 'Kein Mitglied' };
 
         if (member.permissions.has(PermissionFlagsBits.Administrator)) {
-            return { authorized: true, roleLabel: '⚡ Server-Administrator', isOwner: false, isStaff: true };
+            return { 
+                authorized: true, 
+                roleLabel: '⚡ Server-Administrator', 
+                isOwner: false, 
+                isStaff: true,
+                permissions: {
+                    dashboardAccess: true,
+                    manageTickets: true,
+                    manageApplications: true,
+                    manageSettings: true,
+                    manageCommunity: true
+                }
+            };
         }
 
         const gSettings = getGuildSettings(guildId);
-        if (gSettings.supportRoleId && member.roles.cache.has(gSettings.supportRoleId)) {
-            return { authorized: true, roleLabel: '🛡️ Autorisierte Support-Rolle', isOwner: false, isStaff: true };
+        const staff = gSettings.staffSettings || {};
+        const allowedRoleIds = new Set();
+        if (gSettings.supportRoleId) allowedRoleIds.add(gSettings.supportRoleId);
+        if (Array.isArray(staff.supportRoleIds)) {
+            staff.supportRoleIds.forEach(id => { if (id) allowedRoleIds.add(id); });
         }
-        if (cloudStorage.systemSettings.authorizedSupporters && cloudStorage.systemSettings.authorizedSupporters.includes(userId)) {
-            return { authorized: true, roleLabel: '🛡️ Autorisierter Supporter', isOwner: false, isStaff: true };
+
+        const allowedUserIds = new Set();
+        if (Array.isArray(staff.supporterUserIds)) {
+            staff.supporterUserIds.forEach(id => { if (id) allowedUserIds.add(id); });
         }
-    } catch(e) {}
+        if (Array.isArray(cloudStorage.systemSettings?.authorizedSupporters)) {
+            cloudStorage.systemSettings.authorizedSupporters.forEach(id => { if (id) allowedUserIds.add(id); });
+        }
+
+        const memberHasAllowedRole = Array.from(allowedRoleIds).some(roleId => member.roles.cache.has(roleId));
+        const memberIsAllowedUser = allowedUserIds.has(userId);
+
+        if (memberHasAllowedRole || memberIsAllowedUser) {
+            const defaultPerms = {
+                dashboardAccess: true,
+                manageTickets: true,
+                manageApplications: true,
+                manageSettings: false,
+                manageCommunity: true,
+                ...(staff.defaultPermissions || {})
+            };
+
+            let matchedRoleName = 'Autorisierter Supporter';
+            for (const rId of allowedRoleIds) {
+                if (member.roles.cache.has(rId)) {
+                    const r = guild.roles.cache.get(rId);
+                    if (r) {
+                        matchedRoleName = r.name;
+                        break;
+                    }
+                }
+            }
+
+            return {
+                authorized: defaultPerms.dashboardAccess !== false,
+                roleLabel: '🛡️ ' + matchedRoleName,
+                isOwner: false,
+                isStaff: true,
+                permissions: defaultPerms
+            };
+        }
+    } catch(e) {
+        console.error('[PERM CHECK ERROR]', e);
+    }
 
     return { authorized: false, roleLabel: 'Keine Berechtigung' };
 }
@@ -351,6 +434,21 @@ function getGuildSettings(guildId) {
     if (!g.levels) g.levels = { multiplier: 1.0, levelUpChannel: "current", coinsPerLevel: 100 };
     if (!g.security) g.security = { minAccountAgeDays: 0, antiRaidAutoLockdown: true };
     if (!g.logging) g.logging = { modLogChannelId: null, welcomeChannelId: null };
+    if (!g.staffSettings) {
+        g.staffSettings = {
+            enabled: true,
+            supportRoleId: g.supportRoleId || null,
+            supportRoleIds: g.supportRoleId ? [g.supportRoleId] : [],
+            supporterUserIds: [],
+            defaultPermissions: {
+                dashboardAccess: true,
+                manageTickets: true,
+                manageApplications: true,
+                manageSettings: false,
+                manageCommunity: true
+            }
+        };
+    }
     return g;
 }
 
@@ -535,15 +633,28 @@ loadCloudVaultFromDisk();
 // =========================================================================
 // AEROGUARD TICKET & PERMISSION UTILITIES
 // =========================================================================
-function isSupporterOrAdmin(member) {
+function isSupporterOrAdmin(member, guildId) {
     if (!member) return false;
     if (member.id === OWNER_ID) return true;
-    if (cloudStorage.systemSettings.whitelistedUsers && cloudStorage.systemSettings.whitelistedUsers.includes(member.id)) return true;
-    if (cloudStorage.systemSettings.authorizedSupporters && cloudStorage.systemSettings.authorizedSupporters.includes(member.id)) return true;
+    if (cloudStorage.systemSettings?.whitelistedUsers && cloudStorage.systemSettings.whitelistedUsers.includes(member.id)) return true;
+    if (cloudStorage.systemSettings?.authorizedSupporters && cloudStorage.systemSettings.authorizedSupporters.includes(member.id)) return true;
     if (member.permissions && member.permissions.has(PermissionFlagsBits.Administrator)) return true;
-    if (cloudStorage.systemSettings.supportRoleId && member.roles && member.roles.cache && member.roles.cache.has(cloudStorage.systemSettings.supportRoleId)) return true;
+    if (cloudStorage.systemSettings?.supportRoleId && member.roles?.cache && member.roles.cache.has(cloudStorage.systemSettings.supportRoleId)) return true;
+    const gId = guildId || (member.guild ? member.guild.id : null);
+    if (gId) {
+        const gSettings = getGuildSettings(gId);
+        if (gSettings.supportRoleId && member.roles?.cache && member.roles.cache.has(gSettings.supportRoleId)) return true;
+        if (Array.isArray(gSettings.staffSettings?.supportRoleIds)) {
+            if (gSettings.staffSettings.supportRoleIds.some(rId => member.roles?.cache && member.roles.cache.has(rId))) return true;
+        }
+        if (Array.isArray(gSettings.staffSettings?.supporterUserIds)) {
+            if (gSettings.staffSettings.supporterUserIds.includes(member.id)) return true;
+        }
+    }
     return false;
 }
+
+
 
 
 // Volumetrische System-Variablen im flüchtigen RAM (Live-Metriken)
@@ -1996,10 +2107,16 @@ client.on('interactionCreate', async interaction => {
             }
         ];
 
-        // Support-Rolle perms
-        if (gSettings.supportRoleId) {
+        // Support-Rollen perms (alle autorisierten Rollen & User)
+        const staffRoleSet = new Set();
+        if (gSettings.supportRoleId) staffRoleSet.add(gSettings.supportRoleId);
+        if (Array.isArray(gSettings.staffSettings?.supportRoleIds)) {
+            gSettings.staffSettings.supportRoleIds.forEach(id => { if (id) staffRoleSet.add(id); });
+        }
+
+        staffRoleSet.forEach(roleId => {
             permissionOverwrites.push({
-                id: gSettings.supportRoleId,
+                id: roleId,
                 allow: [
                     PermissionFlagsBits.ViewChannel,
                     PermissionFlagsBits.SendMessages,
@@ -2008,6 +2125,23 @@ client.on('interactionCreate', async interaction => {
                     PermissionFlagsBits.ManageMessages,
                     PermissionFlagsBits.ReadMessageHistory
                 ]
+            });
+        });
+
+        if (Array.isArray(gSettings.staffSettings?.supporterUserIds)) {
+            gSettings.staffSettings.supporterUserIds.forEach(uId => {
+                if (uId) {
+                    permissionOverwrites.push({
+                        id: uId,
+                        allow: [
+                            PermissionFlagsBits.ViewChannel,
+                            PermissionFlagsBits.SendMessages,
+                            PermissionFlagsBits.AttachFiles,
+                            PermissionFlagsBits.EmbedLinks,
+                            PermissionFlagsBits.ReadMessageHistory
+                        ]
+                    });
+                }
             });
         }
 
@@ -5316,6 +5450,7 @@ app.get('/api/guilds', async (req, res) => {
                 channelsCount: guild.channels.cache.size,
                 rolesCount: guild.roles.cache.size,
                 userRoleLabel: perm.roleLabel,
+                userPermissions: perm.permissions || {},
                 settings: getGuildSettings(guild.id)
             });
         }
@@ -5325,41 +5460,65 @@ app.get('/api/guilds', async (req, res) => {
 
 // API: Update Server Modules & Config (Protected: Server Owner or Support Role)
 app.post('/api/guild/:guildId/settings', async (req, res) => {
-    if (!req.session.user) return res.status(401).json({ error: 'Nicht angemeldet' });
+    try {
+        if (!req.session.user) return res.status(401).json({ error: 'Nicht angemeldet' });
 
-    const perm = await getUserGuildPermission(req.session.user.id, req.params.guildId);
-    if (!perm.authorized) {
-        return res.status(403).json({ error: 'Zugriff verweigert. Nur der Serverbesitzer oder autorisierte Supporter können Einstellungen ändern.' });
+        const perm = await getUserGuildPermission(req.session.user.id, req.params.guildId);
+        if (!perm.authorized) {
+            return res.status(403).json({ error: 'Zugriff verweigert. Nur der Serverbesitzer oder autorisierte Supporter können Einstellungen ändern.' });
+        }
+
+        let guild = client.guilds.cache.get(req.params.guildId);
+        if (!guild) {
+            guild = await client.guilds.fetch(req.params.guildId).catch(() => null);
+        }
+        if (!guild) return res.status(404).json({ error: 'Server nicht gefunden' });
+
+        const gSettings = getGuildSettings(guild.id);
+
+        if (req.body.modules) {
+            gSettings.modules = {
+                ...gSettings.modules,
+                ...req.body.modules
+            };
+        }
+
+        if (req.body.ticketCategoryId !== undefined) gSettings.ticketCategoryId = req.body.ticketCategoryId || null;
+        if (req.body.supportRoleId !== undefined) gSettings.supportRoleId = req.body.supportRoleId || null;
+        if (req.body.ticketLogChannelId !== undefined) gSettings.ticketLogChannelId = req.body.ticketLogChannelId || null;
+        if (req.body.ticketWelcomeMessage !== undefined) gSettings.ticketWelcomeMessage = req.body.ticketWelcomeMessage;
+        if (Array.isArray(req.body.ticketCategories)) gSettings.ticketCategories = req.body.ticketCategories;
+
+        if (req.body.roblox) gSettings.roblox = { ...(gSettings.roblox || {}), ...req.body.roblox };
+        if (req.body.autoMod) gSettings.autoMod = { ...(gSettings.autoMod || {}), ...req.body.autoMod };
+        if (req.body.levels) gSettings.levels = { ...(gSettings.levels || {}), ...req.body.levels };
+        if (req.body.security) gSettings.security = { ...(gSettings.security || {}), ...req.body.security };
+        if (req.body.logging) gSettings.logging = { ...(gSettings.logging || {}), ...req.body.logging };
+        if (req.body.suggestions) gSettings.suggestions = { ...(gSettings.suggestions || {}), ...req.body.suggestions };
+
+        // Staff Settings (Supporter & Permissions)
+        if (req.body.staffSettings) {
+            gSettings.staffSettings = {
+                ...(gSettings.staffSettings || {}),
+                ...req.body.staffSettings
+            };
+            if (req.body.staffSettings.supportRoleId !== undefined) {
+                gSettings.supportRoleId = req.body.staffSettings.supportRoleId;
+            }
+            if (Array.isArray(req.body.staffSettings.supportRoleIds) && req.body.staffSettings.supportRoleIds.length > 0) {
+                if (!gSettings.supportRoleId) {
+                    gSettings.supportRoleId = req.body.staffSettings.supportRoleIds[0];
+                }
+            }
+        }
+
+        saveCloudVaultToDisk();
+        addLog('info', `Dashboard: Einstellungen für Server "${guild.name}" von ${req.session.user.username} (${perm.roleLabel}) gespeichert.`);
+        return res.json({ success: true, settings: gSettings });
+    } catch(err) {
+        console.error('[SETTINGS API ERROR]', err);
+        return res.status(500).json({ error: 'Serverfehler beim Speichern: ' + (err.message || 'Interner Fehler') });
     }
-
-    const guild = client.guilds.cache.get(req.params.guildId);
-    if (!guild) return res.status(404).json({ error: 'Server nicht gefunden' });
-
-    const gSettings = getGuildSettings(guild.id);
-
-    if (req.body.modules) {
-        gSettings.modules = {
-            ...gSettings.modules,
-            ...req.body.modules
-        };
-    }
-
-    if (req.body.ticketCategoryId !== undefined) gSettings.ticketCategoryId = req.body.ticketCategoryId || null;
-    if (req.body.supportRoleId !== undefined) gSettings.supportRoleId = req.body.supportRoleId || null;
-    if (req.body.ticketLogChannelId !== undefined) gSettings.ticketLogChannelId = req.body.ticketLogChannelId || null;
-    if (req.body.ticketWelcomeMessage !== undefined) gSettings.ticketWelcomeMessage = req.body.ticketWelcomeMessage;
-    if (Array.isArray(req.body.ticketCategories)) gSettings.ticketCategories = req.body.ticketCategories;
-
-    if (req.body.roblox) gSettings.roblox = { ...(gSettings.roblox || {}), ...req.body.roblox };
-    if (req.body.autoMod) gSettings.autoMod = { ...(gSettings.autoMod || {}), ...req.body.autoMod };
-    if (req.body.levels) gSettings.levels = { ...(gSettings.levels || {}), ...req.body.levels };
-    if (req.body.security) gSettings.security = { ...(gSettings.security || {}), ...req.body.security };
-    if (req.body.logging) gSettings.logging = { ...(gSettings.logging || {}), ...req.body.logging };
-    if (req.body.suggestions) gSettings.suggestions = { ...(gSettings.suggestions || {}), ...req.body.suggestions };
-
-    saveCloudVaultToDisk();
-    addLog('info', `Dashboard: Einstellungen für Server "${guild.name}" von ${req.session.user.username} (${perm.roleLabel}) gespeichert.`);
-    res.json({ success: true, settings: gSettings });
 });
 
 
