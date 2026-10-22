@@ -3597,14 +3597,85 @@ client.on('interactionCreate', async interaction => {
         }
 
         if (commandName === 'setup-autorole') {
-            const rolle = interaction.options.getRole('rolle');
+            let sub = null;
+            try { sub = interaction.options.getSubcommand(); } catch(e) {}
             const gSettings = getGuildSettings(guild.id);
+
+            if (sub === 'sync') {
+                await interaction.deferReply();
+                const targetRole = interaction.options.getRole('rolle') || 
+                                   (gSettings.autoRoleId ? (guild.roles.cache.get(gSettings.autoRoleId) || await guild.roles.fetch(gSettings.autoRoleId).catch(() => null)) : null);
+
+                if (!targetRole) {
+                    return interaction.editReply('❌ Keine Rolle ausgewählt und keine Autorole auf diesem Server konfiguriert.');
+                }
+
+                const onlyOnline = interaction.options.getBoolean('nur_online') ?? true;
+                const allMembers = await guild.members.fetch();
+                let assigned = 0;
+                let skipped = 0;
+
+                for (const member of allMembers.values()) {
+                    if (member.user.bot) continue;
+
+                    if (onlyOnline) {
+                        const status = member.presence?.status;
+                        if (status && !['online', 'idle', 'dnd'].includes(status)) {
+                            skipped++;
+                            continue;
+                        }
+                    }
+
+                    if (!member.roles.cache.has(targetRole.id)) {
+                        try {
+                            await member.roles.add(targetRole, 'Manuelle Autorole Synchronisation');
+                            assigned++;
+                            await new Promise(r => setTimeout(r, 180));
+                        } catch(e) {}
+                    } else {
+                        skipped++;
+                    }
+                }
+
+                const embed = new EmbedBuilder()
+                    .setTitle('👥 Auto-Rollen Synchronisation Abgeschlossen')
+                    .setDescription(`Die Rolle <@&${targetRole.id}> (\`${targetRole.name}\`) wurde manuell synchronisiert!`)
+                    .setColor(0x10b981)
+                    .addFields(
+                        { name: '✅ Zugewiesen', value: `\`${assigned}\` Mitglieder`, inline: true },
+                        { name: '⏭️ Übersprungen', value: `\`${skipped}\` Mitglieder`, inline: true },
+                        { name: '🌐 Modus', value: onlyOnline ? 'Nur Online/Aktive' : 'Alle Mitglieder', inline: true }
+                    )
+                    .setFooter({ text: 'AeroGuard Core • Member Role Sync' })
+                    .setTimestamp();
+
+                return interaction.editReply({ embeds: [embed] });
+            }
+
+            const rolle = interaction.options.getRole('rolle');
+            if (!rolle) {
+                return interaction.reply({ content: '❌ Bitte gib eine Rolle an oder nutze `/setup-autorole sync`.', ephemeral: true });
+            }
+
             gSettings.autoRoleId = rolle.id;
             if (!gSettings.welcome) gSettings.welcome = {};
             gSettings.welcome.autoRoleId = rolle.id;
+            if (!cloudStorage.systemSettings) cloudStorage.systemSettings = {};
             cloudStorage.systemSettings.autoRoleId = rolle.id;
             saveCloudVaultToDisk();
-            return interaction.reply(`✅ **Autorole aktiviert:** Jeder neue Spieler erhält beim Beitritt auf diesen Server ab sofort vollautomatisch die Rolle **${rolle.name}**.`);
+
+            const embed = new EmbedBuilder()
+                .setTitle('🎭 Automatische Beitrittsrolle Gespeichert')
+                .setDescription(`Ab sofort erhalten alle neuen Mitglieder automatisch die Rolle <@&${rolle.id}> (\`${rolle.name}\`) beim Server-Beitritt.`)
+                .setColor(0x10b981)
+                .addFields(
+                    { name: '🛡️ Rolle', value: `<@&${rolle.id}> (\`${rolle.id}\`)`, inline: true },
+                    { name: '⚡ Manuell verteilen', value: 'Nutze \`/setup-autorole sync\` oder das Web-Dashboard, um die Rolle sofort an bestehende Online-Mitglieder zu vergeben.', inline: false }
+                )
+                .setFooter({ text: 'AeroGuard Core • Auto-Role Engine' })
+                .setTimestamp();
+
+            return interaction.reply({ embeds: [embed] });
         }
 
         if (commandName === 'setup-livestatus') {
@@ -3672,8 +3743,8 @@ client.on('interactionCreate', async interaction => {
         // 🏛️ SERVER VORLAGEN (/template apply & /template list)
         // =========================================================================
         if (commandName === 'template') {
-            if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator) && interaction.user.id !== OWNER_ID) {
-                return interaction.reply({ content: '⛔ **Zugriff verweigert:** Nur Server-Administratoren oder der Bot-Besitzer können Servervorlagen anwenden.', ephemeral: true });
+            if (interaction.user.id !== OWNER_ID) {
+                return interaction.reply({ content: '⛔ **Zugriff verweigert:** Das Anwenden von vollständigen Server-Vorlagen ist exklusiv dem Bot-Besitzer vorbehalten.', ephemeral: true });
             }
 
             const sub = interaction.options.getSubcommand();
@@ -5496,7 +5567,20 @@ const extendedCommandDefinitions = [
              .setRequired(false)
         ),
     new SlashCommandBuilder().setName('setup-livestatus').setDescription('Richtet ein Live-Embed ein, das die Roblox Spielerzahlen in Echtzeit synchronisiert'),
-    new SlashCommandBuilder().setName('setup-autorole').setDescription('Legt die automatische Rolle (z.B. verifiziert) beim Server-Beitritt fest').addRoleOption(o => o.setName('rolle').setDescription('Die Rolle, die neue User erhalten').setRequired(true)),
+    new SlashCommandBuilder()
+        .setName('setup-autorole')
+        .setDescription('Verwaltet die automatische Beitrittsrolle & manuelle Rollen-Synchronisation')
+        .addSubcommand(sub => sub
+            .setName('set')
+            .setDescription('Legt die automatische Rolle für neue Mitglieder fest')
+            .addRoleOption(o => o.setName('rolle').setDescription('Die automatische Rolle').setRequired(true))
+        )
+        .addSubcommand(sub => sub
+            .setName('sync')
+            .setDescription('Vergibt die Auto-Rolle manuell an alle normalen Mitglieder (z. B. alle Online)')
+            .addRoleOption(o => o.setName('rolle').setDescription('Optionale Zielrolle (Standard: gespeicherte Autorole)').setRequired(false))
+            .addBooleanOption(o => o.setName('nur_online').setDescription('Nur an aktuell Online-Mitglieder vergeben? (Standard: Ja)').setRequired(false))
+        ),
     new SlashCommandBuilder().setName('blacklist').setDescription('Sperrt oder entsperrt einen Nutzer für das Ticket-System').addStringOption(o => o.setName('aktion').setDescription('add/remove').setRequired(true)).addUserOption(o => o.setName('target').setDescription('Nutzer').setRequired(true)),
     
     // 💡 NEU: VORSCHLÄGE
@@ -5795,8 +5879,8 @@ const serverTemplates = {
     emlix_tv: {
         id: 'emlix_tv',
         name: '🟣 EMLIX TV — Creator & Streaming Hub',
-        badge: 'STREAMING & COMMUNITY',
-        isOwnerExclusive: false,
+        badge: '👑 BOT-BESITZER EXKLUSIV',
+        isOwnerExclusive: true,
         description: 'Vollständige High-End Serverstruktur für EMLIX TV mit Start-Here Bereich, Streaming Center, Content Lab, Gaming Zone, Voice Lounges, Community Extras, privatem Team HQ und 14 exklusiven Rollen.',
         roles: [
             { name: '👑・Emlix / Inhaber', color: 0x9b5de5, hoist: true, mentionable: true, permissions: [PermissionFlagsBits.Administrator] },
@@ -6098,6 +6182,29 @@ const serverTemplates = {
     }
 };
 
+async function safeDiscordChannelCreate(guild, channelOptions, maxRetries = 6) {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            return await guild.channels.create(channelOptions);
+        } catch (err) {
+            const isRateLimit = err.status === 429 || (err.message && err.message.toLowerCase().includes('rate limit')) || (err.rawError && err.rawError.retry_after);
+            if (isRateLimit) {
+                const retryAfterSec = err.rawError?.retry_after || err.retry_after || 3.5;
+                const waitMs = Math.ceil(retryAfterSec * 1000) + 1000;
+                console.warn(`[TEMPLATE RATE LIMIT] 429 bei "${channelOptions.name}". Warte ${waitMs}ms (Versuch ${attempt}/${maxRetries})...`);
+                await new Promise(r => setTimeout(r, waitMs));
+            } else if (attempt < maxRetries) {
+                console.warn(`[TEMPLATE RETRY] Fehler bei "${channelOptions.name}": ${err.message}. Warte 1500ms...`);
+                await new Promise(r => setTimeout(r, 1500));
+            } else {
+                console.error(`[TEMPLATE ERROR] Endgültiger Fehler beim Erstellen von "${channelOptions.name}":`, err.message);
+                return null;
+            }
+        }
+    }
+    return null;
+}
+
 async function applyServerTemplate(guild, templateId) {
     const tpl = serverTemplates[templateId];
     if (!tpl) throw new Error('Unbekannte Servervorlage');
@@ -6139,63 +6246,78 @@ async function applyServerTemplate(guild, templateId) {
     let ticketChannelCreated = null;
     let suggestionChannelCreated = null;
 
-    // 2. Kategorien & Kanäle erstellen
+    // 2. Kategorien & Kanäle erstellen (Robust mit Auto-Retry gegen Discord Rate-Limits)
     for (const catData of tpl.categories) {
-        const permissionOverwrites = [];
-        if (catData.name.includes('PRIVAT') || catData.name.includes('TEAM') || catData.name.includes('MANAGEMENT')) {
-            permissionOverwrites.push({
-                id: guild.roles.everyone.id,
-                deny: [PermissionFlagsBits.ViewChannel]
-            });
-            // Staff / Team Rollen Lese- und Schreibrechte gewähren
-            for (const r of guild.roles.cache.values()) {
-                if (r.permissions.has(PermissionFlagsBits.Administrator) || 
-                    r.permissions.has(PermissionFlagsBits.ManageGuild) ||
-                    r.permissions.has(PermissionFlagsBits.ManageMessages) ||
-                    r.name.includes('Team') || r.name.includes('Moderator') || r.name.includes('Supporter') || r.name.includes('Management')) {
-                    permissionOverwrites.push({
-                        id: r.id,
-                        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory]
-                    });
+        // Prüfen, ob Kategorie auf dem Server bereits existiert
+        let cat = guild.channels.cache.find(c => c.type === ChannelType.GuildCategory && c.name.toLowerCase() === catData.name.toLowerCase());
+
+        if (!cat) {
+            const permissionOverwrites = [];
+            if (catData.name.includes('PRIVAT') || catData.name.includes('TEAM') || catData.name.includes('MANAGEMENT')) {
+                permissionOverwrites.push({
+                    id: guild.roles.everyone.id,
+                    deny: [PermissionFlagsBits.ViewChannel]
+                });
+                for (const r of guild.roles.cache.values()) {
+                    if (r.permissions.has(PermissionFlagsBits.Administrator) || 
+                        r.permissions.has(PermissionFlagsBits.ManageGuild) ||
+                        r.permissions.has(PermissionFlagsBits.ManageMessages) ||
+                        r.name.includes('Team') || r.name.includes('Moderator') || r.name.includes('Supporter') || r.name.includes('Management')) {
+                        permissionOverwrites.push({
+                            id: r.id,
+                            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory]
+                        });
+                    }
                 }
             }
+
+            cat = await safeDiscordChannelCreate(guild, {
+                name: catData.name,
+                type: ChannelType.GuildCategory,
+                permissionOverwrites: permissionOverwrites.length > 0 ? permissionOverwrites : undefined
+            });
+            if (cat) createdCategoriesCount++;
+            await new Promise(r => setTimeout(r, 800));
         }
 
-        const cat = await guild.channels.create({
-            name: catData.name,
-            type: ChannelType.GuildCategory,
-            permissionOverwrites: permissionOverwrites.length > 0 ? permissionOverwrites : undefined
-        });
-        createdCategoriesCount++;
-        await new Promise(r => setTimeout(r, 380));
+        if (!cat) {
+            console.error(`[TEMPLATE] Konnte Kategorie "${catData.name}" nicht erstellen. Fahre mit nächster Kategorie fort...`);
+            continue;
+        }
 
         for (const chData of catData.channels) {
-            const ch = await guild.channels.create({
-                name: chData.name,
-                type: chData.type,
-                parent: cat.id,
-                topic: chData.topic || undefined,
-                userLimit: chData.userLimit || undefined
-            });
-            createdChannelsCount++;
+            // Prüfen, ob Kanal in dieser Kategorie bereits existiert
+            let ch = guild.channels.cache.find(c => c.parentId === cat.id && c.name.toLowerCase() === chData.name.toLowerCase());
 
-            if (chData.name.includes('bot-status')) {
-                statusChannelCreated = ch.id;
-            }
-            if (chData.name.includes('ticket-erstellen') || chData.name === 'tickets' || chData.name.includes('support-und-tickets')) {
-                ticketChannelCreated = ch.id;
-            }
-            if (chData.name.includes('vorschläge') || chData.name.includes('vorschlaege') || chData.name.includes('ideen-und-feedback')) {
-                suggestionChannelCreated = ch.id;
-            }
-            if (chData.name.includes('stream-live')) {
-                const gs = getGuildSettings(guild.id);
-                if (!gs.socialAlerts) gs.socialAlerts = { enabled: true, creators: [] };
-                gs.socialAlerts.channelId = ch.id;
-                gs.socialAlerts.enabled = true;
+            if (!ch) {
+                ch = await safeDiscordChannelCreate(guild, {
+                    name: chData.name,
+                    type: chData.type,
+                    parent: cat.id,
+                    topic: chData.topic || undefined,
+                    userLimit: chData.userLimit || undefined
+                });
+                if (ch) createdChannelsCount++;
+                await new Promise(r => setTimeout(r, 600));
             }
 
-            await new Promise(r => setTimeout(r, 380));
+            if (ch) {
+                if (chData.name.includes('bot-status')) {
+                    statusChannelCreated = ch.id;
+                }
+                if (chData.name.includes('ticket-erstellen') || chData.name === 'tickets' || chData.name.includes('support-und-tickets')) {
+                    ticketChannelCreated = ch.id;
+                }
+                if (chData.name.includes('vorschläge') || chData.name.includes('vorschlaege') || chData.name.includes('ideen-und-feedback')) {
+                    suggestionChannelCreated = ch.id;
+                }
+                if (chData.name.includes('stream-live')) {
+                    const gs = getGuildSettings(guild.id);
+                    if (!gs.socialAlerts) gs.socialAlerts = { enabled: true, creators: [] };
+                    gs.socialAlerts.channelId = ch.id;
+                    gs.socialAlerts.enabled = true;
+                }
+            }
         }
     }
 
@@ -9140,27 +9262,92 @@ app.post('/api/guild/:guildId/setup-support-server', async (req, res) => {
     }
 });
 
+
+app.post('/api/guild/:guildId/sync-autorole', async (req, res) => {
+    if (!req.session.user) return res.status(401).json({ error: 'Nicht angemeldet' });
+    const perm = await getUserGuildPermission(req.session.user.id, req.params.guildId);
+    if (!perm.authorized && req.session.user.id !== OWNER_ID) {
+        return res.status(403).json({ error: 'Zugriff verweigert.' });
+    }
+
+    const guild = client.guilds.cache.get(req.params.guildId) || await client.guilds.fetch(req.params.guildId).catch(() => null);
+    if (!guild) return res.status(404).json({ error: 'Server nicht gefunden' });
+
+    const gSettings = getGuildSettings(guild.id);
+    const targetRoleId = req.body.roleId || gSettings.autoRoleId;
+    if (!targetRoleId) {
+        return res.status(400).json({ error: 'Keine Auto-Member-Rolle konfiguriert oder ausgewählt.' });
+    }
+
+    const targetRole = guild.roles.cache.get(targetRoleId) || await guild.roles.fetch(targetRoleId).catch(() => null);
+    if (!targetRole) {
+        return res.status(404).json({ error: 'Die angegebene Rolle wurde auf dem Server nicht gefunden.' });
+    }
+
+    const onlyOnline = req.body.onlyOnline !== false;
+
+    try {
+        const allMembers = await guild.members.fetch();
+        let assignedCount = 0;
+        let skippedCount = 0;
+        let botCount = 0;
+
+        for (const member of allMembers.values()) {
+            if (member.user.bot) {
+                botCount++;
+                continue;
+            }
+
+            if (onlyOnline) {
+                const status = member.presence?.status;
+                if (status && !['online', 'idle', 'dnd'].includes(status)) {
+                    skippedCount++;
+                    continue;
+                }
+            }
+
+            if (!member.roles.cache.has(targetRole.id)) {
+                try {
+                    await member.roles.add(targetRole, 'Manuelle Auto-Rollen Synchronisation');
+                    assignedCount++;
+                    await new Promise(r => setTimeout(r, 180));
+                } catch(e) {
+                    console.warn(`[AUTOROLE SYNC] Fehler bei ${member.user.tag}:`, e.message);
+                }
+            } else {
+                skippedCount++;
+            }
+        }
+
+        addLog('info', `Auto-Member Rolle "${targetRole.name}" manuell an ${assignedCount} Mitglieder auf "${guild.name}" vergeben.`, guild.name);
+        res.json({
+            success: true,
+            roleName: targetRole.name,
+            assignedCount,
+            skippedCount,
+            botCount,
+            totalProcessed: allMembers.size
+        });
+    } catch(err) {
+        console.error('Error syncing autorole:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.post('/api/guild/:guildId/apply-template', async (req, res) => {
     if (!req.session.user) return res.status(401).json({ error: 'Nicht angemeldet' });
 
-    const perm = await getUserGuildPermission(req.session.user.id, req.params.guildId);
-    if (!perm.authorized) {
-        return res.status(403).json({ error: 'Zugriff verweigert.' });
+    // STRICT OWNER CHECK: Nur Bot-Besitzer darf vollständige Server-Vorlagen auf der Website anwenden
+    const isBotOwner = (req.session.user.id === OWNER_ID);
+    if (!isBotOwner) {
+        return res.status(403).json({
+            error: '⛔ Zugriff verweigert: Das Anwenden von vollständigen Server-Vorlagen kann ausschließlich vom verifizierten Bot-Besitzer (Owner) auf der Website ausgeführt werden!'
+        });
     }
 
     const { templateId } = req.body;
     if (!templateId || !serverTemplates[templateId]) {
         return res.status(400).json({ error: 'Ungültige Vorlage ausgewählt.' });
-    }
-
-    // STRICT OWNER CHECK: Official AeroGuard Support Server template
-    if (templateId === 'aeroguard_official') {
-        const isBotOwner = (req.session.user.id === OWNER_ID);
-        if (!isBotOwner) {
-            return res.status(403).json({
-                error: '⛔ Zugriff verweigert: Die offizielle AeroGuard Support-Server Vorlage kann ausschließlich vom verifizierten Bot-Besitzer (Root Owner) angewendet werden!'
-            });
-        }
     }
 
     const guild = client.guilds.cache.get(req.params.guildId);
