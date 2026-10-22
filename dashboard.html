@@ -443,6 +443,9 @@
                         </h2>
                     </div>
                     <div style="display: flex; align-items: center; gap: 10px;">
+                        <button type="button" class="btn-primary" id="btn-broadcast-update-dash" style="background: linear-gradient(135deg, #00f3ff, #0284c7); color: #000; font-weight: 800; padding: 6px 16px; font-size: 0.82rem; border-radius: 12px; box-shadow: 0 0 16px rgba(0, 243, 255, 0.35); display: inline-flex; align-items: center; gap: 6px; cursor: pointer; border:none;" onclick="triggerDiscordUpdateAnnouncement()">
+                            🚀 Update in #updates ankündigen
+                        </button>
                         <span style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); padding: 6px 14px; border-radius: 20px; font-size: 0.8rem; font-weight: 700;">
                             ● Bot Online & Bereit (v4.0)
                         </span>
@@ -3459,6 +3462,36 @@ function buildGiveawaysModalHtml(guild) {
             if (btnCustom) btnCustom.innerText = '▲ Einklappen';
             const btnSave = document.getElementById('btn-cookie-save-custom');
             if (btnSave) btnSave.style.display = 'inline-block';
+        }
+
+        async function triggerDiscordUpdateAnnouncement() {
+            const btn = document.getElementById('btn-broadcast-update-dash');
+            if (!confirm('🚀 Möchtest du die offizielle AeroGuard Core v4.0 Update-Ankündigung jetzt an die #updates- bzw. #version-changelogs Kanäle auf dem Server senden?')) return;
+            
+            if (btn) {
+                btn.disabled = true;
+                btn.innerText = '⏳ Sende Update...';
+            }
+            try {
+                const res = await fetch('/api/admin/bot/broadcast-update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ scope: 'all' })
+                });
+                const data = await res.json().catch(() => null);
+                if (res.ok && data && data.success) {
+                    showToast('✅ v4.0 Update erfolgreich an ' + (data.sentCount || 1) + ' Server-Kanal/Kanäle gesendet!');
+                } else {
+                    alert('❌ Fehler beim Senden: ' + (data?.error || 'Unbekannter Fehler'));
+                }
+            } catch(e) {
+                alert('❌ Netzwerkfehler: ' + e.message);
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerText = '🚀 Update in #updates ankündigen';
+                }
+            }
         }
 
         function showToast(msg) {

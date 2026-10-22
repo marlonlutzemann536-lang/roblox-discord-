@@ -3619,6 +3619,39 @@ client.on('interactionCreate', async interaction => {
             }
         }
 
+        if (commandName === 'bot-update') {
+            await interaction.deferReply({ ephemeral: true });
+            
+            const isOwner = (interaction.user.id === OWNER_ID);
+            const isAdmin = interaction.member && interaction.member.permissions && interaction.member.permissions.has(PermissionFlagsBits.Administrator);
+            if (!isOwner && !isAdmin) {
+                return interaction.editReply('⛔ **Zugriff verweigert:** Nur Administratoren oder der verifizierte Bot-Owner dürfen Update-Ankündigungen senden.');
+            }
+
+            const targetScope = interaction.options.getString('ziel') || 'official';
+            const selectedChannel = interaction.options.getChannel('kanal');
+            const customPing = interaction.options.getString('ping') || '';
+            const channelId = selectedChannel ? selectedChannel.id : null;
+
+            try {
+                const res = await broadcastVersionUpdate({
+                    scope: targetScope,
+                    channelId: channelId,
+                    ping: customPing,
+                    guildId: (targetScope === 'this_server' ? guild.id : null)
+                });
+
+                if (res.sentCount === 0) {
+                    return interaction.editReply('⚠️ **Kein passender Updates-Kanal gefunden.** Bitte gib mit der Option `kanal:` einen Kanal an oder erstelle einen Kanal wie `#updates` oder `#version-changelogs`.');
+                }
+
+                const list = res.sentGuilds.map(g => '• **' + g.guildName + '** (#' + g.channelName + ')').join('\n');
+                return interaction.editReply('✅ **AeroGuard Core v4.0 Update erfolgreich angekündigt!**\nGesendet an ' + res.sentCount + ' Kanal/Kanäle:\n' + list);
+            } catch(e) {
+                return interaction.editReply('❌ Fehler beim Senden des Updates: ' + e.message);
+            }
+        }
+
         if (commandName === 'test-welcome') {
             await interaction.deferReply({ ephemeral: true });
             const result = await sendWelcomeMessage(interaction.member, { isTest: true });
@@ -4577,6 +4610,29 @@ const extendedCommandDefinitions = [
         .setDescription('Sicherheitsfalle & Anti-Raid Bot-Trap Verwaltung')
         .addSubcommand(sub => sub.setName('status').setDescription('Zeigt den aktuellen Honeypot-Status an'))
         .addSubcommand(sub => sub.setName('setup').setDescription('Richtet den Honeypot-Kanal automatisch ein')),
+    new SlashCommandBuilder()
+        .setName('bot-update')
+        .setDescription('Sendet die offizielle AeroGuard Core v4.0 Update-Ankündigung in den Updates-Kanal')
+        .addStringOption(o => 
+            o.setName('ziel')
+             .setDescription('Ziel der Ankündigung')
+             .setRequired(false)
+             .addChoices(
+                 { name: '🌟 Offizieller Server / Support-HQ', value: 'official' },
+                 { name: '🌐 Alle verbundenen Server mit Update-Kanal', value: 'all' },
+                 { name: '🏠 Nur dieser aktuelle Server', value: 'this_server' }
+             )
+        )
+        .addChannelOption(o => 
+            o.setName('kanal')
+             .setDescription('Optional: Einen bestimmten Kanal für diesen Server auswählen')
+             .setRequired(false)
+        )
+        .addStringOption(o => 
+            o.setName('ping')
+             .setDescription('Optionaler Ping (z. B. @everyone oder @here)')
+             .setRequired(false)
+        ),
     new SlashCommandBuilder().setName('setup-livestatus').setDescription('Richtet ein Live-Embed ein, das die Roblox Spielerzahlen in Echtzeit synchronisiert'),
     new SlashCommandBuilder().setName('setup-autorole').setDescription('Legt die automatische Rolle (z.B. verifiziert) beim Server-Beitritt fest').addRoleOption(o => o.setName('rolle').setDescription('Die Rolle, die neue User erhalten').setRequired(true)),
     new SlashCommandBuilder().setName('blacklist').setDescription('Sperrt oder entsperrt einen Nutzer für das Ticket-System').addStringOption(o => o.setName('aktion').setDescription('add/remove').setRequired(true)).addUserOption(o => o.setName('target').setDescription('Nutzer').setRequired(true)),
@@ -4702,6 +4758,149 @@ async function broadcastBotStatus(type, details = {}) {
     }
     addLog(isOnline ? 'info' : 'warn', `Lifecycle: Status-Update (${type}) an ${sentCount} Server-Kanäle gesendet.`, 'Lifecycle');
     return sentCount;
+}
+
+// =========================================================================
+// AEROGUARD CORE v4.0: BOT UPDATE & CHANGELOG BROADCAST ENGINE
+// =========================================================================
+async function broadcastVersionUpdate(options = {}) {
+    const targetScope = options.scope || 'all'; // 'all', 'official', or 'this_server'
+    const forcedChannelId = options.channelId || null;
+    const customPing = options.ping || ''; // e.g. '@everyone' or '@here' or role mention
+
+    const updateEmbed = new EmbedBuilder()
+        .setTitle('🚀 AeroGuard Core v4.0 Enterprise — Update ist LIVE!')
+        .setColor(0x00f3ff)
+        .setDescription(
+            'Das offizielle Versions-Upgrade auf **AeroGuard Core v4.0 Enterprise** wurde erfolgreich ausgerollt! 🎉\n\n' +
+            'Dieses Update bringt maximale Flexibilität für deine Community, einen brandneuen Creator Social Hub, unbarmherzigen Anti-Raid Schutz und eine runderneuerte Web-Präsenz.'
+        )
+        .addFields(
+            {
+                name: '🎮 1. Flexible Roblox-Verifizierung (3 Modi)',
+                value: 
+                    '• 🟢 **Freiwillig & Optional (Empfohlen):** Keine Ticket-Blockaden mehr! Alle Spieler können Support-Tickets direkt öffnen, ohne ihren Roblox-Account verknüpfen zu müssen.\n' +
+                    '• 🟡 **Kategorie-spezifisch:** Verifizierung nur bei Ticket-Gründen mit aktivem Haken (z. B. Ingame Bug-Reports oder VIP-Rang).\n' +
+                    '• 🔴 **Global verpflichtend:** Roblox-Zwang für alle Tickets & Serverfunktionen.\n' +
+                    '• *In allen Modi: Automatischer Nickname-Sync & Gruppenrang-Synchronisation.*'
+            },
+            {
+                name: '📡 2. Streamer & Creator Social Hub',
+                value: 
+                    '• Multi-Plattform Live-Alerts für **Twitch** 🟣, **YouTube** 🔴 & **TikTok** 🎵\n' +
+                    '• Frei konfigurierbare Rollen-Pings (z. B. `@Stream-Ping`), Inhaltsfilter & 1-Klick Test-Button im Dashboard\n' +
+                    '• Slash-Befehle: `/social-alert test`, `/social-alert add`, `/social-alert list`, `/social-alert channel`'
+            },
+            {
+                name: '🍯 3. Honeypot Anti-Raid & Bot-Trap Schutzschild',
+                value: 
+                    '• Intelligente Falle (`#🍯・bot-falle`) für Raids, Selfbots & Spambots\n' +
+                    '• Vollstreckt in Millisekunden: **Permanent-Bann 🔨** (inkl. 24h Chat-Löschung), Kick oder 7-Tage-Timeout\n' +
+                    '• Automatischer Mod-Log Alarm & 1-Klick Setup im Web-Dashboard (`/honeypot setup`)'
+            },
+            {
+                name: '🏷️ 4. Enterprise v4.0 Architektur & Neue Website',
+                value: 
+                    '• Alle Bot-Lifecycles, Status-Meldungen & das Dashboard laufen nun offiziell auf Enterprise v4.0\n' +
+                    '• Persistente Cloud-Vault Datenspeicherung & Zero-Downtime Deploys auf Render.com\n' +
+                    '• Öffentliche Website mit interaktivem v4.0 Feature-Spotlight aktualisiert!'
+            },
+            {
+                name: '🌐 Nützliche Links & Web-Dashboard',
+                value: 
+                    '🔗 [Web-Dashboard öffnen](https://roblox-discord-g44u.onrender.com/dashboard) • ' +
+                    '🌐 [Offizielle Website](https://roblox-discord-g44u.onrender.com) • ' +
+                    '📝 [Bewerbungsportal](https://roblox-discord-g44u.onrender.com/apply)'
+            }
+        )
+        .setFooter({ text: 'AeroGuard Core v4.0 Enterprise • Offizielle Update-Benachrichtigung' })
+        .setTimestamp();
+
+    if (client.user) {
+        updateEmbed.setThumbnail(client.user.displayAvatarURL());
+    }
+
+    let sentCount = 0;
+    const sentGuilds = [];
+
+    function isOfficialServer(guild) {
+        if (process.env.OFFICIAL_GUILD_ID && guild.id === process.env.OFFICIAL_GUILD_ID) return true;
+        if (process.env.GUILD_ID && guild.id === process.env.GUILD_ID) return true;
+        if (guild.ownerId === OWNER_ID) return true;
+        const lowerName = guild.name.toLowerCase();
+        return lowerName.includes('aeroguard') || lowerName.includes('official') || lowerName.includes('support') || lowerName.includes('headquarter');
+    }
+
+    let targetGuilds = Array.from(client.guilds.cache.values());
+    if (targetScope === 'this_server' && options.guildId) {
+        targetGuilds = targetGuilds.filter(g => g.id === options.guildId);
+    } else if (targetScope === 'official') {
+        const offGuilds = targetGuilds.filter(g => isOfficialServer(g));
+        if (offGuilds.length > 0) targetGuilds = offGuilds;
+    }
+
+    for (const guild of targetGuilds) {
+        try {
+            let targetChannel = null;
+
+            // 1. Explicit channel ID passed
+            if (forcedChannelId) {
+                targetChannel = guild.channels.cache.get(forcedChannelId);
+            }
+
+            // 2. Search for updates / changelogs / announcements channel
+            if (!targetChannel) {
+                targetChannel = guild.channels.cache.find(c => {
+                    if (c.type !== ChannelType.GuildText && c.type !== ChannelType.GuildAnnouncement) return false;
+                    const name = c.name.toLowerCase();
+                    return name.includes('updates') || 
+                           name.includes('bot-update') || 
+                           name.includes('version-changelog') || 
+                           name.includes('changelog') || 
+                           name.includes('announcement') || 
+                           name.includes('ankündigung') || 
+                           name.includes('neuigkeiten') || 
+                           name.includes('bot-news');
+                });
+            }
+
+            // 3. Fallback for official server: if no updates channel found, create one or use system channel
+            if (!targetChannel && isOfficialServer(guild)) {
+                try {
+                    targetChannel = await guild.channels.create({
+                        name: '🚀・updates',
+                        type: ChannelType.GuildText,
+                        topic: 'AeroGuard Core Offizielle Bot-Updates & Patchnotes',
+                        permissionOverwrites: [
+                            {
+                                id: guild.roles.everyone.id,
+                                allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory],
+                                deny: [PermissionFlagsBits.SendMessages]
+                            }
+                        ]
+                    });
+                    addLog('info', `Automatisch Kanal #🚀・updates auf dem offiziellen Server ${guild.name} erstellt.`, 'UpdateBroadcast');
+                } catch(e) {
+                    targetChannel = guild.systemChannel || guild.channels.cache.find(c => (c.type === ChannelType.GuildText || c.type === ChannelType.GuildAnnouncement));
+                }
+            }
+
+            if (targetChannel) {
+                const msgPayload = { embeds: [updateEmbed] };
+                if (customPing && customPing.trim()) {
+                    msgPayload.content = customPing.trim();
+                }
+                await targetChannel.send(msgPayload);
+                sentCount++;
+                sentGuilds.push({ guildId: guild.id, guildName: guild.name, channelName: targetChannel.name });
+                addLog('info', `Update-Ankündigung v4.0 erfolgreich in #${targetChannel.name} auf ${guild.name} gesendet.`, 'UpdateBroadcast');
+            }
+        } catch(err) {
+            console.error(`[UPDATE-BROADCAST] Fehler beim Senden an ${guild.name}:`, err.message);
+        }
+    }
+
+    return { sentCount, sentGuilds };
 }
 
 async function handleGracefulShutdown(reason = 'System-Wartung') {
@@ -5950,6 +6149,23 @@ client.once('ready', async () => {
             console.error('[LIFECYCLE] Fehler beim Online-Broadcast:', e);
         }
     }, 2500);
+
+    // Auto-Broadcast: v4.0 Update Ankündigung (unter #updates / #version-changelogs)
+    setTimeout(async () => {
+        try {
+            if (!cloudStorage.systemSettings) cloudStorage.systemSettings = {};
+            if (cloudStorage.systemSettings.lastBroadcastUpdateVersion !== '4.0.0') {
+                const res = await broadcastVersionUpdate({ scope: 'all' });
+                if (res && res.sentCount > 0) {
+                    cloudStorage.systemSettings.lastBroadcastUpdateVersion = '4.0.0';
+                    saveCloudVaultToDisk();
+                    console.log(`[UPDATE-BROADCAST] v4.0 Update automatisch an ${res.sentCount} Server gesendet.`);
+                }
+            }
+        } catch(e) {
+            console.error('[UPDATE-BROADCAST] Fehler beim Auto-Broadcast:', e);
+        }
+    }, 4500);
 });
 
 // =========================================================================
@@ -7902,6 +8118,23 @@ app.post('/api/admin/bot/shutdown', async (req, res) => {
     setTimeout(() => {
         handleGracefulShutdown(reason);
     }, 500);
+});
+
+app.post('/api/admin/bot/broadcast-update', async (req, res) => {
+    if (!req.session.user || req.session.user.id !== OWNER_ID) {
+        return res.status(403).json({ error: '⛔ Nur der verifizierte Bot-Besitzer darf Update-Ankündigungen auslösen.' });
+    }
+
+    const scope = req.body.scope || 'all';
+    const channelId = req.body.channelId || null;
+    const ping = req.body.ping || '';
+
+    try {
+        const result = await broadcastVersionUpdate({ scope, channelId, ping });
+        res.json({ success: true, ...result });
+    } catch(err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 app.post('/api/admin/bot/broadcast-status', async (req, res) => {
