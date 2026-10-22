@@ -1633,6 +1633,10 @@ function buildTicketsModalHtml(guild) {
             const s = guild.settings;
             const log = s.logging || {};
             const textChs = guild.textChannels || [];
+            const roles = guild.roles || [];
+            const welcomeChId = s.welcomeChannelId || log.welcomeChannelId || (s.welcome && s.welcome.channelId) || '';
+            const autoRoleId = s.autoRoleId || (s.welcome && s.welcome.autoRoleId) || '';
+            const welcomeMsg = s.welcomeMessage || (s.welcome && s.welcome.message) || '';
 
             return '<div class="form-group">' +
                 '<label>🚨 Kanal für Moderations-Logs</label>' +
@@ -1644,15 +1648,90 @@ function buildTicketsModalHtml(guild) {
             '<div class="form-group">' +
                 '<label>👋 Kanal für Willkommens-Nachrichten</label>' +
                 '<select id="cfg-log-welcome" class="form-control">' +
-                    '<option value="">Kein separater Kanal</option>' +
-                    textChs.map(ch => '<option value="' + ch.id + '" ' + (log.welcomeChannelId === ch.id ? 'selected' : '') + '>#' + ch.name + '</option>').join('') +
+                    '<option value="">Kein Willkommens-Kanal (Deaktiviert)</option>' +
+                    textChs.map(ch => '<option value="' + ch.id + '" ' + (welcomeChId === ch.id ? 'selected' : '') + '>#' + ch.name + '</option>').join('') +
                 '</select>' +
+            '</div>' +
+            '<div class="form-group">' +
+                '<label>🎭 Automatische Rolle beim Beitritt (Autorole)</label>' +
+                '<select id="cfg-log-autorole" class="form-control">' +
+                    '<option value="">Keine automatische Rolle vergeben</option>' +
+                    roles.map(r => '<option value="' + r.id + '" ' + (autoRoleId === r.id ? 'selected' : '') + '>@ ' + r.name + '</option>').join('') +
+                '</select>' +
+                '<div style="font-size:0.75rem; color:var(--text-dim); margin-top:4px;">Wird neuen Mitgliedern beim Beitreten automatisch zugewiesen.</div>' +
+            '</div>' +
+            '<div class="form-group">' +
+                '<label>📝 Eigener Willkommens-Text (Optional)</label>' +
+                '<textarea id="cfg-log-welcomemsg" class="form-control" rows="2" placeholder="Willkommen an Bord, {user}! Du bist unser {count}. Mitglied auf {server}.">' + (welcomeMsg ? welcomeMsg.replace(/"/g, '&quot;') : '') + '</textarea>' +
+                '<div style="font-size:0.75rem; color:var(--text-dim); margin-top:4px;">Platzhalter: <code>{user}</code> (Erwähnung), <code>{username}</code>, <code>{server}</code>, <code>{count}</code></div>' +
+            '</div>' +
+            '<div style="background:rgba(0,243,255,0.05); border:1px solid rgba(0,243,255,0.2); border-radius:8px; padding:12px; margin-bottom:16px;">' +
+                '<div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">' +
+                    '<div>' +
+                        '<div style="font-weight:700; color:#fff; font-size:0.85rem;">🔔 Willkommens-System testen</div>' +
+                        '<div style="font-size:0.75rem; color:var(--text-dim);">Sendet sofort eine Test-Willkommensnachricht in den gewählten Kanal.</div>' +
+                    '</div>' +
+                    '<button type="button" id="btn-test-welcome" class="btn-primary" style="padding:6px 14px; font-size:0.8rem;" onclick="sendTestWelcome()">Jetzt testen</button>' +
+                '</div>' +
+            '</div>' +
+            '<div style="background:rgba(255,170,0,0.06); border:1px solid rgba(255,170,0,0.25); border-radius:8px; padding:10px; margin-bottom:16px; font-size:0.78rem; color:#fcd34d;">' +
+                'ℹ️ <strong>Wichtig für Discord-Bots:</strong> Stelle sicher, dass im <a href="https://discord.com/developers/applications" target="_blank" style="color:var(--cyan); text-decoration:underline;">Discord Developer Portal</a> unter <em>Bot &rarr; Privileged Gateway Intents</em> die Option <strong>Server Members Intent</strong> aktiv ist!' +
             '</div>' +
             '<div style="border-top:1px solid var(--border); padding-top:16px; margin-top:10px;">' +
                 '<div style="font-size:0.85rem; font-weight:700; color:#fff; margin-bottom:8px;">💾 Cloud-Backup der Server-Struktur</div>' +
                 '<div style="font-size:0.75rem; color:var(--text-dim); margin-bottom:12px;">Sichert alle Rollen, Kanäle und Berechtigungen verschlüsselt in der Cloud.</div>' +
                 '<button type="button" class="btn-secondary" onclick="alert(\'💾 Cloud-Backup für ' + guild.name + ' erfolgreich erstellt!\')">Struktur-Backup jetzt erstellen</button>' +
             '</div>';
+        }
+
+        async function sendTestWelcome() {
+            const btn = document.getElementById('btn-test-welcome');
+            const welcomeSelect = document.getElementById('cfg-log-welcome');
+            if (welcomeSelect && !welcomeSelect.value) {
+                alert('⚠️ Bitte wähle zuerst einen Kanal für Willkommens-Nachrichten aus!');
+                return;
+            }
+            if (btn) {
+                btn.disabled = true;
+                btn.innerText = '⏳ Sende...';
+            }
+            try {
+                const welcomeCh = welcomeSelect ? welcomeSelect.value : null;
+                const autoRole = document.getElementById('cfg-log-autorole')?.value || null;
+                const welcomeMsg = document.getElementById('cfg-log-welcomemsg')?.value || '';
+                
+                await fetch('/api/guild/' + activeGuildId + '/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        logging: {
+                            modLogChannelId: document.getElementById('cfg-log-modlog')?.value || null,
+                            welcomeChannelId: welcomeCh
+                        },
+                        welcomeChannelId: welcomeCh,
+                        autoRoleId: autoRole,
+                        welcomeMessage: welcomeMsg
+                    })
+                });
+
+                const res = await fetch('/api/guild/' + activeGuildId + '/test-welcome', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await res.json().catch(() => null);
+                if (res.ok && data && data.success) {
+                    showToast('✅ Test-Willkommensnachricht erfolgreich in #' + data.channelName + ' gesendet!');
+                } else {
+                    alert('❌ Fehler beim Senden: ' + (data?.error || 'Unbekannter Fehler. Bitte prüfe, ob der Bot im Kanal Schreibrechte hat.'));
+                }
+            } catch(err) {
+                alert('❌ Netzwerkfehler: ' + err.message);
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerText = 'Jetzt testen';
+                }
+            }
         }
 
         // --- CATEGORY LIST MANAGEMENT IN TICKETS MODAL ---
@@ -1820,9 +1899,22 @@ function deleteCategoryItem(index) {
                 };
             } else if (currentOpenModule === 'logging') {
                 payload.modules.logging = isModuleActive;
+                const welcomeCh = document.getElementById('cfg-log-welcome')?.value || null;
+                const autoRole = document.getElementById('cfg-log-autorole')?.value || null;
+                const welcomeMsg = document.getElementById('cfg-log-welcomemsg')?.value || '';
+
                 payload.logging = {
-                    modLogChannelId: document.getElementById('cfg-log-modlog').value || null,
-                    welcomeChannelId: document.getElementById('cfg-log-welcome').value || null
+                    modLogChannelId: document.getElementById('cfg-log-modlog')?.value || null,
+                    welcomeChannelId: welcomeCh
+                };
+                payload.welcomeChannelId = welcomeCh;
+                payload.autoRoleId = autoRole;
+                payload.welcomeMessage = welcomeMsg;
+                payload.welcome = {
+                    enabled: isModuleActive,
+                    channelId: welcomeCh,
+                    autoRoleId: autoRole,
+                    message: welcomeMsg
                 };
             }
 

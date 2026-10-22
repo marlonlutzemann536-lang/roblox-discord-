@@ -434,6 +434,19 @@ function getGuildSettings(guildId) {
     if (!g.levels) g.levels = { multiplier: 1.0, levelUpChannel: "current", coinsPerLevel: 100 };
     if (!g.security) g.security = { minAccountAgeDays: 0, antiRaidAutoLockdown: true };
     if (!g.logging) g.logging = { modLogChannelId: null, welcomeChannelId: null };
+    if (!g.welcome) {
+        g.welcome = {
+            enabled: true,
+            channelId: g.logging?.welcomeChannelId || g.welcomeChannelId || null,
+            autoRoleId: g.autoRoleId || null,
+            message: g.welcomeMessage || null,
+            dmEnabled: false,
+            dmMessage: null
+        };
+    }
+    if (g.welcomeChannelId === undefined) g.welcomeChannelId = g.logging?.welcomeChannelId || null;
+    if (g.autoRoleId === undefined) g.autoRoleId = null;
+    if (g.welcomeMessage === undefined) g.welcomeMessage = null;
     if (!g.staffSettings) {
         g.staffSettings = {
             enabled: true,
@@ -955,41 +968,161 @@ const client = new Client({
 // =========================================================================
 // GUILD MEMBER ADD (WELCOME MESSAGE & AUTOROLE ENGINE)
 // =========================================================================
-client.on('guildMemberAdd', async member => {
-    // 🟢 Autorole System
-    const autoRoleId = cloudStorage.systemSettings.autoRoleId;
-    if (autoRoleId) {
-        try {
-            const role = member.guild.roles.cache.get(autoRoleId);
-            if (role) {
-                await member.roles.add(role);
-                addLog('info', `Autorole ${role.name} an ${member.user.tag} vergeben.`);
-            }
-        } catch(e) {
-            addLog('error', `Fehler bei der Autorole-Vergabe: ${e.message}`);
-        }
-    }
-
-    const welcomeId = cloudStorage.systemSettings.welcomeChannelId;
-    if (!welcomeId) return;
-
+async function sendWelcomeMessage(member, options = {}) {
     try {
-        const welcomeChannel = await member.guild.channels.fetch(welcomeId);
-        if (welcomeChannel) {
-            const isPremium = cloudStorage.premiumUsers.includes(member.id) ? "💎 Premium User" : "👤 Standard User";
+        if (!member || !member.guild) return { success: false, reason: 'Ungültiges Mitglieds-Objekt' };
+        const guild = member.guild;
+        const gSettings = getGuildSettings(guild.id);
 
-            const welcomeEmbed = new EmbedBuilder()
-                .setTitle('👋 WILLKOMMEN IM SEKTOR!')
-                .setDescription(`Willkommen an Bord, ${member}!\n\nWir freuen uns, dass du da bist. Du bist unser **${member.guild.memberCount}.** Mitglied auf diesem Server.\n\nStatus: ${isPremium}`)
-                .setColor(0x00f5d4)
-                .setThumbnail(member.user.displayAvatarURL({ dynamic: true, size: 256 }))
-                .setFooter({ text: 'AeroGuard Cloud Security', iconURL: member.guild.iconURL() })
-                .setTimestamp();
-
-            await welcomeChannel.send({ embeds: [welcomeEmbed] });
+        if (gSettings.modules && gSettings.modules.logging === false && gSettings.modules.welcome === false) {
+            return { success: false, reason: 'Willkommens-/Logging-Modul ist deaktiviert' };
         }
-    } catch (e) {
-        addLog('error', `Willkommensnachricht konnte nicht gesendet werden: ${e.message}`);
+
+        const welcomeChannelId = 
+            gSettings.welcome?.channelId ||
+            gSettings.logging?.welcomeChannelId ||
+            gSettings.welcomeChannelId ||
+            cloudStorage.systemSettings?.welcomeChannelId;
+
+        if (!welcomeChannelId) {
+            return { success: false, reason: 'Kein Willkommens-Kanal konfiguriert' };
+        }
+
+        let welcomeChannel = guild.channels.cache.get(welcomeChannelId);
+        if (!welcomeChannel) {
+            welcomeChannel = await guild.channels.fetch(welcomeChannelId).catch(() => null);
+        }
+
+        if (!welcomeChannel) {
+            addLog('error', `Willkommens-Kanal (ID: ${welcomeChannelId}) auf Server "${guild.name}" existiert nicht mehr.`, guild.name);
+            return { success: false, reason: 'Willkommens-Kanal existiert nicht mehr' };
+        }
+
+        if (!welcomeChannel.isTextBased()) {
+            addLog('error', `Willkommens-Kanal #${welcomeChannel.name} auf "${guild.name}" ist kein Textkanal.`, guild.name);
+            return { success: false, reason: 'Kanal ist kein Textkanal' };
+        }
+
+        // Berechtigungsprüfung
+        const botMember = guild.members.me || await guild.members.fetchMe().catch(() => null);
+        if (botMember) {
+            const perms = welcomeChannel.permissionsFor(botMember);
+            if (perms && !perms.has(PermissionFlagsBits.SendMessages)) {
+                addLog('error', `Fehlende Berechtigung: Bot darf in #${welcomeChannel.name} auf "${guild.name}" keine Nachrichten senden!`, guild.name);
+                return { success: false, reason: 'Bot fehlen Schreibrechte im Willkommens-Kanal' };
+            }
+        }
+
+        const isPremium = cloudStorage.premiumUsers && cloudStorage.premiumUsers.includes(member.id) ? "💎 Premium User" : "👤 Mitglied";
+        const customMsg = gSettings.welcome?.message || gSettings.welcomeMessage;
+        
+        let descriptionText = `Willkommen an Bord, ${member}!
+
+Wir freuen uns, dass du da bist. Du bist unser **${guild.memberCount}.** Mitglied auf diesem Server.
+
+🛡️ Status: **${isPremium}**`;
+        if (customMsg && typeof customMsg === 'string' && customMsg.trim().length > 0) {
+            descriptionText = customMsg
+                .replace(/{user}/gi, `${member}`)
+                .replace(/{username}/gi, member.user?.username || member.displayName || 'Spieler')
+                .replace(/{server}/gi, guild.name)
+                .replace(/{count}/gi, guild.memberCount.toString());
+        }
+
+        const avatarUrl = member.user?.displayAvatarURL 
+            ? member.user.displayAvatarURL({ dynamic: true, size: 256 }) 
+            : (guild.iconURL() || 'https://cdn.discordapp.com/embed/avatars/0.png');
+        const guildIcon = guild.iconURL() || avatarUrl;
+
+        const welcomeEmbed = new EmbedBuilder()
+            .setTitle(options.isTest ? `🧪 [TEST] WILLKOMMEN AUF ${guild.name.toUpperCase()}!` : `👋 WILLKOMMEN AUF ${guild.name.toUpperCase()}!`)
+            .setDescription(descriptionText)
+            .setColor(0x00f5d4)
+            .addFields(
+                { name: '👤 Benutzer', value: `${member.user?.tag || member.displayName}`, inline: true },
+                { name: '📊 Server-Mitglieder', value: `#${guild.memberCount}`, inline: true },
+                { name: '📅 Beigetreten am', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true }
+            )
+            .setThumbnail(avatarUrl)
+            .setFooter({ text: `AeroGuard Cloud Security • Server ID: ${guild.id}`, iconURL: guildIcon })
+            .setTimestamp();
+
+        const msg = await welcomeChannel.send({ 
+            content: `👋 Herzlich willkommen ${member}!`, 
+            embeds: [welcomeEmbed] 
+        });
+
+        // Optionale Direktnachricht (DM)
+        if (gSettings.welcome?.dmEnabled && !options.isTest) {
+            try {
+                const dmText = gSettings.welcome?.dmMessage || `Willkommen auf **${guild.name}**! Viel Spaß auf unserem Server.`;
+                await member.send({ content: dmText }).catch(() => null);
+            } catch(e) {}
+        }
+
+        addLog('info', `👋 Willkommensnachricht für ${member.user?.tag || member.id} in #${welcomeChannel.name} (${guild.name}) gesendet.`, guild.name);
+        return { success: true, channel: welcomeChannel, message: msg };
+    } catch(err) {
+        addLog('error', `Fehler beim Ausführen der Willkommensnachricht: ${err.message}`, member.guild?.name);
+        return { success: false, reason: err.message };
+    }
+}
+
+async function applyAutoRole(member) {
+    try {
+        if (!member || !member.guild) return { success: false, reason: 'Ungültiges Mitglied' };
+        const guild = member.guild;
+        const gSettings = getGuildSettings(guild.id);
+        
+        const autoRoleId = 
+            gSettings.autoRoleId ||
+            gSettings.welcome?.autoRoleId ||
+            cloudStorage.systemSettings?.autoRoleId;
+
+        if (!autoRoleId) return { success: false, reason: 'Keine Autorole konfiguriert' };
+
+        let role = guild.roles.cache.get(autoRoleId);
+        if (!role) {
+            role = await guild.roles.fetch(autoRoleId).catch(() => null);
+        }
+
+        if (!role) {
+            addLog('error', `Autorole (ID: ${autoRoleId}) existiert auf Server "${guild.name}" nicht mehr.`, guild.name);
+            return { success: false, reason: 'Rolle nicht gefunden' };
+        }
+
+        const botMember = guild.members.me || await guild.members.fetchMe().catch(() => null);
+        if (botMember && botMember.roles.highest.position <= role.position) {
+            addLog('error', `Autorole-Warnung: Die Rolle "${role.name}" steht über der höchsten Rolle des Bots! Bitte ziehe die Bot-Rolle in den Discord-Rollen-Einstellungen weiter nach oben.`, guild.name);
+            return { success: false, reason: 'Rollenhierarchie-Fehler' };
+        }
+
+        await member.roles.add(role);
+        addLog('info', `✅ Autorole "${role.name}" erfolgreich an ${member.user?.tag || member.id} auf "${guild.name}" vergeben.`, guild.name);
+        return { success: true, role: role };
+    } catch(err) {
+        addLog('error', `Fehler beim Vergeben der Autorole: ${err.message}`, member.guild?.name);
+        return { success: false, reason: err.message };
+    }
+}
+
+client.on('guildMemberAdd', async member => {
+    try {
+        if (member.partial) {
+            member = await member.fetch().catch(() => member);
+        }
+        
+        // 🟢 1. Autorole System
+        await applyAutoRole(member).catch(err => {
+            addLog('error', `Fehler bei Autorole-Vergabe: ${err.message}`, member.guild.name);
+        });
+
+        // 🟢 2. Willkommensnachrichten-System
+        await sendWelcomeMessage(member).catch(err => {
+            addLog('error', `Fehler bei Willkommensnachricht: ${err.message}`, member.guild.name);
+        });
+    } catch (err) {
+        addLog('error', `Unerwarteter Fehler im guildMemberAdd Event: ${err.message}`);
     }
 });
 
@@ -2706,7 +2839,7 @@ client.on('interactionCreate', async interaction => {
             'lockchannel', 'unlockchannel', 'nuke', 'lockdown', 'unlockdown', 
             'ticket', 'support-next', 'setup-ticketpanel', 'setup-infohub', 'poll', 
             'dm', 'addrole', 'removerole', 'status', 'supporter', 'setup-modlog', 
-            'setup-welcome', 'setup-livestatus', 'setup-autorole', 'backup-server', 
+            'setup-welcome', 'setup-livestatus', 'setup-autorole', 'backup-server', 'test-welcome', 
             'blacklist', 'style-channels', 'suggest-setup', 'giveaway', 'set-placeid', 
             'rbx-shout', 'rbx-serverlogs', 'rbx-shutdown', 'clan-war', 'rbx-savedata', 'rbx-cleardata'
         ];
@@ -3132,9 +3265,13 @@ client.on('interactionCreate', async interaction => {
 
         if (commandName === 'setup-autorole') {
             const rolle = interaction.options.getRole('rolle');
+            const gSettings = getGuildSettings(guild.id);
+            gSettings.autoRoleId = rolle.id;
+            if (!gSettings.welcome) gSettings.welcome = {};
+            gSettings.welcome.autoRoleId = rolle.id;
             cloudStorage.systemSettings.autoRoleId = rolle.id;
             saveCloudVaultToDisk();
-            return interaction.reply(`✅ **Autorole aktiviert:** Jeder neue Spieler erhält beim Beitritt auf den Server ab sofort vollautomatisch die Rolle **${rolle.name}**.`);
+            return interaction.reply(`✅ **Autorole aktiviert:** Jeder neue Spieler erhält beim Beitritt auf diesen Server ab sofort vollautomatisch die Rolle **${rolle.name}**.`);
         }
 
         if (commandName === 'setup-livestatus') {
@@ -3179,9 +3316,32 @@ client.on('interactionCreate', async interaction => {
 
         if (commandName === 'setup-welcome') {
             const ch = interaction.options.getChannel('kanal');
+            const gSettings = getGuildSettings(guild.id);
+            gSettings.welcomeChannelId = ch.id;
+            if (!gSettings.logging) gSettings.logging = {};
+            gSettings.logging.welcomeChannelId = ch.id;
+            if (!gSettings.welcome) gSettings.welcome = {};
+            gSettings.welcome.enabled = true;
+            gSettings.welcome.channelId = ch.id;
+            if (!gSettings.modules) gSettings.modules = {};
+            gSettings.modules.logging = true;
             cloudStorage.systemSettings.welcomeChannelId = ch.id;
             saveCloudVaultToDisk();
-            return interaction.reply(`✅ **Willkommens-System aktiviert:** Beitrittsmeldungen werden ab sofort in <#${ch.id}> gepostet!`);
+            return interaction.reply(`✅ **Willkommens-System aktiviert:** Beitrittsmeldungen werden ab sofort in <#${ch.id}> gepostet!
+
+💡 Du kannst das System jederzeit sofort mit `/test-welcome` testen.`);
+        }
+
+        if (commandName === 'test-welcome') {
+            await interaction.deferReply({ ephemeral: true });
+            const result = await sendWelcomeMessage(interaction.member, { isTest: true });
+            if (result.success) {
+                return interaction.followUp(`✅ **Test erfolgreich!** Die Willkommensnachricht wurde soeben in <#${result.channel.id}> gesendet.`);
+            } else {
+                return interaction.followUp(`❌ **Fehler beim Senden:** ${result.reason || 'Unbekannter Fehler'}.
+
+💡 **Tipp:** Verwende `/setup-welcome` oder das Web-Dashboard, um einen Kanal festzulegen, und stelle sicher, dass der Bot Schreibrechte in dem Kanal besitzt.`);
+            }
         }
 
         if (commandName === 'backup-server') {
@@ -4109,6 +4269,7 @@ const extendedCommandDefinitions = [
     new SlashCommandBuilder().setName('premium-status').setDescription('Zeigt an, ob dein Account als Premium registriert ist'),
     new SlashCommandBuilder().setName('give-premium').setDescription('Gibt einem User manuell den Premium-Status (Admin)').addUserOption(o => o.setName('target').setDescription('Nutzer').setRequired(true)),
     new SlashCommandBuilder().setName('setup-welcome').setDescription('Legt den Kanal fest, in dem der Bot neue Spieler mit einem Embed begrüßt').addChannelOption(o => o.setName('kanal').setDescription('Kanal wählen').setRequired(true)),
+    new SlashCommandBuilder().setName('test-welcome').setDescription('Sendet eine Test-Willkommensnachricht in den konfigurierten Kanal'),
     new SlashCommandBuilder().setName('setup-livestatus').setDescription('Richtet ein Live-Embed ein, das die Roblox Spielerzahlen in Echtzeit synchronisiert'),
     new SlashCommandBuilder().setName('setup-autorole').setDescription('Legt die automatische Rolle (z.B. verifiziert) beim Server-Beitritt fest').addRoleOption(o => o.setName('rolle').setDescription('Die Rolle, die neue User erhalten').setRequired(true)),
     new SlashCommandBuilder().setName('blacklist').setDescription('Sperrt oder entsperrt einen Nutzer für das Ticket-System').addStringOption(o => o.setName('aktion').setDescription('add/remove').setRequired(true)).addUserOption(o => o.setName('target').setDescription('Nutzer').setRequired(true)),
@@ -5358,6 +5519,10 @@ async function setupOfficialAeroGuardSupportServer(guild, requestingUserId) {
     if (!gSettings.logging) gSettings.logging = {};
     gSettings.logging.modLogChannelId = chAuditLogs.id;
     gSettings.logging.welcomeChannelId = chAnnounce.id;
+    gSettings.welcomeChannelId = chAnnounce.id;
+    if (!gSettings.welcome) gSettings.welcome = {};
+    gSettings.welcome.channelId = chAnnounce.id;
+    gSettings.welcome.enabled = true;
 
     if (!gSettings.roblox) gSettings.roblox = {};
     gSettings.roblox.verifiedRoleId = verifiedRole.id;
@@ -5759,6 +5924,23 @@ app.post('/api/guild/:guildId/settings', async (req, res) => {
         if (req.body.levels) gSettings.levels = { ...(gSettings.levels || {}), ...req.body.levels };
         if (req.body.security) gSettings.security = { ...(gSettings.security || {}), ...req.body.security };
         if (req.body.logging) gSettings.logging = { ...(gSettings.logging || {}), ...req.body.logging };
+        if (req.body.welcomeChannelId !== undefined) gSettings.welcomeChannelId = req.body.welcomeChannelId || null;
+        if (req.body.autoRoleId !== undefined) gSettings.autoRoleId = req.body.autoRoleId || null;
+        if (req.body.welcomeMessage !== undefined) gSettings.welcomeMessage = req.body.welcomeMessage;
+        if (req.body.welcome) gSettings.welcome = { ...(gSettings.welcome || {}), ...req.body.welcome };
+
+        if (gSettings.logging?.welcomeChannelId) {
+            gSettings.welcomeChannelId = gSettings.logging.welcomeChannelId;
+            if (!gSettings.welcome) gSettings.welcome = {};
+            gSettings.welcome.channelId = gSettings.logging.welcomeChannelId;
+        } else if (gSettings.welcomeChannelId) {
+            if (!gSettings.logging) gSettings.logging = {};
+            gSettings.logging.welcomeChannelId = gSettings.welcomeChannelId;
+        }
+        if (gSettings.autoRoleId) {
+            if (!gSettings.welcome) gSettings.welcome = {};
+            gSettings.welcome.autoRoleId = gSettings.autoRoleId;
+        }
         if (req.body.suggestions) gSettings.suggestions = { ...(gSettings.suggestions || {}), ...req.body.suggestions };
 
         // Staff Settings (Supporter & Permissions)
@@ -5783,6 +5965,40 @@ app.post('/api/guild/:guildId/settings', async (req, res) => {
     } catch(err) {
         console.error('[SETTINGS API ERROR]', err);
         return res.status(500).json({ error: 'Serverfehler beim Speichern: ' + (err.message || 'Interner Fehler') });
+    }
+});
+
+app.post('/api/guild/:guildId/test-welcome', async (req, res) => {
+    try {
+        if (!req.session.user) return res.status(401).json({ error: 'Nicht angemeldet' });
+
+        const perm = await getUserGuildPermission(req.session.user.id, req.params.guildId);
+        if (!perm.authorized) {
+            return res.status(403).json({ error: 'Zugriff verweigert.' });
+        }
+
+        let guild = client.guilds.cache.get(req.params.guildId);
+        if (!guild) {
+            guild = await client.guilds.fetch(req.params.guildId).catch(() => null);
+        }
+        if (!guild) return res.status(404).json({ error: 'Server nicht gefunden' });
+
+        let member = guild.members.cache.get(req.session.user.id);
+        if (!member) {
+            member = await guild.members.fetch(req.session.user.id).catch(() => null);
+        }
+        if (!member) {
+            member = guild.members.me;
+        }
+
+        const result = await sendWelcomeMessage(member, { isTest: true });
+        if (!result.success) {
+            return res.status(400).json({ error: result.reason || 'Konnte nicht gesendet werden' });
+        }
+
+        return res.json({ success: true, channelName: result.channel.name });
+    } catch(err) {
+        return res.status(500).json({ error: err.message });
     }
 });
 
