@@ -6622,6 +6622,9 @@ app.get('/transcript/:ticketId', (req, res) => {
 // =========================================================================
 // ROUTE: PUBLIC LANDING PAGE (/)
 // =========================================================================
+// =========================================================================
+// ROUTE: PUBLIC LANDING PAGE (/) - AEROGUARD CORE v4.0 ENTERPRISE
+// =========================================================================
 app.get('/', (req, res) => {
     const user = req.session.user;
     const uptimeSec = Math.floor(process.uptime());
@@ -6639,40 +6642,46 @@ app.get('/', (req, res) => {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AeroGuard Core — High-End Discord & Roblox Suite</title>
+    <title>AeroGuard Core v4.0 — High-End Discord & Roblox Suite</title>
+    <meta name="description" content="AeroGuard Core v4.0: Die ultimative Enterprise Discord & Roblox Suite mit flexibler Roblox-Verifizierung, Streamer Social Hub (Twitch, YouTube, TikTok), Honeypot Anti-Raid Schutzschild und Ticketsystem 2.0.">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
     <style>
         :root {
             --bg: #07080f;
-            --surface: rgba(14, 18, 34, 0.7);
-            --surface-hover: rgba(22, 28, 52, 0.85);
+            --surface: rgba(14, 18, 34, 0.75);
+            --surface-hover: rgba(22, 28, 52, 0.9);
             --border: rgba(255, 255, 255, 0.08);
-            --border-glow: rgba(0, 243, 255, 0.25);
+            --border-glow: rgba(0, 243, 255, 0.28);
             --cyan: #00f3ff;
-            --cyan-glow: rgba(0, 243, 255, 0.4);
+            --cyan-glow: rgba(0, 243, 255, 0.45);
             --purple: #9d4edd;
-            --purple-glow: rgba(157, 78, 221, 0.4);
+            --purple-glow: rgba(157, 78, 221, 0.45);
             --green: #10b981;
+            --green-glow: rgba(16, 185, 129, 0.4);
             --gold: #f59e0b;
+            --rose: #f43f5e;
             --text-dim: #94a3b8;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
             background-color: var(--bg);
             background-image: 
-                radial-gradient(ellipse at 50% 0%, rgba(157, 78, 221, 0.16) 0%, transparent 60%),
-                radial-gradient(circle at 90% 80%, rgba(0, 243, 255, 0.1) 0%, transparent 50%);
+                radial-gradient(ellipse at 50% 0%, rgba(157, 78, 221, 0.18) 0%, transparent 60%),
+                radial-gradient(circle at 90% 80%, rgba(0, 243, 255, 0.12) 0%, transparent 50%),
+                radial-gradient(circle at 10% 40%, rgba(16, 185, 129, 0.08) 0%, transparent 40%);
             color: #f1f5f9;
             font-family: 'Outfit', sans-serif;
             min-height: 100vh;
             overflow-x: hidden;
             line-height: 1.6;
         }
-        .container { max-width: 1240px; margin: 0 auto; padding: 0 24px; }
+        .container { max-width: 1260px; margin: 0 auto; padding: 0 24px; }
         
         nav {
             display: flex; justify-content: space-between; align-items: center;
-            padding: 24px 0; border-bottom: 1px solid var(--border);
+            padding: 22px 0; border-bottom: 1px solid var(--border);
+            position: sticky; top: 0; background: rgba(7, 8, 15, 0.85); backdrop-filter: blur(16px);
+            z-index: 1000;
         }
         .brand { display: flex; align-items: center; gap: 14px; text-decoration: none; color: #fff; }
         .brand-icon {
@@ -6682,10 +6691,18 @@ app.get('/', (req, res) => {
             font-size: 1.5rem; font-weight: 800; color: #000;
             box-shadow: 0 0 25px var(--cyan-glow);
         }
-        .brand-title { font-size: 1.35rem; font-weight: 800; letter-spacing: -0.02em; }
-        .nav-links { display: flex; align-items: center; gap: 28px; }
+        .brand-title { font-size: 1.35rem; font-weight: 800; letter-spacing: -0.02em; display: flex; align-items: center; gap: 8px; }
+        .badge-v4 {
+            background: linear-gradient(135deg, rgba(0, 243, 255, 0.2), rgba(157, 78, 221, 0.25));
+            color: var(--cyan); border: 1px solid rgba(0, 243, 255, 0.4);
+            font-size: 0.72rem; font-weight: 800; padding: 2px 8px; border-radius: 6px; letter-spacing: 0.05em;
+        }
+        .nav-links { display: flex; align-items: center; gap: 24px; }
         .nav-link { color: var(--text-dim); text-decoration: none; font-size: 0.95rem; font-weight: 500; transition: color 0.2s; }
         .nav-link:hover { color: var(--cyan); }
+        .nav-link-highlight {
+            color: var(--cyan); font-weight: 700; display: inline-flex; align-items: center; gap: 6px;
+        }
         .btn-nav {
             background: linear-gradient(135deg, var(--cyan), #00b4d8); color: #000;
             padding: 10px 22px; border-radius: 10px; font-weight: 700; text-decoration: none; font-size: 0.92rem;
@@ -6698,76 +6715,157 @@ app.get('/', (req, res) => {
         }
 
         .hero {
-            padding: 90px 0 70px 0; text-align: center; position: relative;
+            padding: 80px 0 60px 0; text-align: center; position: relative;
         }
         .hero-badge {
             display: inline-flex; align-items: center; gap: 8px;
-            background: rgba(0, 243, 255, 0.1); border: 1px solid rgba(0, 243, 255, 0.3);
-            padding: 6px 18px; border-radius: 999px; font-size: 0.85rem; font-weight: 700; color: var(--cyan);
-            margin-bottom: 24px;
+            background: rgba(0, 243, 255, 0.1); border: 1px solid rgba(0, 243, 255, 0.35);
+            padding: 6px 20px; border-radius: 999px; font-size: 0.85rem; font-weight: 800; color: var(--cyan);
+            margin-bottom: 24px; box-shadow: 0 0 25px rgba(0, 243, 255, 0.15);
+        }
+        .pulse-dot {
+            width: 8px; height: 8px; border-radius: 50%; background: var(--green);
+            box-shadow: 0 0 10px var(--green); animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(0.85); }
         }
         .hero-title {
             font-size: 3.6rem; font-weight: 900; letter-spacing: -0.03em; line-height: 1.15;
-            max-width: 900px; margin: 0 auto 24px auto;
+            max-width: 960px; margin: 0 auto 24px auto;
         }
         .hero-title span {
-            background: linear-gradient(135deg, var(--cyan), var(--purple));
+            background: linear-gradient(135deg, var(--cyan) 0%, #a855f7 100%);
             -webkit-background-clip: text; -webkit-text-fill-color: transparent;
         }
         .hero-desc {
-            font-size: 1.2rem; color: #94a3b8; max-width: 720px; margin: 0 auto 40px auto;
+            font-size: 1.18rem; color: #94a3b8; max-width: 780px; margin: 0 auto 40px auto;
         }
-        .hero-actions { display: flex; justify-content: center; gap: 18px; flex-wrap: wrap; }
+        .hero-actions { display: flex; justify-content: center; gap: 16px; flex-wrap: wrap; }
         .btn-cta-primary {
             background: linear-gradient(135deg, var(--cyan), #0284c7); color: #000;
-            padding: 16px 36px; border-radius: 14px; font-size: 1.1rem; font-weight: 800;
+            padding: 16px 36px; border-radius: 14px; font-size: 1.08rem; font-weight: 800;
             text-decoration: none; box-shadow: 0 0 30px var(--cyan-glow); transition: all 0.25s ease;
             display: inline-flex; align-items: center; gap: 10px;
         }
         .btn-cta-primary:hover { transform: translateY(-3px); box-shadow: 0 0 45px var(--cyan-glow); }
         .btn-cta-secondary {
             background: var(--surface); border: 1px solid var(--border); color: #fff;
-            padding: 16px 32px; border-radius: 14px; font-size: 1.1rem; font-weight: 700;
+            padding: 16px 32px; border-radius: 14px; font-size: 1.08rem; font-weight: 700;
             text-decoration: none; backdrop-filter: blur(12px); transition: all 0.25s ease;
             display: inline-flex; align-items: center; gap: 10px;
         }
         .btn-cta-secondary:hover { border-color: var(--purple); background: var(--surface-hover); transform: translateY(-3px); }
+        .btn-cta-highlight {
+            background: rgba(157, 78, 221, 0.15); border: 1px solid rgba(157, 78, 221, 0.4); color: #c084fc;
+            padding: 16px 30px; border-radius: 14px; font-size: 1.05rem; font-weight: 700;
+            text-decoration: none; backdrop-filter: blur(12px); transition: all 0.25s ease;
+            display: inline-flex; align-items: center; gap: 10px;
+        }
+        .btn-cta-highlight:hover { background: rgba(157, 78, 221, 0.28); color: #fff; transform: translateY(-3px); box-shadow: 0 0 30px var(--purple-glow); }
 
         .telemetry-bar {
-            display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px;
-            margin: 40px 0 80px 0;
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 18px;
+            margin: 30px 0 70px 0;
         }
         .telemetry-item {
             background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 22px;
-            backdrop-filter: blur(14px); text-align: center;
+            backdrop-filter: blur(14px); text-align: center; transition: transform 0.2s;
         }
-        .tel-val { font-size: 2.3rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; color: var(--cyan); margin-top: 4px; }
+        .telemetry-item:hover { transform: translateY(-3px); border-color: rgba(0, 243, 255, 0.2); }
+        .tel-val { font-size: 2.1rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; color: var(--cyan); margin-top: 4px; }
         .tel-label { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); }
 
-        .section-headline { text-align: center; margin-bottom: 50px; }
-        .section-headline h2 { font-size: 2.3rem; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 10px; }
-        .section-headline p { color: var(--text-dim); font-size: 1.05rem; }
+        .section-headline { text-align: center; margin-bottom: 45px; }
+        .section-headline h2 { font-size: 2.4rem; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 12px; }
+        .section-headline p { color: var(--text-dim); font-size: 1.05rem; max-width: 760px; margin: 0 auto; }
+
+        /* V4 SPOTLIGHT CARDS */
+        .v4-spotlight-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 26px;
+            margin-bottom: 70px;
+        }
+        .v4-card {
+            background: linear-gradient(145deg, rgba(14, 18, 34, 0.9), rgba(20, 26, 50, 0.7));
+            border: 1px solid var(--border); border-radius: 22px; padding: 32px;
+            backdrop-filter: blur(18px); transition: all 0.3s ease; position: relative; overflow: hidden;
+            display: flex; flex-direction: column; justify-content: space-between;
+        }
+        .v4-card:hover {
+            transform: translateY(-6px);
+            box-shadow: 0 20px 45px rgba(0, 0, 0, 0.6);
+        }
+        .v4-card-roblox { border-color: rgba(16, 185, 129, 0.35); box-shadow: 0 0 35px rgba(16, 185, 129, 0.08); }
+        .v4-card-roblox:hover { border-color: var(--green); box-shadow: 0 0 45px rgba(16, 185, 129, 0.25); }
+
+        .v4-card-social { border-color: rgba(157, 78, 221, 0.35); box-shadow: 0 0 35px rgba(157, 78, 221, 0.08); }
+        .v4-card-social:hover { border-color: #c084fc; box-shadow: 0 0 45px rgba(157, 78, 221, 0.25); }
+
+        .v4-card-honeypot { border-color: rgba(245, 158, 11, 0.35); box-shadow: 0 0 35px rgba(245, 158, 11, 0.08); }
+        .v4-card-honeypot:hover { border-color: #f59e0b; box-shadow: 0 0 45px rgba(245, 158, 11, 0.25); }
+
+        .v4-card-enterprise { border-color: rgba(0, 243, 255, 0.35); box-shadow: 0 0 35px rgba(0, 243, 255, 0.08); }
+        .v4-card-enterprise:hover { border-color: var(--cyan); box-shadow: 0 0 45px rgba(0, 243, 255, 0.25); }
+
+        .v4-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+        .v4-icon { font-size: 2.2rem; }
+        .v4-pill {
+            font-size: 0.75rem; font-weight: 800; padding: 4px 12px; border-radius: 999px; letter-spacing: 0.04em;
+        }
+        .v4-pill-green { background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); }
+        .v4-pill-purple { background: rgba(157, 78, 221, 0.15); color: #c084fc; border: 1px solid rgba(157, 78, 221, 0.4); }
+        .v4-pill-gold { background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.4); }
+        .v4-pill-cyan { background: rgba(0, 243, 255, 0.15); color: #00f3ff; border: 1px solid rgba(0, 243, 255, 0.4); }
+
+        .v4-title { font-size: 1.45rem; font-weight: 800; margin-bottom: 10px; color: #fff; }
+        .v4-desc { color: #94a3b8; font-size: 0.95rem; line-height: 1.6; margin-bottom: 20px; }
+
+        /* FEATURE BOXES & MOCKUPS */
+        .mock-box {
+            background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.07);
+            border-radius: 14px; padding: 18px; margin-top: auto; font-size: 0.88rem;
+        }
+        .mock-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+        .mock-tab {
+            padding: 6px 12px; border-radius: 8px; font-size: 0.78rem; font-weight: 700;
+            background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #94a3b8; cursor: pointer; transition: all 0.2s;
+        }
+        .mock-tab.active { background: rgba(16, 185, 129, 0.2); border-color: #10b981; color: #fff; }
 
         .features-grid {
-            display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 24px;
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 24px;
             margin-bottom: 80px;
         }
         .feature-card {
-            background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 32px;
+            background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 28px;
             backdrop-filter: blur(16px); transition: all 0.3s ease; position: relative; overflow: hidden;
+            display: flex; flex-direction: column;
         }
         .feature-card:hover { transform: translateY(-5px); border-color: var(--border-glow); box-shadow: 0 15px 40px rgba(0,0,0,0.6); }
+        .feature-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
         .feature-icon {
-            width: 56px; height: 56px; border-radius: 14px;
+            width: 52px; height: 52px; border-radius: 14px;
             background: rgba(0, 243, 255, 0.1); border: 1px solid rgba(0, 243, 255, 0.3);
-            display: flex; align-items: center; justify-content: center; font-size: 1.8rem; margin-bottom: 20px;
+            display: flex; align-items: center; justify-content: center; font-size: 1.6rem;
         }
-        .feature-title { font-size: 1.35rem; font-weight: 700; margin-bottom: 12px; }
-        .feature-desc { color: #94a3b8; font-size: 0.95rem; line-height: 1.6; }
+        .badge-new-v4 {
+            background: linear-gradient(135deg, rgba(0, 243, 255, 0.2), rgba(157, 78, 221, 0.25));
+            color: var(--cyan); border: 1px solid rgba(0, 243, 255, 0.4);
+            font-size: 0.72rem; font-weight: 800; padding: 3px 10px; border-radius: 12px;
+        }
+        .feature-title { font-size: 1.25rem; font-weight: 700; margin-bottom: 10px; color: #fff; }
+        .feature-desc { color: #94a3b8; font-size: 0.92rem; line-height: 1.55; }
 
         footer {
-            border-top: 1px solid var(--border); padding: 40px 0; text-align: center; color: #64748b; font-size: 0.9rem;
+            border-top: 1px solid var(--border); padding: 48px 0 36px 0; text-align: center; color: #64748b; font-size: 0.9rem;
         }
+        .footer-badge {
+            display: inline-flex; align-items: center; gap: 8px; font-weight: 700; color: #cbd5e1;
+            margin-bottom: 20px; font-size: 1rem;
+        }
+        .footer-badge span { color: var(--cyan); }
     </style>
 </head>
 <body>
@@ -6776,14 +6874,18 @@ app.get('/', (req, res) => {
             <a href="/" class="brand">
                 <div class="brand-icon">AG</div>
                 <div>
-                    <div class="brand-title">AEROGUARD <span style="color:var(--cyan)">CORE</span></div>
+                    <div class="brand-title">
+                        AEROGUARD <span style="color:var(--cyan)">CORE</span>
+                        <span class="badge-v4">v4.0</span>
+                    </div>
                 </div>
             </a>
             
             <div class="nav-links">
+                <a href="#v4-update" class="nav-link nav-link-highlight">🚀 v4.0 Neuheiten</a>
                 <a href="#features" class="nav-link">Features</a>
                 <a href="#telemetry" class="nav-link">Status</a>
-                <a href="/apply" class="nav-link" style="color:var(--cyan);font-weight:700;">📝 Jetzt Bewerben</a>
+                <a href="/apply" class="nav-link" style="color:var(--green);font-weight:700;">📝 Jetzt Bewerben</a>
                 ${user ? `
                 <a href="/dashboard" class="btn-nav btn-nav-owner">👑 Dashboard (${user.username})</a>
                 ` : `
@@ -6793,27 +6895,36 @@ app.get('/', (req, res) => {
         </nav>
 
         <section class="hero">
-            <div class="hero-badge">⚡ DIE ULTIMATIVE DISCORD & ROBLOX AUTOMATION</div>
+            <div class="hero-badge">
+                <div class="pulse-dot"></div>
+                <span>🚀 JETZT LIVE: AEROGUARD CORE v4.0 ENTERPRISE SUITE</span>
+            </div>
             <h1 class="hero-title">
-                Sicherer Support & Moderation für <span>deine Community</span>.
+                Sicherer Support, Creator-Hub & Anti-Raid Schutz für <span>deine Community</span>.
             </h1>
             <p class="hero-desc">
-                AeroGuard Core ersetzt veraltete DM-Tickets durch private Server-Kanäle mit Modal-Popups, schützt deinen Chat mit KI-gestütztem AutoMod und verbindet deine Discord-Community nahtlos mit deinen Roblox-Spielen.
+                AeroGuard Core v4.0 vereint flexibles Roblox-Gatekeeping ohne Ticket-Blockaden, einen brandneuen Multi-Plattform Streamer-Hub (Twitch, YouTube, TikTok), ein unbarmherziges Honeypot-Schutzschild gegen Raid-Bots und professionelle 24/7 Enterprise-Automation.
             </p>
             <div class="hero-actions">
                 <a href="${inviteUrl}" target="_blank" class="btn-cta-primary">
-                    🤖 Bot einladen
+                    🤖 Bot zu Discord einladen
                 </a>
                 <a href="/dashboard" class="btn-cta-secondary">
-                    📊 Zum Dashboard
+                    📊 Web-Dashboard öffnen
+                </a>
+                <a href="#v4-update" class="btn-cta-highlight">
+                    ✨ Was ist neu in v4.0?
                 </a>
             </div>
         </section>
 
+        <!-- TELEMETRY BAR -->
         <div class="telemetry-bar" id="telemetry">
             <div class="telemetry-item">
                 <div class="tel-label">Online Status</div>
-                <div class="tel-val" style="color:var(--green)">ONLINE</div>
+                <div class="tel-val" style="color:var(--green); display:flex; align-items:center; justify-content:center; gap:8px;">
+                    <div class="pulse-dot"></div> ONLINE
+                </div>
             </div>
             <div class="telemetry-item">
                 <div class="tel-label">Verbundene Server</div>
@@ -6827,20 +6938,203 @@ app.get('/', (req, res) => {
                 <div class="tel-label">Latenz (Ping)</div>
                 <div class="tel-val">${ping} <span style="font-size:1rem;color:var(--text-dim)">ms</span></div>
             </div>
+            <div class="telemetry-item">
+                <div class="tel-label">Core Version</div>
+                <div class="tel-val" style="color:var(--cyan); font-size:1.6rem;">v4.0 <span style="font-size:0.85rem;color:var(--purple);font-weight:700;">PRO</span></div>
+            </div>
         </div>
 
         <!-- ========================================================================= -->
-        <!-- SPOTLIGHT: DIE 3 NEUEN HIGH-END FEATURES V3.2 (INKL. VORHER/NACHHER) -->
+        <!-- 🚀 WAS IST NEU IN AEROGUARD CORE v4.0? (HAUPT-SPOTLIGHT) -->
+        <!-- ========================================================================= -->
+        <section id="v4-update" style="margin-bottom:80px; scroll-margin-top: 100px;">
+            <div class="section-headline">
+                <div class="hero-badge" style="margin-bottom:12px;">
+                    <span>🌟 MAJOR UPDATE HIGHLIGHTS</span>
+                </div>
+                <h2>🚀 Was ist neu in AeroGuard Core v4.0?</h2>
+                <p>
+                    Vier bahnbrechende Kern-Features für maximale Flexibilität, Creator-Reichweite und kompromisslose Server-Sicherheit.
+                </p>
+            </div>
+
+            <div class="v4-spotlight-grid">
+                <!-- FEATURE 1: ROBLOX MODUS -->
+                <div class="v4-card v4-card-roblox">
+                    <div>
+                        <div class="v4-card-header">
+                            <span class="v4-icon">🎮</span>
+                            <span class="v4-pill v4-pill-green">TICKET-BEFREIUNG</span>
+                        </div>
+                        <h3 class="v4-title">1. Roblox-Verifizierung flexibel & optional einstellbar</h3>
+                        <p class="v4-desc">
+                            Keine frustrierenden Ticket-Blockaden mehr! Im Web-Dashboard (<code>dashboard.html</code>) kannst du nun frei zwischen <strong>3 Betriebsmodi</strong> wählen. Du entscheidest, wie streng die Verknüpfung gehandhabt wird:
+                        </p>
+                        <ul style="color:#cbd5e1; font-size:0.88rem; list-style:none; padding:0; display:flex; flex-direction:column; gap:10px; margin-bottom:20px;">
+                            <li style="display:flex; gap:10px; align-items:flex-start;">
+                                <span>🟢</span>
+                                <div><strong style="color:#10b981;">Freiwillig & Optional (Empfohlen):</strong> Keine Ticket-Blockaden! Spieler können alle Tickets direkt öffnen, ohne ihren Roblox-Account verknüpfen zu müssen.</div>
+                            </li>
+                            <li style="display:flex; gap:10px; align-items:flex-start;">
+                                <span>🟡</span>
+                                <div><strong style="color:#f59e0b;">Kategorie-spezifisch:</strong> Nur bei den Ticket-Gründen, bei denen der Haken „Roblox Pflicht“ aktiv gesetzt ist (z. B. Ingame-Bug-Reports).</div>
+                            </li>
+                            <li style="display:flex; gap:10px; align-items:flex-start;">
+                                <span>🔴</span>
+                                <div><strong style="color:#f43f5e;">Global verpflichtend:</strong> Roblox-Verknüpfung für alle Tickets & Serverfunktionen zwingend erforderlich (Hard-Gate).</div>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <!-- INTERACTIVE LIVE PREVIEW MOCK -->
+                    <div class="mock-box">
+                        <div style="font-weight:700; color:#10b981; margin-bottom:8px; font-size:0.8rem; text-transform:uppercase; letter-spacing:0.05em;">
+                            ⚡ Live-Modus Simulator (Klick zum Testen):
+                        </div>
+                        <div class="mock-tabs">
+                            <button type="button" class="mock-tab active" id="tab-rbx-opt" onclick="switchRbxDemo('opt')">🟢 Optional</button>
+                            <button type="button" class="mock-tab" id="tab-rbx-cat" onclick="switchRbxDemo('cat')">🟡 Kategorie</button>
+                            <button type="button" class="mock-tab" id="tab-rbx-glob" onclick="switchRbxDemo('glob')">🔴 Global</button>
+                        </div>
+                        <div id="rbx-demo-desc" style="background:rgba(255,255,255,0.03); border-radius:8px; padding:10px; font-family:'JetBrains Mono', monospace; font-size:0.8rem; color:#34d399;">
+                            ✅ STATUS: Alle Support-Tickets sind frei zugänglich! Neue Gäste können ohne Roblox-Account sofort Hilfe anfordern.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- FEATURE 2: SOCIAL ALERTS HUB -->
+                <div class="v4-card v4-card-social">
+                    <div>
+                        <div class="v4-card-header">
+                            <span class="v4-icon">📡</span>
+                            <span class="v4-pill v4-pill-purple">MULTI-PLATTFORM HUB</span>
+                        </div>
+                        <h3 class="v4-title">2. Streamer & Creator Social Hub</h3>
+                        <p class="v4-desc">
+                            Ein brandneues Modul in der Modul-Zentrale des Web-Dashboards. Halte deine Community automatisch auf dem Laufenden, wenn Content Creator live gehen oder Uploads veröffentlichen!
+                        </p>
+                        
+                        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;">
+                            <span style="background:rgba(147, 51, 234, 0.2); border:1px solid rgba(147, 51, 234, 0.4); color:#c084fc; font-size:0.75rem; font-weight:700; padding:3px 10px; border-radius:12px;">🟣 Twitch Streams</span>
+                            <span style="background:rgba(239, 68, 68, 0.2); border:1px solid rgba(239, 68, 68, 0.4); color:#f87171; font-size:0.75rem; font-weight:700; padding:3px 10px; border-radius:12px;">🔴 YouTube Uploads</span>
+                            <span style="background:rgba(0, 243, 255, 0.2); border:1px solid rgba(0, 243, 255, 0.4); color:#67e8f9; font-size:0.75rem; font-weight:700; padding:3px 10px; border-radius:12px;">🎵 TikTok Trends</span>
+                        </div>
+
+                        <ul style="color:#cbd5e1; font-size:0.88rem; list-style:none; padding:0; display:flex; flex-direction:column; gap:8px; margin-bottom:18px;">
+                            <li>🔔 <strong>Individuelle Pings & Rollen:</strong> Kein Ping, @everyone, @here oder jede Server-Rolle (z. B. <code>@Stream-Ping</code>).</li>
+                            <li>🎛️ <strong>Inhaltliche Filter:</strong> Per Checkbox genau festlegen, welche Plattformen gemeldet werden.</li>
+                            <li>✏️ <strong>Anpassbare Nachricht:</strong> Nutze Platzhalter wie <code>{creator}</code>, <code>{platform}</code>, <code>{title}</code>, <code>{url}</code> und <code>{ping}</code>.</li>
+                            <li>👥 <strong>Creator-Verwaltung:</strong> Streamer direkt im Dashboard verwalten mit 1-Klick „Jetzt testen“ Button!</li>
+                        </ul>
+                    </div>
+
+                    <!-- SOCIAL COMMANDS & MOCK EMBED -->
+                    <div class="mock-box">
+                        <div style="color:#c084fc; font-weight:700; font-size:0.78rem; margin-bottom:6px;">💬 DISCORD CHAT-BEFEHLE:</div>
+                        <div style="font-family:'JetBrains Mono', monospace; font-size:0.76rem; color:#cbd5e1; display:flex; flex-direction:column; gap:4px;">
+                            <div><code style="color:var(--cyan);">/social-alert test</code> ➔ Live-Testalarm in Zielkanal senden</div>
+                            <div><code style="color:var(--cyan);">/social-alert add &lt;platform&gt; &lt;user&gt;</code> ➔ Creator hinzufügen</div>
+                            <div><code style="color:var(--cyan);">/social-alert list</code> ➔ Alle überwachten Creator anzeigen</div>
+                            <div><code style="color:var(--cyan);">/social-alert channel &lt;kanal&gt;</code> ➔ Zielkanal konfigurieren</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- FEATURE 3: HONEYPOT ANTI-RAID -->
+                <div class="v4-card v4-card-honeypot">
+                    <div>
+                        <div class="v4-card-header">
+                            <span class="v4-icon">🍯</span>
+                            <span class="v4-pill v4-pill-gold">ANTI-RAID SCHUTZ</span>
+                        </div>
+                        <h3 class="v4-title">3. Honeypot Anti-Raid & Bot-Trap Schutzschild</h3>
+                        <p class="v4-desc">
+                            Die unsichtbare Falle für Spambots, Selfbots und bösartige Raids. Der Bot richtet einen Sperrkanal ein (z. B. <code>#🍯・bot-falle</code>), der echten Nutzern als Verbot deklariert ist.
+                        </p>
+                        
+                        <div style="background:rgba(245, 158, 11, 0.08); border:1px solid rgba(245, 158, 11, 0.25); border-radius:12px; padding:14px; margin-bottom:16px;">
+                            <div style="font-weight:700; color:#fbbf24; font-size:0.85rem; margin-bottom:6px;">⚡ Sekundenschnelle Sanktion bei Verstoß:</div>
+                            <ul style="color:#cbd5e1; font-size:0.85rem; list-style:none; padding:0; display:flex; flex-direction:column; gap:6px;">
+                                <li>🔨 <strong>Permanent gebannt</strong> (inkl. Löschung aller Nachrichten der letzten 24h)</li>
+                                <li>👢 <strong>Gekickt</strong> oder ⏳ <strong>7 Tage Timeout</strong></li>
+                                <li>🗑️ <strong>Nachricht sofort spurlos gelöscht</strong></li>
+                                <li>🚨 <strong>Mod-Log Alarm:</strong> Mit Account-Alter, Tag, User-ID und abgefangenem Text!</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- HONEYPOT CONTROLS -->
+                    <div class="mock-box">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                            <span style="font-weight:700; color:#fbbf24; font-size:0.8rem;">⚡ 1-Klick Setup im Web-Dashboard:</span>
+                            <span style="background:rgba(245, 158, 11, 0.2); color:#f59e0b; padding:2px 8px; border-radius:6px; font-size:0.72rem; font-weight:700;">AUTONOM</span>
+                        </div>
+                        <p style="color:#94a3b8; font-size:0.8rem; margin-bottom:10px;">
+                            Button „⚡ 1-Klick Falle anlegen“ im Dashboard drücken oder im Discord Chat aufrufen:
+                        </p>
+                        <div style="font-family:'JetBrains Mono', monospace; font-size:0.76rem; color:#cbd5e1; display:flex; flex-direction:column; gap:4px;">
+                            <div><code style="color:var(--cyan);">/honeypot setup</code> ➔ Erstellt & schärft die Falle vollautomatisch</div>
+                            <div><code style="color:var(--cyan);">/honeypot status</code> ➔ Zeigt Fallenstatus & aktiven Kanal an</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- FEATURE 4: CORE V4.0 ARCHITECTURE -->
+                <div class="v4-card v4-card-enterprise">
+                    <div>
+                        <div class="v4-card-header">
+                            <span class="v4-icon">🏷️</span>
+                            <span class="v4-pill v4-pill-cyan">ENTERPRISE CORE</span>
+                        </div>
+                        <h3 class="v4-title">4. Versions-Upgrade auf v4.0 Enterprise</h3>
+                        <p class="v4-desc">
+                            Das gesamte Fundament von AeroGuard Core läuft nun auf der hochmodernen <strong>v4.0 Enterprise Engine</strong>. Maximale Uptime, blitzschnelle Latenzen und Render.com Cloud-Integration.
+                        </p>
+                        
+                        <ul style="color:#cbd5e1; font-size:0.88rem; list-style:none; padding:0; display:flex; flex-direction:column; gap:10px; margin-bottom:20px;">
+                            <li style="display:flex; gap:10px; align-items:flex-start;">
+                                <span style="color:var(--cyan);">💠</span>
+                                <div><strong style="color:#fff;">Cyberpunk v4.0 Badge & UI:</strong> Komplett veredelter Dashboard-Header mit High-Speed Navigations-Tabs.</div>
+                            </li>
+                            <li style="display:flex; gap:10px; align-items:flex-start;">
+                                <span style="color:var(--cyan);">💾</span>
+                                <div><strong style="color:#fff;">Cloud-Vault Speicher:</strong> Alle Rollen, Ticket-Strukturen, Streamer und Honeypot-Konfigurationen bleiben bei Bot-Neustarts und Redeploys persistent erhalten.</div>
+                            </li>
+                            <li style="display:flex; gap:10px; align-items:flex-start;">
+                                <span style="color:var(--cyan);">🔄</span>
+                                <div><strong style="color:#fff;">Zero-Downtime Deployment:</strong> Kontinuierliche Synchronisation via GitHub (main) & Render.com Cloud-Hosting.</div>
+                            </li>
+                            <li style="display:flex; gap:10px; align-items:flex-start;">
+                                <span style="color:var(--cyan);">🛡️</span>
+                                <div><strong style="color:#fff;">Discord REST v10:</strong> Neueste Discord.js v14 Architektur mit nativen Modals, Autocomplete und Buttons.</div>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <!-- ARCHITECTURE METRICS -->
+                    <div class="mock-box">
+                        <div style="display:flex; justify-content:space-between; font-family:'JetBrains Mono', monospace; font-size:0.78rem; color:#94a3b8;">
+                            <span>RUNTIME: Node.js 18+</span>
+                            <span style="color:var(--cyan);">BRANCH: main</span>
+                            <span style="color:var(--green);">STATUS: 100% HEALTHY</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========================================================================= -->
+        <!-- SPOTLIGHT ARCHIVE: V3.2 EMOJI STYLIZER & HIGH-END FEATURES -->
         <!-- ========================================================================= -->
         <section style="margin-bottom:70px;">
             <div class="section-headline">
-                <div class="hero-badge" style="margin-bottom:12px;">🌟 BRANDNEU IN VERSION 3.2</div>
-                <h2>Next-Gen Features im Überblick</h2>
-                <p>AeroGuard Core wurde mit drei mächtigen neuen Systemen aufgerüstet, die deine Discord-Community auf ein völlig neues Level heben.</p>
+                <div class="hero-badge" style="margin-bottom:12px;">🌟 EMOJI & DESIGN SUITE</div>
+                <h2>Kanal-Styling & Community Tools</h2>
+                <p>Modernste Werkzeuge, die deinen Server übersichtlich, interaktiv und unverwechselbar machen.</p>
             </div>
 
             <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(360px, 1fr)); gap:24px;">
-                <!-- FEATURE 1: EMOJI STYLIZER WITH LIVE BEFORE/AFTER -->
+                <!-- FEATURE: EMOJI STYLIZER -->
                 <div style="background:var(--surface); border:1px solid rgba(0,243,255,0.3); border-radius:20px; padding:30px; box-shadow:0 0 30px rgba(0,243,255,0.1);">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
                         <span style="font-size:2rem;">🎨</span>
@@ -6877,18 +7171,14 @@ app.get('/', (req, res) => {
                             <span>➔</span>
                             <span style="color:#fff;">🔊 🔊・talk-1</span>
 
-                            <span style="color:#94a3b8;">🔊 Musik</span>
-                            <span>➔</span>
-                            <span style="color:#fff;">🔊 🎵・musik</span>
-
-                            <span style="color:#94a3b8;">📁 SUPPORT</span>
+                            <span style="color:#94a3b8;">📁 Support</span>
                             <span>➔</span>
                             <span style="color:#fff;">📁 🎫 ┃ SUPPORT</span>
                         </div>
                     </div>
                 </div>
 
-                <!-- FEATURE 2: SUGGESTIONS -->
+                <!-- FEATURE: SUGGESTIONS -->
                 <div style="background:var(--surface); border:1px solid rgba(157,78,221,0.3); border-radius:20px; padding:30px; box-shadow:0 0 30px rgba(157,78,221,0.1);">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
                         <span style="font-size:2rem;">💡</span>
@@ -6906,7 +7196,7 @@ app.get('/', (req, res) => {
                     </ul>
                 </div>
 
-                <!-- FEATURE 3: GIVEAWAYS -->
+                <!-- FEATURE: GIVEAWAYS -->
                 <div style="background:var(--surface); border:1px solid rgba(16,185,129,0.3); border-radius:20px; padding:30px; box-shadow:0 0 30px rgba(16,185,129,0.1);">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
                         <span style="font-size:2rem;">🎉</span>
@@ -6926,7 +7216,10 @@ app.get('/', (req, res) => {
             </div>
         </section>
 
-        <section id="features">
+        <!-- ========================================================================= -->
+        <!-- SECTION: GESAMTE FEATURE-SUITE -->
+        <!-- ========================================================================= -->
+        <section id="features" style="scroll-margin-top: 100px;">
             <div class="section-headline">
                 <h2>Was ist AeroGuard Core?</h2>
                 <p>Eine allumfassende Enterprise-Suite für professionelle Discord-Server und Roblox-Studios.</p>
@@ -6934,15 +7227,49 @@ app.get('/', (req, res) => {
 
             <div class="features-grid">
                 <div class="feature-card">
-                    <div class="feature-icon">🎫</div>
+                    <div class="feature-card-header">
+                        <div class="feature-icon">🎫</div>
+                        <span class="badge-new-v4" style="background:rgba(16, 185, 129, 0.15); color:#10b981; border-color:rgba(16, 185, 129, 0.4);">UPGRADED v4.0</span>
+                    </div>
                     <div class="feature-title">Kanal-Ticketsystem 2.0</div>
                     <div class="feature-desc">
-                        Keine unübersichtlichen Direktnachrichten (DMs) mehr! Nutzer öffnen per Discord-Modal ein Ticket, woraufhin ein privater Kanal mit vollen Rollenrechten, Supporter-Claiming und automatischer HTML-Archivierung erstellt wird.
+                        Keine unübersichtlichen DMs mehr! Nutzer öffnen per Modal ein Ticket in einem privaten Kanal. Neu in v4.0: Völlig flexibler Roblox-Zwang – keine blockierten Tickets mehr!
                     </div>
                 </div>
 
                 <div class="feature-card">
-                    <div class="feature-icon">🛡️</div>
+                    <div class="feature-card-header">
+                        <div class="feature-icon">📡</div>
+                        <span class="badge-new-v4">NEU IN v4.0</span>
+                    </div>
+                    <div class="feature-title">Streamer & Creator Social Hub</div>
+                    <div class="feature-desc">
+                        Automatische Live-Alerts für Twitch, YouTube und TikTok mit individuellen Rollen-Pings (@Stream-Ping), Multi-Plattform-Filtern und Slash-Befehl <code>/social-alert</code>.
+                    </div>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">🍯</div>
+                    <span class="badge-new-v4" style="background:rgba(245, 158, 11, 0.15); color:#f59e0b; border-color:rgba(245, 158, 11, 0.4);">NEU IN v4.0</span>
+                </div>
+                <div class="feature-title">Honeypot Anti-Raid Schutzschild</div>
+                <div class="feature-desc">
+                    Intelligente Bot-Falle (<code>#🍯・bot-falle</code>). Vollstreckt in Millisekunden Permabanns gegen Raid-Bots, löscht Chatspuren und alarmiert das Mod-Team via Mod-Log.
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">🎮</div>
+                    <span class="badge-new-v4" style="background:rgba(16, 185, 129, 0.15); color:#10b981; border-color:rgba(16, 185, 129, 0.4);">UPGRADED v4.0</span>
+                </div>
+                <div class="feature-title">Roblox 3-Modus Gateway</div>
+                <div class="feature-desc">
+                    Freie Modus-Wahl (Freiwillig, Kategorie-Pflicht oder Global). Synchronisiere Live-Spielerzahlen, Server-Nicknames und Roblox-Gruppenränge nahtlos mit Discord.
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-card-header">
+                        <div class="feature-icon">🛡️</div>
+                    </div>
                     <div class="feature-title">AutoMod & Anti-Raid Schutzschild</div>
                     <div class="feature-desc">
                         Echtzeit-Erkennung von Spam, Phishing-Links, Massen-Pings und toxischen Begriffen. Verdächtige Alt-Accounts werden geblockt und Täter automatisch mit Timeouts belegt.
@@ -6950,15 +7277,9 @@ app.get('/', (req, res) => {
                 </div>
 
                 <div class="feature-card">
-                    <div class="feature-icon">🎮</div>
-                    <div class="feature-title">Roblox Live-Integration</div>
-                    <div class="feature-desc">
-                        Synchronisiere deinen Spielserver in Echtzeit mit Discord. Erhalte Live-Spielerzahlen, führe Ingame-Befehle aus und synchronisiere Gruppenränge nahtlos.
+                    <div class="feature-card-header">
+                        <div class="feature-icon">⭐</div>
                     </div>
-                </div>
-
-                <div class="feature-card">
-                    <div class="feature-icon">⭐</div>
                     <div class="feature-title">Level- & Economy-System</div>
                     <div class="feature-desc">
                         Belohne deine aktivsten Community-Mitglieder. Chat-Nachrichten generieren XP, schalten neue Ränge frei und belohnen Nutzer mit virtuellen AeroCoins.
@@ -6966,15 +7287,19 @@ app.get('/', (req, res) => {
                 </div>
 
                 <div class="feature-card">
-                    <div class="feature-icon">🎛️</div>
+                    <div class="feature-card-header">
+                        <div class="feature-icon">🎛️</div>
+                    </div>
                     <div class="feature-title">Multi-Server Web-Dashboard</div>
                     <div class="feature-desc">
-                        Behalte die volle Kontrolle über jeden Server, auf dem der Bot installiert ist. Schalte einzelne Module per Klick an oder aus und konfiguriere Rollen und Kanäle direkt im Browser.
+                        Behalte die volle Kontrolle über jeden Server, auf dem der Bot installiert ist. Schalte Module per Klick an oder aus und verwalte Kanäle bequem im Browser.
                     </div>
                 </div>
 
                 <div class="feature-card">
-                    <div class="feature-icon">🔒</div>
+                    <div class="feature-card-header">
+                        <div class="feature-icon">🔒</div>
+                    </div>
                     <div class="feature-title">Rollenbasierter Zugriffsschutz</div>
                     <div class="feature-desc">
                         Kein unbefugter Zugriff! Nur verifizierte Server-Besitzer und autorisierte Support-Rollen können das Management-Panel einsehen und steuern.
@@ -6982,33 +7307,53 @@ app.get('/', (req, res) => {
                 </div>
 
                 <div class="feature-card">
-                    <div class="feature-icon">💡</div>
+                    <div class="feature-card-header">
+                        <div class="feature-icon">💡</div>
+                    </div>
                     <div class="feature-title">Community-Vorschläge & Voting</div>
                     <div class="feature-desc">
-                        Dedizierter Vorschlagskanal (<code>#💡・vorschläge</code>) mit automatischen Abstimmungsbuttons (👍/👎), separaten Diskussions-Threads für jede Idee und Team-Statusverwaltung (Angenommen, Abgelehnt, In Umsetzung).
+                        Dedizierter Vorschlagskanal (<code>#💡・vorschläge</code>) mit automatischen Abstimmungsbuttons (👍/👎), separaten Diskussions-Threads und Team-Statusverwaltung.
                     </div>
                 </div>
 
                 <div class="feature-card">
-                    <div class="feature-icon">🎨</div>
+                    <div class="feature-card-header">
+                        <div class="feature-icon">🎨</div>
+                    </div>
                     <div class="feature-title">Kanal-Emoji Verschönerer</div>
                     <div class="feature-desc">
-                        Analysiere und formatiere mit nur 1 Klick alle Server-Kanäle, Sprachräume und Kategorien mit passenden, modernen Cyberpunk-Emojis (z. B. <code>📜・regeln</code>, <code>💬・hauptchat</code>, <code>🔊・talk</code>). Inklusive Doppel-Emoji-Schutz.
+                        Analysiere und formatiere mit nur 1 Klick alle Server-Kanäle, Sprachräume und Kategorien mit passenden Cyberpunk-Emojis. Inklusive Doppel-Emoji-Schutz.
                     </div>
                 </div>
 
                 <div class="feature-card">
-                    <div class="feature-icon">🎉</div>
+                    <div class="feature-card-header">
+                        <div class="feature-icon">🎉</div>
+                    </div>
                     <div class="feature-title">Giveaway-Suite (Web-Exklusiv)</div>
                     <div class="feature-desc">
-                        Veranstalte manipulationssichere Verlosungen mit Live-Countdown im Discord, 1-Klick-Teilnahmebutton und optionaler Roblox-Verifizierungspflicht. Aus Sicherheitsgründen exklusiv und bequem über das Web-Dashboard startbar!
+                        Veranstalte manipulationssichere Verlosungen mit Live-Countdown im Discord, 1-Klick-Teilnahmebutton und optionaler Roblox-Verifizierungspflicht.
+                    </div>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-card-header">
+                        <div class="feature-icon">⚡</div>
+                        <span class="badge-new-v4">SLASH v10</span>
+                    </div>
+                    <div class="feature-title">Discord Slash-Commands Engine</div>
+                    <div class="feature-desc">
+                        Dutzende produktive Slash-Befehle: <code>/honeypot</code>, <code>/social-alert</code>, <code>/suggest</code>, <code>/ticket</code>, <code>/lockdown</code>, <code>/mute</code> und <code>/setup-autorole</code>.
                     </div>
                 </div>
             </div>
         </section>
 
         <footer>
-            <p>AeroGuard Core Enterprise v4.0 • Entwickelt für maximale Sicherheit & Performance</p>
+            <div class="footer-badge">
+                <span class="brand-icon" style="width:28px;height:28px;font-size:0.9rem;border-radius:8px;display:inline-flex;">AG</span>
+                <span>AeroGuard Core Enterprise v4.0</span> • Entwickelt für maximale Sicherheit & Performance
+            </div>
             <div style="margin: 20px 0; display: flex; justify-content: center; gap: 14px; flex-wrap: wrap;">
                 <a href="/impressum" class="btn-impressum-badge" style="display: inline-flex; align-items: center; gap: 8px; background: rgba(0, 243, 255, 0.08); border: 1px solid rgba(0, 243, 255, 0.4); color: #00f3ff; text-decoration: none; padding: 11px 24px; border-radius: 12px; font-weight: 800; font-size: 0.95rem; box-shadow: 0 0 20px rgba(0, 243, 255, 0.2); transition: all 0.3s ease;">
                     <span>⚖️</span> Impressum & Hosting (Render.com)
@@ -7027,6 +7372,36 @@ app.get('/', (req, res) => {
                 <a href="/impressum" style="color:#00f3ff;text-decoration:underline;">Impressum</a>
             </p>
         </footer>
+
+    <!-- INTERACTIVE ROBLOX SWITCHER SCRIPT -->
+    <script>
+        function switchRbxDemo(mode) {
+            const tabs = {
+                opt: document.getElementById('tab-rbx-opt'),
+                cat: document.getElementById('tab-rbx-cat'),
+                glob: document.getElementById('tab-rbx-glob')
+            };
+            const desc = document.getElementById('rbx-demo-desc');
+            if (!desc) return;
+
+            Object.values(tabs).forEach(t => { if (t) t.classList.remove('active'); });
+
+            if (mode === 'opt') {
+                if (tabs.opt) tabs.opt.classList.add('active');
+                desc.style.color = '#34d399';
+                desc.innerHTML = '🟢 <strong>FREIWILLIG & OPTIONAL:</strong> Alle Support-Tickets sind frei zugänglich! Gäste und neue Spieler können sofort Hilfe erhalten, ohne Roblox zu verknüpfen.';
+            } else if (mode === 'cat') {
+                if (tabs.cat) tabs.cat.classList.add('active');
+                desc.style.color = '#fbbf24';
+                desc.innerHTML = '🟡 <strong>KATEGORIE-SPEZIFISCH:</strong> Roblox-Verifizierung greift nur bei Ticket-Gründen mit aktivem Haken (z. B. Ingame Bug-Reports oder VIP-Rang). Allgemeine Fragen bleiben frei!';
+            } else if (mode === 'glob') {
+                if (tabs.glob) tabs.glob.classList.add('active');
+                desc.style.color = '#f87171';
+                desc.innerHTML = '🔴 <strong>GLOBAL VERPFLICHTEND:</strong> Hard-Gate! Alle Tickets und erweiterten Server-Funktionen verlangen einen verifizierten Roblox-Account.';
+            }
+        }
+    </script>
+
     <!-- ========================================================================= -->
     <!-- AEROGUARD ENTERPRISE COOKIE CONSENT BANNER & MANAGER -->
     <!-- ========================================================================= -->
@@ -7045,7 +7420,6 @@ app.get('/', (req, res) => {
                     Wir verwenden essenzielle Cookies für deine Discord-Anmeldung und Serversicherheit sowie funktionale Cookies zur Speicherung deiner Dashboard-Einstellungen. Du kannst selbst entscheiden, welche Cookies du zulassen möchtest.
                 </p>
 
-                <!-- ACCORDION / CUSTOMIZE SECTION -->
                 <div id="ag-cookie-details" style="display:none; margin-bottom:14px; border-top:1px solid rgba(255,255,255,0.08); padding-top:12px;">
                     <div class="ag-cookie-option">
                         <div style="flex:1;">
