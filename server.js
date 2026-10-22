@@ -633,24 +633,74 @@ loadCloudVaultFromDisk();
 // =========================================================================
 // AEROGUARD TICKET & PERMISSION UTILITIES
 // =========================================================================
-function isSupporterOrAdmin(member, guildId) {
+function isSupporterOrAdmin(member, guildOrGuildId) {
     if (!member) return false;
-    if (member.id === OWNER_ID) return true;
-    if (cloudStorage.systemSettings?.whitelistedUsers && cloudStorage.systemSettings.whitelistedUsers.includes(member.id)) return true;
-    if (cloudStorage.systemSettings?.authorizedSupporters && cloudStorage.systemSettings.authorizedSupporters.includes(member.id)) return true;
-    if (member.permissions && member.permissions.has(PermissionFlagsBits.Administrator)) return true;
-    if (cloudStorage.systemSettings?.supportRoleId && member.roles?.cache && member.roles.cache.has(cloudStorage.systemSettings.supportRoleId)) return true;
-    const gId = guildId || (member.guild ? member.guild.id : null);
-    if (gId) {
-        const gSettings = getGuildSettings(gId);
-        if (gSettings.supportRoleId && member.roles?.cache && member.roles.cache.has(gSettings.supportRoleId)) return true;
-        if (Array.isArray(gSettings.staffSettings?.supportRoleIds)) {
-            if (gSettings.staffSettings.supportRoleIds.some(rId => member.roles?.cache && member.roles.cache.has(rId))) return true;
-        }
-        if (Array.isArray(gSettings.staffSettings?.supporterUserIds)) {
-            if (gSettings.staffSettings.supporterUserIds.includes(member.id)) return true;
+    const userId = member.id || member.user?.id;
+    if (userId === OWNER_ID) return true;
+    if (cloudStorage.systemSettings?.whitelistedUsers && cloudStorage.systemSettings.whitelistedUsers.includes(userId)) return true;
+    if (cloudStorage.systemSettings?.authorizedSupporters && cloudStorage.systemSettings.authorizedSupporters.includes(userId)) return true;
+
+    // Guild & GuildId Auflösung
+    let gId = null;
+    let guildObj = null;
+    if (typeof guildOrGuildId === 'string') {
+        gId = guildOrGuildId;
+        guildObj = client.guilds.cache.get(gId);
+    } else if (guildOrGuildId && guildOrGuildId.id) {
+        guildObj = guildOrGuildId;
+        gId = guildOrGuildId.id;
+    } else if (member.guild) {
+        guildObj = member.guild;
+        gId = member.guild.id;
+    }
+
+    // Server-Besitzer (Owner des Servers)
+    if (guildObj && guildObj.ownerId === userId) return true;
+
+    // Discord Permissions (Administrator, ManageGuild, ManageMessages, ModerateMembers)
+    if (member.permissions) {
+        if (member.permissions.has(PermissionFlagsBits.Administrator) ||
+            member.permissions.has(PermissionFlagsBits.ManageGuild) ||
+            member.permissions.has(PermissionFlagsBits.ManageMessages) ||
+            member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+            return true;
         }
     }
+
+    // Server-spezifische Support-Rollen & User-IDs aus den Server-Einstellungen
+    if (gId) {
+        const gSettings = getGuildSettings(gId);
+        // Konfigurierte Haupt-Supportrolle
+        if (gSettings.supportRoleId && member.roles?.cache && member.roles.cache.has(gSettings.supportRoleId)) {
+            return true;
+        }
+        // Konfigurierte Multi-Supportrollen
+        if (Array.isArray(gSettings.staffSettings?.supportRoleIds)) {
+            if (gSettings.staffSettings.supportRoleIds.some(rId => member.roles?.cache && member.roles.cache.has(rId))) {
+                return true;
+            }
+        }
+        // Konfigurierte Supporter User-IDs
+        if (Array.isArray(gSettings.staffSettings?.supporterUserIds)) {
+            if (gSettings.staffSettings.supporterUserIds.includes(userId)) {
+                return true;
+            }
+        }
+    }
+
+    // Globale Fallback Support-Rolle
+    if (cloudStorage.systemSettings?.supportRoleId && member.roles?.cache && member.roles.cache.has(cloudStorage.systemSettings.supportRoleId)) {
+        return true;
+    }
+
+    // Intelligente Prüfung von Discord-Rollen nach Namen (z. B. "Supporter", "Support", "Moderator", "Team", "Staff")
+    if (member.roles?.cache) {
+        const hasMatchingRole = member.roles.cache.some(r => 
+            /supporter|support|moderator|mod|admin|team|staff|helfer|leitung/i.test(r.name)
+        );
+        if (hasMatchingRole) return true;
+    }
+
     return false;
 }
 
@@ -1124,7 +1174,7 @@ client.on('messageCreate', async message => {
 
     const rawContent = message.content.trim();
     const lowerContent = rawContent.toLowerCase();
-    const isSupp = isSupporterOrAdmin(message.member);
+    const isSupp = isSupporterOrAdmin(message.member, message.guild);
 
     // =========================================================================
     // AUTOMATISCHER SUPPORT-SERVER INVITE BEI 'HEY' / 'SUPPORT' / BOT-ERWÄHNUNG
@@ -1384,7 +1434,7 @@ client.on('messageCreate', async message => {
 
 
 
-    if (cloudStorage.systemSettings.lockdownActive && !cloudStorage.systemSettings.whitelistedUsers.includes(message.author.id)) {
+    if (cloudStorage.systemSettings.lockdownActive && !isSupporterOrAdmin(message.member, message.guild)) {
         try {
             await message.delete();
             return message.author.send("🚨 **Der Server befindet sich aktuell im Lockdown.** Nachrichten können momentan nur von Administratoren gesendet werden.").catch(()=>{});
@@ -1438,7 +1488,7 @@ client.on('messageCreate', async message => {
     }
 
     if (containsSwearWords(message.content) || message.content.includes('@everyone') || message.content.includes('@here')) {
-        if (cloudStorage.systemSettings.whitelistedUsers.includes(message.author.id)) return;
+        if (isSupporterOrAdmin(message.member, message.guild)) return;
 
         try {
             await message.delete().catch(() => {});
@@ -1486,7 +1536,7 @@ client.on('interactionCreate', async interaction => {
     // AEROGUARD DM FAQ & INTERACTION HANDLERS
     // VOICE SUPPORT LEITSTELLEN BUTTONS
     if (interaction.isButton() && interaction.customId.startsWith('vsupport_move_')) {
-        const isStaff = interaction.member.permissions.has(PermissionFlagsBits.ManageMessages) || interaction.user.id === OWNER_ID;
+        const isStaff = isSupporterOrAdmin(interaction.member, guild);
         if (!isStaff) {
             return interaction.reply({ content: '⛔ Nur Supporter und Moderatoren können User verschieben.', ephemeral: true });
         }
@@ -1699,7 +1749,7 @@ client.on('interactionCreate', async interaction => {
         const sug = cloudStorage.suggestions ? cloudStorage.suggestions[sugId] : null;
         if (!sug) return interaction.reply({ content: '❌ Vorschlag nicht gefunden.', ephemeral: true });
 
-        const isSupp = isSupporterOrAdmin(interaction.member);
+        const isSupp = isSupporterOrAdmin(interaction.member, guild);
         if (!isSupp) {
             return interaction.reply({ content: '⛔ **Zugriff verweigert:** Nur Teammitglieder (Supporter/Admins) können den Status von Vorschlägen ändern.', ephemeral: true });
         }
@@ -1724,7 +1774,7 @@ client.on('interactionCreate', async interaction => {
         interaction.customId.startsWith('sug_set_progress_') ||
         interaction.customId.startsWith('sug_set_pending_')
     )) {
-        const isSupp = isSupporterOrAdmin(interaction.member);
+        const isSupp = isSupporterOrAdmin(interaction.member, guild);
         if (!isSupp) return interaction.reply({ content: '⛔ Zugriff verweigert.', ephemeral: true });
 
         let newStatus = 'PENDING';
@@ -2455,12 +2505,36 @@ client.on('interactionCreate', async interaction => {
     if (interaction.isChatInputCommand()) {
         const { commandName, guild, channel } = interaction;
         const userId = interaction.user.id;
-        const isWhitelisted = cloudStorage.systemSettings.whitelistedUsers.includes(userId);
+        const isStaff = isSupporterOrAdmin(interaction.member, guild);
 
-        const adminCmds = ['update-roles', 'support-next', 'setup-support-server', 'status', 'restart', 'clear', 'warn', 'ticket', 'setup-ticketpanel', 'setup-infohub', 'poll', 'rbx-shout', 'rbx-serverlogs', 'rbx-shutdown', 'clan-war', 'rbx-savedata', 'rbx-cleardata', 'nuke', 'lockdown', 'unlockdown', 'slowmode', 'addrole', 'removerole', 'set-placeid', 'mute', 'unmute', 'warnlist', 'clearwarns', 'lockchannel', 'unlockchannel', 'dm', 'whitelist', 'supporter', 'setup-modlog', 'backup-server', 'give-premium', 'setup-welcome', 'setup-livestatus', 'setup-autorole', 'blacklist', 'style-channels', 'suggest-setup', 'giveaway'];
-        
-        if (adminCmds.includes(commandName) && !isWhitelisted) {
-            return interaction.reply({ content: '🔒 **Zugriff verweigert:** Dein Benutzerkonto verfügt nicht über die erforderlichen administrativen Schlüssel.', ephemeral: true });
+        // 1. Systembefehle, die ausschließlich dem Bot-Besitzer (Root) vorbehalten sind
+        const rootOnlyCmds = ['update-roles', 'setup-support-server', 'whitelist', 'restart', 'give-premium', 'cloud-inspect'];
+        if (rootOnlyCmds.includes(commandName)) {
+            const isRoot = (userId === OWNER_ID) || (cloudStorage.systemSettings?.whitelistedUsers && cloudStorage.systemSettings.whitelistedUsers.includes(userId));
+            if (!isRoot) {
+                return interaction.reply({ 
+                    content: '⛔ **Zugriff verweigert:** Dieser System-Befehl ist ausschließlich dem verifizierten Bot-Besitzer (Root) vorbehalten.', 
+                    ephemeral: true 
+                });
+            }
+        }
+
+        // 2. Befehle für Supporter, Moderatoren & Server-Administratoren auf dem jeweiligen Server
+        const staffCmds = [
+            'clear', 'warn', 'warnlist', 'clearwarns', 'mute', 'unmute', 'slowmode', 
+            'lockchannel', 'unlockchannel', 'nuke', 'lockdown', 'unlockdown', 
+            'ticket', 'support-next', 'setup-ticketpanel', 'setup-infohub', 'poll', 
+            'dm', 'addrole', 'removerole', 'status', 'supporter', 'setup-modlog', 
+            'setup-welcome', 'setup-livestatus', 'setup-autorole', 'backup-server', 
+            'blacklist', 'style-channels', 'suggest-setup', 'giveaway', 'set-placeid', 
+            'rbx-shout', 'rbx-serverlogs', 'rbx-shutdown', 'clan-war', 'rbx-savedata', 'rbx-cleardata'
+        ];
+
+        if (staffCmds.includes(commandName) && !isStaff) {
+            return interaction.reply({ 
+                content: '🔒 **Zugriff verweigert:** Dieser Befehl erfordert die **Supporter-Rolle** oder Moderator-/Admin-Rechte auf diesem Server.', 
+                ephemeral: true 
+            });
         }
 
         // 🟢 NEU: BLACKLIST SLASH-COMMAND LOGIK
@@ -2621,7 +2695,7 @@ client.on('interactionCreate', async interaction => {
         }
 
         if (commandName === 'suggest-setup') {
-            if (!isSupporterOrAdmin(interaction.member)) {
+            if (!isSupporterOrAdmin(interaction.member, guild)) {
                 return interaction.reply({ content: '⛔ Nur Administratoren können den Vorschlagskanal festlegen.', ephemeral: true });
             }
             const ch = interaction.options.getChannel('kanal');
@@ -2636,7 +2710,7 @@ client.on('interactionCreate', async interaction => {
         // NEU: KANAL-EMOJIS ÜBERARBEITEN (/style-channels)
         // =========================================================================
         if (commandName === 'style-channels') {
-            if (!isSupporterOrAdmin(interaction.member)) {
+            if (!isSupporterOrAdmin(interaction.member, guild)) {
                 return interaction.reply({ content: '⛔ Nur Administratoren können die Kanäle mit Emojis überarbeiten.', ephemeral: true });
             }
             await interaction.deferReply({ ephemeral: true });
@@ -2668,7 +2742,7 @@ client.on('interactionCreate', async interaction => {
                 return interaction.reply({ embeds: [webOnlyEmbed], components: [webRow], ephemeral: true });
             }
 
-            if (!isSupporterOrAdmin(interaction.member)) {
+            if (!isSupporterOrAdmin(interaction.member, guild)) {
                 return interaction.reply({ content: '⛔ Nur Administratoren und Supporter können Giveaways verwalten.', ephemeral: true });
             }
 
@@ -2707,7 +2781,7 @@ client.on('interactionCreate', async interaction => {
             const ticket = cloudStorage.activeTickets[chId];
 
             if (sub === 'setup') {
-                if (!isSupporterOrAdmin(interaction.member)) {
+                if (!isSupporterOrAdmin(interaction.member, guild)) {
                     return interaction.reply({ content: '⛔ **Zugriff verweigert:** Nur Administratoren können das Ticket-System einrichten.', ephemeral: true });
                 }
 
@@ -2736,7 +2810,7 @@ client.on('interactionCreate', async interaction => {
             }
 
             if (sub === 'panel') {
-                if (!isSupporterOrAdmin(interaction.member)) {
+                if (!isSupporterOrAdmin(interaction.member, guild)) {
                     return interaction.reply({ content: '⛔ **Zugriff verweigert:** Nur Administratoren können das Support-Panel projizieren.', ephemeral: true });
                 }
 
@@ -2785,7 +2859,7 @@ client.on('interactionCreate', async interaction => {
             }
 
             if (sub === 'claim') {
-                if (!isSupporterOrAdmin(interaction.member)) {
+                if (!isSupporterOrAdmin(interaction.member, guild)) {
                     return interaction.reply({ content: '⛔ Nur Supporter können Tickets claimen.', ephemeral: true });
                 }
                 if (ticket.claimedBy) {
@@ -2798,7 +2872,7 @@ client.on('interactionCreate', async interaction => {
             }
 
             if (sub === 'unclaim') {
-                if (!isSupporterOrAdmin(interaction.member)) {
+                if (!isSupporterOrAdmin(interaction.member, guild)) {
                     return interaction.reply({ content: '⛔ Nur Supporter können Tickets freigeben.', ephemeral: true });
                 }
                 ticket.claimedBy = null;
