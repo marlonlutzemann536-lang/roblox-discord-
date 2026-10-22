@@ -304,8 +304,8 @@
             <div class="header-left">
                 <div class="logo-box">🛡️</div>
                 <div>
-                    <div class="logo-title">AeroGuard Core</div>
-                    <div class="logo-subtitle">Enterprise Multi-Server Suite</div>
+                    <div class="logo-title">AeroGuard Core <span style="font-size:0.68rem; background:linear-gradient(135deg, #00f3ff, #bf5af2); color:#000; font-weight:800; padding:2px 8px; border-radius:12px; vertical-align:middle; margin-left:8px; box-shadow:0 0 10px rgba(0,243,255,0.4);">v4.0</span></div>
+                    <div class="logo-subtitle">Enterprise Multi-Server Suite v4.0</div>
                 </div>
             </div>
 
@@ -659,6 +659,20 @@
                     <div class="feature-card-footer">
                         <span class="feature-subtext">Automatischer Kanalaufbau</span>
                         <button type="button" class="btn-configure">🏛️ Vorlagen ansehen</button>
+                    </div>
+                </div>
+
+                <!-- MODULE 12: CREATOR & STREAMER ALERTS (TWITCH, YOUTUBE, TIKTOK) -->
+                <div class="feature-card" onclick="openModuleModal('social_alerts')" style="border: 1px solid rgba(147, 51, 234, 0.4); background: linear-gradient(135deg, rgba(14, 18, 34, 0.95), rgba(147, 51, 234, 0.08));">
+                    <div class="feature-card-header">
+                        <div class="feature-icon-wrapper" style="color:#c084fc;">📡</div>
+                        <span id="badge-mod-social" class="feature-badge-active badge-on">● v4.0 Neu</span>
+                    </div>
+                    <div class="feature-title">Streamer & Creator Social Hub</div>
+                    <div class="feature-desc">Echtzeit-Alerts für Twitch Live-Streams, YouTube Videos & TikTok Clips mit individuellen Pings, filtern und Rollen-Erwähnungen.</div>
+                    <div class="feature-card-footer">
+                        <span class="feature-subtext">Twitch • YouTube • TikTok</span>
+                        <button type="button" class="btn-configure">🎥 Creator verwalten</button>
                     </div>
                 </div>
 
@@ -1126,6 +1140,7 @@
             setModuleBadge('badge-mod-levels', m.levelSystem !== false);
             setModuleBadge('badge-mod-security', m.lockdown === true, true);
             setModuleBadge('badge-mod-logging', m.logging !== false);
+            setModuleBadge('badge-mod-social', (settings.socialAlerts && settings.socialAlerts.enabled !== false));
             setModuleBadge('badge-mod-suggestions', (gSettings.suggestions ? gSettings.suggestions.enabled !== false : true));
             setModuleBadge('badge-mod-giveaways', true);
             setModuleBadge('badge-mod-stylizer', true);
@@ -1254,6 +1269,12 @@
                 subtitleEl.innerText = 'Fertige Server-Strukturen per Knopfdruck anlegen (Gaming, Roblox Dev, AeroGuard Official)';
                 toggleEl.checked = true;
                 bodyEl.innerHTML = buildTemplatesModalHtml(guild);
+            } else if (moduleId === 'social_alerts') {
+                iconEl.innerText = '📡';
+                titleEl.innerText = 'Streamer & Creator Social Hub';
+                subtitleEl.innerText = 'Echtzeit-Alerts für Twitch, YouTube & TikTok mit individuellen Pings';
+                toggleEl.checked = (settings.socialAlerts && settings.socialAlerts.enabled !== false);
+                bodyEl.innerHTML = buildSocialAlertsModalHtml(guild);
             } else if (moduleId === 'status_monitor') {
                 iconEl.innerText = '📡';
                 titleEl.innerText = 'Bot-Lifecycle & Status Monitor';
@@ -1492,8 +1513,20 @@ function buildTicketsModalHtml(guild) {
             const s = guild.settings;
             const rbx = s.roblox || {};
             const roles = guild.roles || [];
+            const vMode = rbx.verificationMode || (rbx.requireVerificationGlobal ? 'global' : 'optional');
 
-            return '<div class="form-group">' +
+            return '<div class="form-group" style="background:rgba(0,243,255,0.06); border:1px solid rgba(0,243,255,0.3); padding:14px; border-radius:10px; margin-bottom:16px;">' +
+                '<label style="color:var(--cyan); font-weight:700;">🔒 Roblox-Verifizierungs-Modus (Tickets & Server)</label>' +
+                '<select id="cfg-roblox-vmode" class="form-control" style="border:1px solid var(--cyan); background:#0c1022;">' +
+                    '<option value="optional" ' + (vMode === 'optional' ? 'selected' : '') + '>🟢 Freiwillig & Optional (Empfohlen — Keine Ticket-Blockaden)</option>' +
+                    '<option value="category" ' + (vMode === 'category' ? 'selected' : '') + '>🟡 Kategorie-spezifisch (Nur bei Ticket-Gründen mit aktivem Roblox-Haken)</option>' +
+                    '<option value="global" ' + (vMode === 'global' ? 'selected' : '') + '>🔴 Global verpflichtend (Verifizierung für alle Tickets Pflicht)</option>' +
+                '</select>' +
+                '<span style="font-size:0.75rem; color:var(--text-dim); margin-top:6px; display:block;">' +
+                    'Auf <strong>Freiwillig & Optional</strong> können alle Mitglieder uneingeschränkt Support-Tickets eröffnen, ohne ihren Roblox-Account verknüpfen zu müssen.' +
+                '</span>' +
+            '</div>' +
+            '<div class="form-group">' +
                 '<label>🆔 Roblox Experience / Place ID</label>' +
                 '<input type="text" id="cfg-roblox-placeid" class="form-control" value="' + (rbx.placeId || '98791725510246') + '" placeholder="z. B. 98791725510246">' +
                 '<span style="font-size:0.72rem; color:var(--text-dim);">Ermöglicht In-Game Reports und Teleportationen aus Discord-Tickets.</span>' +
@@ -1510,12 +1543,6 @@ function buildTicketsModalHtml(guild) {
                 '<label style="display:flex; align-items:center; gap:8px; cursor:pointer;">' +
                     '<input type="checkbox" id="cfg-roblox-nicknamesync" ' + (rbx.nicknameSync !== false ? 'checked' : '') + '> ' +
                     '<span style="color:#fff; text-transform:none; font-weight:600;">Server-Nickname an Roblox-Namen anpassen</span>' +
-                '</label>' +
-            '</div>' +
-            '<div class="form-group">' +
-                '<label style="display:flex; align-items:center; gap:8px; cursor:pointer;">' +
-                    '<input type="checkbox" id="cfg-roblox-requireglobal" ' + (rbx.requireVerificationGlobal === true ? 'checked' : '') + '> ' +
-                    '<span style="color:#fff; text-transform:none; font-weight:600;">Globale Roblox-Pflicht für ALLE Support-Tickets aktivieren</span>' +
                 '</label>' +
             '</div>' +
             '<div style="background:rgba(0,243,255,0.06); border:1px solid var(--border-glow); padding:14px; border-radius:12px; display:flex; align-items:center; gap:12px;">' +
@@ -1600,6 +1627,8 @@ function buildTicketsModalHtml(guild) {
             const s = guild.settings;
             const sec = s.security || {};
             const isLockdown = s.modules?.lockdown === true;
+            const honeypot = sec.honeypot || { enabled: false, channelId: null, punishment: 'ban' };
+            const textChs = guild.textChannels || [];
 
             return '<div style="background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.4); padding:16px; border-radius:12px; margin-bottom:14px;">' +
                 '<div style="display:flex; justify-content:space-between; align-items:center;">' +
@@ -1626,6 +1655,36 @@ function buildTicketsModalHtml(guild) {
                     '<input type="checkbox" id="cfg-security-antiraid" ' + (sec.antiRaidAutoLockdown !== false ? 'checked' : '') + '> ' +
                     '<span style="color:#fff; text-transform:none; font-weight:600;">Automatischer Lockdown bei Massen-Beitritt (mehr als 10 User in 30s)</span>' +
                 '</label>' +
+            '</div>' +
+            '<div style="background:linear-gradient(135deg, rgba(245,158,11,0.12), rgba(239,68,68,0.08)); border:1px solid rgba(245,158,11,0.35); padding:16px; border-radius:12px; margin-top:16px;">' +
+                '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">' +
+                    '<div>' +
+                        '<div style="font-weight:800; color:#fbbf24; font-size:0.95rem; display:flex; align-items:center; gap:6px;">🍯 HONEYPOT-SICHERHEITSFALLE (ANTI-RAID TRAP) <span style="font-size:0.68rem; background:rgba(245,158,11,0.25); color:#fde68a; padding:2px 6px; border-radius:8px;">v4.0 Neu</span></div>' +
+                        '<div style="font-size:0.75rem; color:var(--text-dim); margin-top:2px;">Unbefugte Nutzer oder Raid-Bots, die in den Fallenkanal schreiben, werden augenblicklich sanktioniert & gelöscht.</div>' +
+                    '</div>' +
+                    '<label class="switch">' +
+                        '<input type="checkbox" id="cfg-security-honeypot-enable" ' + (honeypot.enabled ? 'checked' : '') + '> ' +
+                        '<span class="slider"></span>' +
+                    '</label>' +
+                '</div>' +
+                '<div class="form-group" style="margin-bottom:10px;">' +
+                    '<label>🎯 Honeypot-Kanal (Falle)</label>' +
+                    '<div style="display:flex; gap:8px;">' +
+                        '<select id="cfg-security-honeypot-chan" class="form-control" style="flex:1;">' +
+                            '<option value="">Kein Kanal gewählt (Falle inaktiv)</option>' +
+                            textChs.map(ch => '<option value="' + ch.id + '" ' + (honeypot.channelId === ch.id ? 'selected' : '') + '>#' + ch.name + '</option>').join('') +
+                        '</select>' +
+                        '<button type="button" class="btn-secondary" onclick="autoSetupHoneypot()" style="white-space:nowrap; padding:6px 12px; font-size:0.78rem;">⚡ 1-Klick Falle anlegen</button>' +
+                    '</div>' +
+                '</div>' +
+                '<div class="form-group" style="margin-bottom:0;">' +
+                    '<label>⚡ Sanktion bei Auslösung der Falle</label>' +
+                    '<select id="cfg-security-honeypot-action" class="form-control">' +
+                        '<option value="ban" ' + (honeypot.punishment === 'ban' || !honeypot.punishment ? 'selected' : '') + '>🔨 Sofortiger permanenter Server-Bann (Empfohlen für Anti-Raid)</option>' +
+                        '<option value="kick" ' + (honeypot.punishment === 'kick' ? 'selected' : '') + '>👢 Server-Kick (Sofortiger Rauswurf)</option>' +
+                        '<option value="timeout" ' + (honeypot.punishment === 'timeout' ? 'selected' : '') + '>⏳ 7 Tage Timeout (Stummschaltung)</option>' +
+                    '</select>' +
+                '</div>' +
             '</div>';
         }
 
@@ -1726,6 +1785,193 @@ function buildTicketsModalHtml(guild) {
                 }
             } catch(err) {
                 alert('❌ Netzwerkfehler: ' + err.message);
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerText = 'Jetzt testen';
+                }
+            }
+        }
+
+        function buildSocialAlertsModalHtml(guild) {
+            const s = guild.settings;
+            const sa = s.socialAlerts || {};
+            const textChs = guild.textChannels || [];
+            const roles = guild.roles || [];
+            const creators = sa.creators || [];
+
+            let creatorsListHtml = '';
+            if (creators.length === 0) {
+                creatorsListHtml = '<div style="color:var(--text-dim); font-size:0.8rem; text-align:center; padding:12px;">Noch keine Creator hinterlegt. Füge unten deinen ersten Streamer oder YouTuber hinzu!</div>';
+            } else {
+                creators.forEach((c, idx) => {
+                    let pIcon = '🟣 Twitch';
+                    let pColor = '#9146FF';
+                    if (c.platform === 'youtube') { pIcon = '🔴 YouTube'; pColor = '#ef4444'; }
+                    else if (c.platform === 'tiktok') { pIcon = '🎵 TikTok'; pColor = '#00f2fe'; }
+
+                    creatorsListHtml += '<div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.03); border:1px solid var(--border); padding:8px 12px; border-radius:8px; margin-bottom:6px;">' +
+                        '<div>' +
+                            '<span style="font-size:0.75rem; background:' + pColor + '22; color:' + pColor + '; border:1px solid ' + pColor + '44; padding:2px 8px; border-radius:6px; font-weight:700; margin-right:8px;">' + pIcon + '</span>' +
+                            '<strong style="color:#fff; font-size:0.88rem;">' + (c.displayName || c.username) + '</strong> ' +
+                            '<span style="color:var(--text-dim); font-size:0.78rem;">(@' + c.username + ')</span>' +
+                        '</div>' +
+                        '<button type="button" onclick="removeCreatorFromSocialList(' + idx + ')" style="background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.4); color:#fca5a5; padding:4px 8px; border-radius:6px; cursor:pointer; font-size:0.75rem;">🗑️ Löschen</button>' +
+                    '</div>';
+                });
+            }
+
+            return '<div class="form-group">' +
+                '<label>📢 Benachrichtigungs-Kanal</label>' +
+                '<select id="cfg-social-channel" class="form-control">' +
+                    '<option value="">Kein Kanal gewählt</option>' +
+                    textChs.map(ch => '<option value="' + ch.id + '" ' + (sa.channelId === ch.id ? 'selected' : '') + '>#' + ch.name + '</option>').join('') +
+                '</select>' +
+            '</div>' +
+            '<div class="form-group">' +
+                '<label>🔔 Erwähnung / Ping bei Neuigkeiten</label>' +
+                '<select id="cfg-social-ping" class="form-control">' +
+                    '<option value="none" ' + (sa.pingType === 'none' || !sa.pingType ? 'selected' : '') + '>Keine Erwähnung (Nur Embed posten)</option>' +
+                    '<option value="@everyone" ' + (sa.pingType === '@everyone' ? 'selected' : '') + '>@everyone</option>' +
+                    '<option value="@here" ' + (sa.pingType === '@here' ? 'selected' : '') + '>@here</option>' +
+                    roles.map(r => '<option value="' + r.id + '" ' + (sa.pingType === r.id ? 'selected' : '') + '>@ ' + r.name + '</option>').join('') +
+                '</select>' +
+            '</div>' +
+            '<div class="form-group">' +
+                '<label>🎯 Inhaltliche Filter (Was soll gemeldet werden?)</label>' +
+                '<div style="display:flex; gap:16px; flex-wrap:wrap; margin-top:4px;">' +
+                    '<label style="display:flex; align-items:center; gap:6px; font-size:0.82rem; color:#fff; cursor:pointer;"><input type="checkbox" id="cfg-social-ftwitch" ' + (sa.filterTwitch !== false ? 'checked' : '') + '> 🟣 Twitch Live-Streams</label>' +
+                    '<label style="display:flex; align-items:center; gap:6px; font-size:0.82rem; color:#fff; cursor:pointer;"><input type="checkbox" id="cfg-social-fyoutube" ' + (sa.filterYoutube !== false ? 'checked' : '') + '> 🔴 YouTube Videos</label>' +
+                    '<label style="display:flex; align-items:center; gap:6px; font-size:0.82rem; color:#fff; cursor:pointer;"><input type="checkbox" id="cfg-social-ftiktok" ' + (sa.filterTiktok !== false ? 'checked' : '') + '> 🎵 TikTok Clips</label>' +
+                '</div>' +
+            '</div>' +
+            '<div class="form-group">' +
+                '<label>💬 Individuelle Benachrichtigungs-Nachricht</label>' +
+                '<textarea id="cfg-social-message" class="form-control" rows="2" placeholder="{ping}🔴 **{creator}** ist jetzt live auf **{platform}**! &#10;&#10;**{title}** &#10;👉 Jetzt ansehen: {url}">' + (sa.customMessage ? sa.customMessage.replace(/"/g, '&quot;') : '') + '</textarea>' +
+                '<div style="font-size:0.75rem; color:var(--text-dim); margin-top:4px;">Platzhalter: <code>{creator}</code>, <code>{platform}</code>, <code>{title}</code>, <code>{url}</code>, <code>{ping}</code></div>' +
+            '</div>' +
+            '<div style="border-top:1px solid var(--border); padding-top:14px; margin-top:10px;">' +
+                '<div style="font-weight:700; color:#fff; font-size:0.88rem; margin-bottom:8px;">🎥 Überwachte Creator (' + creators.length + ')</div>' +
+                '<div id="social-creators-list">' + creatorsListHtml + '</div>' +
+                '<div style="background:rgba(255,255,255,0.02); border:1px dashed var(--border); padding:10px; border-radius:8px; margin-top:10px;">' +
+                    '<div style="font-size:0.8rem; font-weight:700; color:#fff; margin-bottom:8px;">+ Neuen Creator hinzufügen</div>' +
+                    '<div style="display:flex; gap:8px; flex-wrap:wrap;">' +
+                        '<select id="add-creator-platform" class="form-control" style="width:130px; padding:6px;">' +
+                            '<option value="twitch">🟣 Twitch</option>' +
+                            '<option value="youtube">🔴 YouTube</option>' +
+                            '<option value="tiktok">🎵 TikTok</option>' +
+                        '</select>' +
+                        '<input type="text" id="add-creator-username" class="form-control" style="flex:1; min-width:140px; padding:6px;" placeholder="Username / Handle (z. B. papaplatte)">' +
+                        '<input type="text" id="add-creator-display" class="form-control" style="flex:1; min-width:140px; padding:6px;" placeholder="Anzeigename (optional)">' +
+                        '<button type="button" class="btn-primary" onclick="addCreatorToSocialList()" style="padding:6px 14px; font-size:0.82rem;">Hinzufügen</button>' +
+                    '</div>' +
+                '</div>' +
+            '</div>' +
+            '<div style="background:rgba(147,51,234,0.08); border:1px solid rgba(147,51,234,0.25); border-radius:8px; padding:12px; margin-top:16px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">' +
+                '<div>' +
+                    '<div style="font-weight:700; color:#c084fc; font-size:0.85rem;">🔔 Test-Benachrichtigung senden</div>' +
+                    '<div style="font-size:0.75rem; color:var(--text-dim);">Postet ein Test-Embed für den ersten hinterlegten Creator in den Kanal.</div>' +
+                '</div>' +
+                '<button type="button" id="btn-test-social" class="btn-primary" style="padding:6px 14px; font-size:0.8rem; background:linear-gradient(135deg, #9333ea, #c084fc);" onclick="sendTestSocialAlert()">Jetzt testen</button>' +
+            '</div>';
+        }
+
+        async function autoSetupHoneypot() {
+            if (!confirm('Möchtest du vollautomatisch einen abgesicherten Honeypot-Kanal (#🍯・bot-falle) anlegen lassen?')) return;
+            try {
+                const res = await fetch('/api/guild/' + activeGuildId + '/setup-honeypot', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await res.json().catch(() => null);
+                if (res.ok && data && data.success) {
+                    showToast('✅ Honeypot-Kanal #' + data.channelName + ' erfolgreich angelegt!');
+                    const guild = guilds.find(g => g.id === activeGuildId);
+                    if (guild) {
+                        if (!guild.settings.security) guild.settings.security = {};
+                        guild.settings.security.honeypot = { enabled: true, channelId: data.channelId, punishment: 'ban' };
+                        guild.textChannels.push({ id: data.channelId, name: data.channelName, type: 0 });
+                        document.getElementById('modal-body-content').innerHTML = buildSecurityModalHtml(guild);
+                    }
+                } else {
+                    alert('❌ Fehler beim Anlegen: ' + (data?.error || 'Unbekannter Fehler'));
+                }
+            } catch(e) {
+                alert('❌ Netzwerkfehler: ' + e.message);
+            }
+        }
+
+        function addCreatorToSocialList() {
+            const guild = guilds.find(g => g.id === activeGuildId);
+            if (!guild) return;
+            const platform = document.getElementById('add-creator-platform').value;
+            const username = document.getElementById('add-creator-username').value.trim();
+            const displayName = document.getElementById('add-creator-display').value.trim() || username;
+            if (!username) {
+                alert('⚠️ Bitte gib einen Benutzernamen oder ein Handle ein!');
+                return;
+            }
+            if (!guild.settings.socialAlerts) guild.settings.socialAlerts = { enabled: true, creators: [] };
+            if (!guild.settings.socialAlerts.creators) guild.settings.socialAlerts.creators = [];
+            guild.settings.socialAlerts.creators.push({
+                id: 'c_' + Date.now().toString(36),
+                platform,
+                username,
+                displayName
+            });
+            document.getElementById('modal-body-content').innerHTML = buildSocialAlertsModalHtml(guild);
+        }
+
+        function removeCreatorFromSocialList(idx) {
+            const guild = guilds.find(g => g.id === activeGuildId);
+            if (!guild || !guild.settings.socialAlerts || !guild.settings.socialAlerts.creators) return;
+            guild.settings.socialAlerts.creators.splice(idx, 1);
+            document.getElementById('modal-body-content').innerHTML = buildSocialAlertsModalHtml(guild);
+        }
+
+        async function sendTestSocialAlert() {
+            const btn = document.getElementById('btn-test-social');
+            const chanSelect = document.getElementById('cfg-social-channel');
+            if (chanSelect && !chanSelect.value) {
+                alert('⚠️ Bitte wähle zuerst einen Benachrichtigungs-Kanal aus!');
+                return;
+            }
+            if (btn) {
+                btn.disabled = true;
+                btn.innerText = '⏳ Sende Alert...';
+            }
+            try {
+                const guild = guilds.find(g => g.id === activeGuildId);
+                const creators = (guild && guild.settings.socialAlerts && guild.settings.socialAlerts.creators) ? guild.settings.socialAlerts.creators : [];
+                await fetch('/api/guild/' + activeGuildId + '/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        socialAlerts: {
+                            enabled: true,
+                            channelId: chanSelect.value,
+                            pingType: document.getElementById('cfg-social-ping')?.value || 'none',
+                            customMessage: document.getElementById('cfg-social-message')?.value || '',
+                            filterTwitch: document.getElementById('cfg-social-ftwitch')?.checked !== false,
+                            filterYoutube: document.getElementById('cfg-social-fyoutube')?.checked !== false,
+                            filterTiktok: document.getElementById('cfg-social-ftiktok')?.checked !== false,
+                            creators: creators
+                        }
+                    })
+                });
+
+                const res = await fetch('/api/guild/' + activeGuildId + '/social-alerts/test', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await res.json().catch(() => null);
+                if (res.ok && data && data.success) {
+                    showToast('✅ Test-Alert für ' + data.creatorName + ' erfolgreich in #' + data.channelName + ' gesendet!');
+                } else {
+                    alert('❌ Fehler beim Senden: ' + (data?.error || 'Unbekannter Fehler'));
+                }
+            } catch(e) {
+                alert('❌ Netzwerkfehler: ' + e.message);
             } finally {
                 if (btn) {
                     btn.disabled = false;
@@ -1895,7 +2141,23 @@ function deleteCategoryItem(index) {
                 payload.modules.lockdown = lockdownChecked;
                 payload.security = {
                     minAccountAgeDays: parseInt(document.getElementById('cfg-security-minage').value) || 0,
-                    antiRaidAutoLockdown: document.getElementById('cfg-security-antiraid').checked
+                    antiRaidAutoLockdown: document.getElementById('cfg-security-antiraid').checked,
+                    honeypot: {
+                        enabled: document.getElementById('cfg-security-honeypot-enable')?.checked || false,
+                        channelId: document.getElementById('cfg-security-honeypot-chan')?.value || null,
+                        punishment: document.getElementById('cfg-security-honeypot-action')?.value || 'ban'
+                    }
+                };
+            } else if (currentOpenModule === 'social_alerts') {
+                payload.socialAlerts = {
+                    enabled: isModuleActive,
+                    channelId: document.getElementById('cfg-social-channel')?.value || null,
+                    pingType: document.getElementById('cfg-social-ping')?.value || 'none',
+                    customMessage: document.getElementById('cfg-social-message')?.value || '',
+                    filterTwitch: document.getElementById('cfg-social-ftwitch')?.checked !== false,
+                    filterYoutube: document.getElementById('cfg-social-fyoutube')?.checked !== false,
+                    filterTiktok: document.getElementById('cfg-social-ftiktok')?.checked !== false,
+                    creators: (guild.settings.socialAlerts && guild.settings.socialAlerts.creators) ? guild.settings.socialAlerts.creators : []
                 };
             } else if (currentOpenModule === 'logging') {
                 payload.modules.logging = isModuleActive;

@@ -429,7 +429,30 @@ function getGuildSettings(guildId) {
             { id: "partner", label: "🤝 Partnerschaft", color: "Secondary", requireRoblox: false }
         ];
     }
-    if (!g.roblox) g.roblox = { placeId: "98791725510246", verifiedRoleId: null, nicknameSync: true, requireVerificationGlobal: false };
+    if (!g.roblox) g.roblox = { placeId: "98791725510246", verifiedRoleId: null, nicknameSync: true, requireVerificationGlobal: false, verificationMode: "optional" };
+    if (g.roblox.verificationMode === undefined) {
+        g.roblox.verificationMode = g.roblox.requireVerificationGlobal ? "global" : "optional";
+    }
+    if (!g.security) g.security = { minAccountAgeDays: 0, antiRaidAutoLockdown: true, honeypot: { enabled: false, channelId: null, punishment: "ban" } };
+    if (!g.security.honeypot) {
+        g.security.honeypot = { enabled: false, channelId: null, punishment: "ban" };
+    }
+    if (!g.socialAlerts) {
+        g.socialAlerts = {
+            enabled: false,
+            channelId: null,
+            pingType: "none",
+            customMessage: null,
+            filterTwitch: true,
+            filterYoutube: true,
+            filterTiktok: true,
+            creators: [
+                { id: "c1", platform: "twitch", username: "papaplatte", displayName: "Papaplatte" },
+                { id: "c2", platform: "youtube", username: "@MrBeast", displayName: "MrBeast" },
+                { id: "c3", platform: "tiktok", username: "montanablack", displayName: "MontanaBlack" }
+            ]
+        };
+    }
     if (!g.autoMod) g.autoMod = { antiSpamThreshold: 5, antiInvite: true, punishment: "timeout", customBadWords: [] };
     if (!g.levels) g.levels = { multiplier: 1.0, levelUpChannel: "current", coinsPerLevel: 100 };
     if (!g.security) g.security = { minAccountAgeDays: 0, antiRaidAutoLockdown: true };
@@ -1474,7 +1497,171 @@ async function sendModLogSnapshot(guild, offender, reason, originChannel) {
 // =========================================================================
 // CHAT-AUTOMOD, ANTI-RAID & ANTI-SPAM
 // =========================================================================
+// =========================================================================
+// 🍯 HONEYPOT & SOCIAL ALERTS ENGINE (v4.0)
+// =========================================================================
+async function handleHoneypotTrigger(message, honeypot, gSettings) {
+    const author = message.author;
+    const member = message.member;
+    const guild = message.guild;
+    const rawContent = message.content || '[Kein Inhalt / Anhang]';
+    const punishment = honeypot.punishment || 'ban';
+
+    await message.delete().catch(() => {});
+
+    let executedAction = 'Keine Sanktion';
+    try {
+        if (punishment === 'ban') {
+            if (member && member.bannable) {
+                await member.ban({ deleteMessageSeconds: 86400, reason: '🚨 AeroGuard Honeypot-Falle: Automatischer Raid/Bot-Schutz' }).catch(() => {});
+                executedAction = '🔨 Permanent gebannt';
+            } else {
+                executedAction = '⚠️ Bann fehlgeschlagen (Fehlende Bot-Rechte)';
+            }
+        } else if (punishment === 'kick') {
+            if (member && member.kickable) {
+                await member.kick('🚨 AeroGuard Honeypot-Falle').catch(() => {});
+                executedAction = '👢 Gekickt';
+            } else {
+                executedAction = '⚠️ Kick fehlgeschlagen';
+            }
+        } else if (punishment === 'timeout') {
+            if (member && member.moderatable) {
+                await member.timeout(7 * 24 * 60 * 60 * 1000, '🚨 AeroGuard Honeypot-Falle').catch(() => {});
+                executedAction = '⏳ 7 Tage Timeout verhängt';
+            } else {
+                executedAction = '⚠️ Timeout fehlgeschlagen';
+            }
+        }
+    } catch(err) {
+        executedAction = `Fehler: ${err.message}`;
+    }
+
+    const accountAgeDays = Math.floor((Date.now() - author.createdTimestamp) / (1000 * 60 * 60 * 24));
+    addLog('error', `🚨 HONEYPOT-FALLE AUSGELÖST auf "${guild.name}" von ${author.tag} (${author.id}) -> ${executedAction}`, guild.name);
+
+    const modLogId = gSettings.logging?.modLogChannelId || gSettings.ticketLogChannelId;
+    if (modLogId) {
+        const modChan = guild.channels.cache.get(modLogId) || await guild.channels.fetch(modLogId).catch(() => null);
+        if (modChan && modChan.isTextBased()) {
+            const trapEmbed = new EmbedBuilder()
+                .setTitle('🍯 SICHERHEITS-ALARM: HONEYPOT-FALLE AUSGELÖST!')
+                .setColor(0xff0055)
+                .setDescription(`Ein verdächtiger Nutzer oder Bot hat im gesicherten Fallenkanal <#${message.channel.id}> geschrieben und wurde vom **AeroGuard Core v4.0** Schutzschild neutralisiert.`)
+                .addFields(
+                    { name: '👤 Verdächtiger', value: `${author} (${author.tag} • ID: ${author.id})`, inline: true },
+                    { name: '📅 Account-Alter', value: `${accountAgeDays} Tage alt`, inline: true },
+                    { name: '⚡ Sanktion', value: `**${executedAction}**`, inline: true },
+                    { name: '📝 Abgefangene Nachricht', value: '```\n' + rawContent.substring(0, 500) + '\n```' }
+                )
+                .setThumbnail(author.displayAvatarURL({ dynamic: true }))
+                .setFooter({ text: 'AeroGuard Security Core v4.0 • Anti-Raid System' })
+                .setTimestamp();
+
+            await modChan.send({ embeds: [trapEmbed] }).catch(() => {});
+        }
+    }
+}
+
+async function sendSocialAlert(guild, creator, options = {}) {
+    const gSettings = getGuildSettings(guild.id);
+    const sa = gSettings.socialAlerts || {};
+    const channelId = sa.channelId;
+    if (!channelId) {
+        return { success: false, reason: 'Kein Benachrichtigungskanal für Social Alerts konfiguriert.' };
+    }
+
+    const channel = guild.channels.cache.get(channelId) || await guild.channels.fetch(channelId).catch(() => null);
+    if (!channel || !channel.isTextBased()) {
+        return { success: false, reason: 'Der angegebene Benachrichtigungskanal existiert nicht oder ist kein Textkanal.' };
+    }
+
+    const platform = (creator.platform || 'twitch').toLowerCase();
+    let platformName = 'Twitch';
+    let platformColor = 0x9146FF;
+    let platformIcon = '🟣';
+    let defaultUrl = `https://twitch.tv/${creator.username}`;
+    let sampleTitle = options.title || '🔴 LIVE: Große Community-Runde & Special Event!';
+    let sampleGame = options.game || 'Just Chatting';
+    let sampleBanner = 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=1200&q=80';
+
+    if (platform === 'youtube') {
+        platformName = 'YouTube';
+        platformColor = 0xFF0000;
+        platformIcon = '🔴';
+        defaultUrl = creator.username.startsWith('http') ? creator.username : `https://youtube.com/${creator.username.startsWith('@') ? creator.username : '@' + creator.username}`;
+        sampleTitle = options.title || '🎬 NEUES VIDEO: Ich habe 24 Stunden überlebt!';
+        sampleGame = 'Gaming / Entertainment';
+        sampleBanner = 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?auto=format&fit=crop&w=1200&q=80';
+    } else if (platform === 'tiktok') {
+        platformName = 'TikTok';
+        platformColor = 0x00f2fe;
+        platformIcon = '🎵';
+        defaultUrl = `https://tiktok.com/@${creator.username.replace('@', '')}`;
+        sampleTitle = options.title || '🔥 Neuer viraler Clip online! Schaut unbedingt vorbei.';
+        sampleGame = 'Trending Clips';
+        sampleBanner = 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1200&q=80';
+    }
+
+    let pingStr = '';
+    if (sa.pingType === '@everyone') pingStr = '@everyone ';
+    else if (sa.pingType === '@here') pingStr = '@here ';
+    else if (sa.pingType && sa.pingType !== 'none') pingStr = `<@&${sa.pingType}> `;
+
+    const customTemplate = sa.customMessage || '{ping}{icon} **{creator}** hat Neuigkeiten auf **{platform}**!\n\n**{title}**\n👉 Jetzt ansehen: {url}';
+    let messageText = customTemplate
+        .replace(/\{ping\}/gi, pingStr)
+        .replace(/\{creator\}/gi, creator.displayName || creator.username)
+        .replace(/\{platform\}/gi, platformName)
+        .replace(/\{icon\}/gi, platformIcon)
+        .replace(/\{title\}/gi, sampleTitle)
+        .replace(/\{game\}/gi, sampleGame)
+        .replace(/\{url\}/gi, defaultUrl);
+
+    const embed = new EmbedBuilder()
+        .setTitle(`${platformIcon} ${options.isTest ? '[TEST] ' : ''}${creator.displayName || creator.username} ist jetzt auf ${platformName}!`)
+        .setURL(defaultUrl)
+        .setDescription('**' + sampleTitle + '**\n\nKategorie: `' + sampleGame + '`\nPlattform: **' + platformName + '**')
+        .setColor(platformColor)
+        .addFields(
+            { name: '👤 Creator', value: `[${creator.displayName || creator.username}](${defaultUrl})`, inline: true },
+            { name: '📺 Plattform', value: `${platformIcon} ${platformName}`, inline: true },
+            { name: '⏰ Status', value: options.isTest ? '🧪 Test-Alarm' : '🔴 Jetzt aktiv', inline: true }
+        )
+        .setImage(sampleBanner)
+        .setFooter({ text: `AeroGuard Social Alerts v4.0 • ${guild.name}`, iconURL: guild.iconURL() })
+        .setTimestamp();
+
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setLabel(`🔴 Auf ${platformName} ansehen`)
+            .setStyle(ButtonStyle.Link)
+            .setURL(defaultUrl)
+    );
+
+    const sent = await channel.send({
+        content: messageText,
+        embeds: [embed],
+        components: [row]
+    });
+
+    addLog('info', `📡 Social Alert für ${creator.displayName || creator.username} (${platformName}) in #${channel.name} auf "${guild.name}" gesendet.`, guild.name);
+    return { success: true, channel, message: sent };
+}
+
 client.on('messageCreate', async message => {
+    if (message.author.bot || !message.guild) return;
+
+    // 🍯 HONEYPOT ANTI-RAID & BOT-TRAP CHECK (v4.0)
+    const gSettingsHoneypot = getGuildSettings(message.guild.id);
+    const honeypot = gSettingsHoneypot?.security?.honeypot;
+    if (honeypot && honeypot.enabled && honeypot.channelId === message.channel.id) {
+        const isStaffUser = isSupporterOrAdmin(message.member, message.guild);
+        if (!isStaffUser) {
+            await handleHoneypotTrigger(message, honeypot, gSettingsHoneypot);
+            return;
+        }
+    }
     if (message.author.bot || !message.guild) return;
 
     const rawContent = message.content.trim();
@@ -2281,7 +2468,17 @@ client.on('interactionCreate', async interaction => {
             : ticketSystemConfig.categories;
         const selectedCat = categories.find(c => c.id === catId); 
         const catLabel = selectedCat ? selectedCat.label : "Support";
-        const requireRoblox = selectedCat ? (selectedCat.requireRoblox === true) : false;
+        // ROBLOX GATEWAY VERIFICATION MODE (OPTIONAL vs CATEGORY vs GLOBAL - v4.0)
+        const rbxSettings = gSettings.roblox || {};
+        const vMode = rbxSettings.verificationMode || (rbxSettings.requireVerificationGlobal ? 'global' : 'optional');
+        let requireRoblox = false;
+        if (vMode === 'global') {
+            requireRoblox = true;
+        } else if (vMode === 'optional' || vMode === 'disabled') {
+            requireRoblox = false; // FREIWILLIG & OPTIONAL
+        } else {
+            requireRoblox = selectedCat ? (selectedCat.requireRoblox === true) : false;
+        }
         const verifiedRoblox = cloudStorage.verifiedRobloxUsers ? cloudStorage.verifiedRobloxUsers[userId] : null;
 
         // ROBLOX GATEWAY ENFORCEMENT
@@ -2839,7 +3036,7 @@ client.on('interactionCreate', async interaction => {
             'lockchannel', 'unlockchannel', 'nuke', 'lockdown', 'unlockdown', 
             'ticket', 'support-next', 'setup-ticketpanel', 'setup-infohub', 'poll', 
             'dm', 'addrole', 'removerole', 'status', 'supporter', 'setup-modlog', 
-            'setup-welcome', 'setup-livestatus', 'setup-autorole', 'backup-server', 'test-welcome', 
+            'setup-welcome', 'setup-livestatus', 'setup-autorole', 'backup-server', 'test-welcome', 'social-alert', 'honeypot', 
             'blacklist', 'style-channels', 'suggest-setup', 'giveaway', 'set-placeid', 
             'rbx-shout', 'rbx-serverlogs', 'rbx-shutdown', 'clan-war', 'rbx-savedata', 'rbx-cleardata'
         ];
@@ -3330,6 +3527,96 @@ client.on('interactionCreate', async interaction => {
             return interaction.reply(`✅ **Willkommens-System aktiviert:** Beitrittsmeldungen werden ab sofort in <#${ch.id}> gepostet!
 
 💡 Du kannst das System jederzeit sofort mit `/test-welcome` testen.`);
+        }
+
+        if (commandName === 'social-alert') {
+            const sub = interaction.options.getSubcommand();
+            const gSettings = getGuildSettings(guild.id);
+            if (!gSettings.socialAlerts) gSettings.socialAlerts = { enabled: true, creators: [] };
+
+            if (sub === 'channel') {
+                const ch = interaction.options.getChannel('kanal');
+                gSettings.socialAlerts.channelId = ch.id;
+                gSettings.socialAlerts.enabled = true;
+                saveCloudVaultToDisk();
+                return interaction.reply('✅ **Social-Alerts Kanal festgelegt:** Benachrichtigungen für Streams & Videos werden ab sofort in <#' + ch.id + '> gesendet!');
+            }
+
+            if (sub === 'add') {
+                const platform = interaction.options.getString('platform');
+                const username = interaction.options.getString('username');
+                const name = interaction.options.getString('name') || username;
+                if (!gSettings.socialAlerts.creators) gSettings.socialAlerts.creators = [];
+                gSettings.socialAlerts.creators.push({
+                    id: 'c_' + Date.now().toString(36),
+                    platform,
+                    username,
+                    displayName: name
+                });
+                saveCloudVaultToDisk();
+                return interaction.reply('✅ **Creator hinzugefügt:** ' + b + name + b + ' (' + platform.toUpperCase() + ') wird ab sofort überwacht!');
+            }
+
+            if (sub === 'list') {
+                const creators = gSettings.socialAlerts.creators || [];
+                if (creators.length === 0) {
+                    return interaction.reply({ content: 'ℹ️ Es sind aktuell keine Creator in der Überwachung hinterlegt.', ephemeral: true });
+                }
+                const listText = creators.map((c, idx) => (idx + 1) + '. **' + (c.displayName || c.username) + '** [' + c.platform.toUpperCase() + '] (' + b + c.username + b + ')').join('\n');
+                const listEmbed = new EmbedBuilder()
+                    .setTitle('📡 Überwachte Streamer & Creator')
+                    .setDescription(listText)
+                    .setColor(0x9146FF)
+                    .setFooter({ text: 'Kanal: ' + (gSettings.socialAlerts.channelId ? ('<#' + gSettings.socialAlerts.channelId + '>') : 'Nicht festgelegt') });
+                return interaction.reply({ embeds: [listEmbed] });
+            }
+
+            if (sub === 'test') {
+                await interaction.deferReply({ ephemeral: true });
+                const creators = gSettings.socialAlerts.creators || [];
+                const creator = creators[0] || { platform: 'twitch', username: 'papaplatte', displayName: 'Papaplatte' };
+                const resAlert = await sendSocialAlert(guild, creator, { isTest: true });
+                if (resAlert.success) {
+                    return interaction.followUp('✅ **Test erfolgreich!** Der Social Alert für **' + (creator.displayName || creator.username) + '** wurde in <#' + resAlert.channel.id + '> gesendet.');
+                } else {
+                    return interaction.followUp('❌ **Fehler beim Senden:** ' + resAlert.reason + '\n\n💡 Stelle sicher, dass mit `/social-alert channel` ein Benachrichtigungskanal festgelegt wurde.');
+                }
+            }
+        }
+
+        if (commandName === 'honeypot') {
+            const sub = interaction.options.getSubcommand();
+            const gSettings = getGuildSettings(guild.id);
+            const honeypot = gSettings.security?.honeypot;
+
+            if (sub === 'status') {
+                const isActive = honeypot && honeypot.enabled && honeypot.channelId;
+                const statusEmbed = new EmbedBuilder()
+                    .setTitle('🍯 Honeypot Anti-Raid Sicherheitsstatus')
+                    .setDescription(isActive ? ('🟢 **Aktiviert**\nFallen-Kanal: <#' + honeypot.channelId + '>\nSanktion: ' + b + (honeypot.punishment || 'ban') + b) : '🔴 **Inaktiv** (Kein Fallen-Kanal eingerichtet)')
+                    .setColor(isActive ? 0x10b981 : 0xef4444)
+                    .setFooter({ text: 'AeroGuard Security Core v4.0' });
+                return interaction.reply({ embeds: [statusEmbed], ephemeral: true });
+            }
+
+            if (sub === 'setup') {
+                await interaction.deferReply({ ephemeral: true });
+                let ch = null;
+                if (honeypot?.channelId) {
+                    ch = guild.channels.cache.get(honeypot.channelId);
+                }
+                if (!ch) {
+                    ch = await guild.channels.create({
+                        name: '🍯・bot-falle',
+                        type: ChannelType.GuildText,
+                        topic: '⚠️ SICHERHEITS-FALLE: Schreibe hier NICHTS! Jeder, der hier schreibt, wird automatisch gebannt (Anti-Raid Trap).'
+                    });
+                }
+                if (!gSettings.security) gSettings.security = {};
+                gSettings.security.honeypot = { enabled: true, channelId: ch.id, punishment: 'ban' };
+                saveCloudVaultToDisk();
+                return interaction.followUp('✅ **Honeypot-Falle erfolgreich eingerichtet:** <#' + ch.id + '> ist nun scharfgestellt! Jeder Raid-Bot, der dort schreibt, wird augenblicklich gebannt.');
+            }
         }
 
         if (commandName === 'test-welcome') {
@@ -4270,6 +4557,26 @@ const extendedCommandDefinitions = [
     new SlashCommandBuilder().setName('give-premium').setDescription('Gibt einem User manuell den Premium-Status (Admin)').addUserOption(o => o.setName('target').setDescription('Nutzer').setRequired(true)),
     new SlashCommandBuilder().setName('setup-welcome').setDescription('Legt den Kanal fest, in dem der Bot neue Spieler mit einem Embed begrüßt').addChannelOption(o => o.setName('kanal').setDescription('Kanal wählen').setRequired(true)),
     new SlashCommandBuilder().setName('test-welcome').setDescription('Sendet eine Test-Willkommensnachricht in den konfigurierten Kanal'),
+    new SlashCommandBuilder()
+        .setName('social-alert')
+        .setDescription('Creator & Streamer Alerts (Twitch, YouTube, TikTok)')
+        .addSubcommand(sub => sub.setName('test').setDescription('Sendet einen Test-Alert in den konfigurierten Kanal'))
+        .addSubcommand(sub => sub.setName('list').setDescription('Listet alle überwachten Creator auf'))
+        .addSubcommand(sub => sub.setName('add').setDescription('Fügt einen Creator zur Überwachung hinzu')
+            .addStringOption(o => o.setName('platform').setDescription('Plattform').setRequired(true).addChoices(
+                { name: '🟣 Twitch', value: 'twitch' },
+                { name: '🔴 YouTube', value: 'youtube' },
+                { name: '🎵 TikTok', value: 'tiktok' }
+            ))
+            .addStringOption(o => o.setName('username').setDescription('Kanal- oder Benutzername').setRequired(true))
+            .addStringOption(o => o.setName('name').setDescription('Anzeigename (optional)').setRequired(false)))
+        .addSubcommand(sub => sub.setName('channel').setDescription('Legt den Benachrichtigungskanal fest')
+            .addChannelOption(o => o.setName('kanal').setDescription('Textkanal').setRequired(true))),
+    new SlashCommandBuilder()
+        .setName('honeypot')
+        .setDescription('Sicherheitsfalle & Anti-Raid Bot-Trap Verwaltung')
+        .addSubcommand(sub => sub.setName('status').setDescription('Zeigt den aktuellen Honeypot-Status an'))
+        .addSubcommand(sub => sub.setName('setup').setDescription('Richtet den Honeypot-Kanal automatisch ein')),
     new SlashCommandBuilder().setName('setup-livestatus').setDescription('Richtet ein Live-Embed ein, das die Roblox Spielerzahlen in Echtzeit synchronisiert'),
     new SlashCommandBuilder().setName('setup-autorole').setDescription('Legt die automatische Rolle (z.B. verifiziert) beim Server-Beitritt fest').addRoleOption(o => o.setName('rolle').setDescription('Die Rolle, die neue User erhalten').setRequired(true)),
     new SlashCommandBuilder().setName('blacklist').setDescription('Sperrt oder entsperrt einen Nutzer für das Ticket-System').addStringOption(o => o.setName('aktion').setDescription('add/remove').setRequired(true)).addUserOption(o => o.setName('target').setDescription('Nutzer').setRequired(true)),
@@ -4350,7 +4657,7 @@ async function broadcastBotStatus(type, details = {}) {
     const embedColor = isOnline ? 0x10b981 : 0xef4444;
     const embedTitle = isOnline ? '🟢 AeroGuard Core — System Online' : '🔴 AeroGuard Core — Geplanter System-Shutdown';
     const statusDesc = isOnline
-        ? '🚀 **AeroGuard Core v3.3** wurde erfolgreich hochgefahren und alle Subsysteme sind betriebsbereit.'
+        ? '🚀 **AeroGuard Core v4.0** wurde erfolgreich hochgefahren und alle Subsysteme sind betriebsbereit.'
         : `⚠️ **AeroGuard Core** fährt jetzt ordnungsgemäß herunter und begibt sich in den Wartungsmodus.\n\n**Grund:** ${details.reason || 'Geplante Wartungsarbeiten & System-Update'}`;
 
     const embed = new EmbedBuilder()
@@ -4360,7 +4667,7 @@ async function broadcastBotStatus(type, details = {}) {
         .addFields(
             { name: '⚡ Latenz', value: `${client.ws.ping || 5} ms`, inline: true },
             { name: '🌐 Verbundene Server', value: `${client.guilds.cache.size}`, inline: true },
-            { name: '🏷️ Version', value: 'v3.3 Next-Gen', inline: true },
+            { name: '🏷️ Version', value: 'v4.0 Enterprise', inline: true },
             { name: '🕒 Zeitpunkt', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true },
             { name: '🛡️ Status', value: isOnline ? 'Betriebsbereit & Aktiv' : 'Offline / Wartungsmodus', inline: true }
         )
@@ -4707,11 +5014,11 @@ async function applyServerTemplate(guild, templateId) {
 
 
 // =========================================================================
-// 👑 ROOT OWNER: OFFIZIELLER AEROGUARD SUPPORT-SERVER VOLL-AUTOMATISIERT (v3.3)
+// 👑 ROOT OWNER: OFFIZIELLER AEROGUARD SUPPORT-SERVER VOLL-AUTOMATISIERT (v4.0)
 // =========================================================================
 
 // =========================================================================
-// 👑 ROOT OWNER: ROLLEN-UPDATER & BEREINIGUNGS-SYSTEM (v3.3)
+// 👑 ROOT OWNER: ROLLEN-UPDATER & BEREINIGUNGS-SYSTEM (v4.0)
 // =========================================================================
 async function cleanupAndUpdateServerRoles(guild, requestingUserId) {
     if (requestingUserId !== OWNER_ID) {
@@ -5141,7 +5448,7 @@ async function setupOfficialAeroGuardSupportServer(guild, requestingUserId) {
     });
     channelsCreatedCount++;
     const changelogEmbed = new EmbedBuilder()
-        .setTitle('🚀 AeroGuard Core — Version 3.3 Next-Gen Suite')
+        .setTitle('🚀 AeroGuard Core — Version 4.0 Next-Gen Suite')
         .setColor(0x10b981)
         .setDescription('Das offizielle Versions-Update ist live! Folgende Systeme sind im Einsatz:')
         .addFields(
@@ -5548,7 +5855,7 @@ async function setupOfficialAeroGuardSupportServer(guild, requestingUserId) {
 
 
 // =========================================================================
-// VOICE-SUPPORT & WARTERAUM AUTOMATION ENGINE (v3.3)
+// VOICE-SUPPORT & WARTERAUM AUTOMATION ENGINE (v4.0)
 // =========================================================================
 client.on('voiceStateUpdate', async (oldState, newState) => {
     try {
@@ -5942,6 +6249,7 @@ app.post('/api/guild/:guildId/settings', async (req, res) => {
             gSettings.welcome.autoRoleId = gSettings.autoRoleId;
         }
         if (req.body.suggestions) gSettings.suggestions = { ...(gSettings.suggestions || {}), ...req.body.suggestions };
+        if (req.body.socialAlerts) gSettings.socialAlerts = { ...(gSettings.socialAlerts || {}), ...req.body.socialAlerts };
 
         // Staff Settings (Supporter & Permissions)
         if (req.body.staffSettings) {
@@ -5965,6 +6273,69 @@ app.post('/api/guild/:guildId/settings', async (req, res) => {
     } catch(err) {
         console.error('[SETTINGS API ERROR]', err);
         return res.status(500).json({ error: 'Serverfehler beim Speichern: ' + (err.message || 'Interner Fehler') });
+    }
+});
+
+app.post('/api/guild/:guildId/setup-honeypot', async (req, res) => {
+    try {
+        if (!req.session.user) return res.status(401).json({ error: 'Nicht angemeldet' });
+        const perm = await getUserGuildPermission(req.session.user.id, req.params.guildId);
+        if (!perm.authorized) return res.status(403).json({ error: 'Zugriff verweigert.' });
+
+        const guild = client.guilds.cache.get(req.params.guildId) || await client.guilds.fetch(req.params.guildId).catch(() => null);
+        if (!guild) return res.status(404).json({ error: 'Server nicht gefunden' });
+
+        const gSettings = getGuildSettings(guild.id);
+        let ch = null;
+        if (gSettings.security?.honeypot?.channelId) {
+            ch = guild.channels.cache.get(gSettings.security.honeypot.channelId);
+        }
+
+        if (!ch) {
+            ch = await guild.channels.create({
+                name: '🍯・bot-falle',
+                type: ChannelType.GuildText,
+                topic: '⚠️ SICHERHEITS-FALLE: Schreibe hier NICHTS! Jeder, der hier schreibt, wird automatisch gebannt (Anti-Raid Trap).'
+            });
+        }
+
+        if (!gSettings.security) gSettings.security = {};
+        gSettings.security.honeypot = {
+            enabled: true,
+            channelId: ch.id,
+            punishment: gSettings.security.honeypot?.punishment || 'ban'
+        };
+        saveCloudVaultToDisk();
+
+        addLog('info', `Honeypot-Falle #${ch.name} erfolgreich auf ${guild.name} eingerichtet.`, guild.name);
+        return res.json({ success: true, channelId: ch.id, channelName: ch.name });
+    } catch(err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/guild/:guildId/social-alerts/test', async (req, res) => {
+    try {
+        if (!req.session.user) return res.status(401).json({ error: 'Nicht angemeldet' });
+        const perm = await getUserGuildPermission(req.session.user.id, req.params.guildId);
+        if (!perm.authorized) return res.status(403).json({ error: 'Zugriff verweigert.' });
+
+        const guild = client.guilds.cache.get(req.params.guildId) || await client.guilds.fetch(req.params.guildId).catch(() => null);
+        if (!guild) return res.status(404).json({ error: 'Server nicht gefunden' });
+
+        const gSettings = getGuildSettings(guild.id);
+        const sa = gSettings.socialAlerts || {};
+        const creators = sa.creators || [];
+        const creator = creators[0] || { platform: 'twitch', username: 'papaplatte', displayName: 'Papaplatte' };
+
+        const result = await sendSocialAlert(guild, creator, { isTest: true });
+        if (!result.success) {
+            return res.status(400).json({ error: result.reason || 'Konnte nicht gesendet werden' });
+        }
+
+        return res.json({ success: true, channelName: result.channel.name, creatorName: creator.displayName || creator.username });
+    } catch(err) {
+        return res.status(500).json({ error: err.message });
     }
 });
 
@@ -6637,7 +7008,7 @@ app.get('/', (req, res) => {
         </section>
 
         <footer>
-            <p>AeroGuard Core Enterprise v3.0 • Entwickelt für maximale Sicherheit & Performance</p>
+            <p>AeroGuard Core Enterprise v4.0 • Entwickelt für maximale Sicherheit & Performance</p>
             <div style="margin: 20px 0; display: flex; justify-content: center; gap: 14px; flex-wrap: wrap;">
                 <a href="/impressum" class="btn-impressum-badge" style="display: inline-flex; align-items: center; gap: 8px; background: rgba(0, 243, 255, 0.08); border: 1px solid rgba(0, 243, 255, 0.4); color: #00f3ff; text-decoration: none; padding: 11px 24px; border-radius: 12px; font-weight: 800; font-size: 0.95rem; box-shadow: 0 0 20px rgba(0, 243, 255, 0.2); transition: all 0.3s ease;">
                     <span>⚖️</span> Impressum & Hosting (Render.com)
@@ -7017,7 +7388,7 @@ app.get('/dashboard', async (req, res) => {
 
 
 // =========================================================================
-// API: SERVER TEMPLATES & BOT LIFECYCLE CONTROLS (v3.3)
+// API: SERVER TEMPLATES & BOT LIFECYCLE CONTROLS (v4.0)
 // =========================================================================
 app.get('/api/templates', (req, res) => {
     if (!req.session.user) return res.status(401).json({ error: 'Nicht angemeldet' });
@@ -7300,7 +7671,7 @@ app.get(['/impressum', '/legal', '/hosting'], (req, res) => {
 });
 
 // =========================================================================
-// STELLENAUSSCHREIBUNGEN & KI-STELLENGENERATOR (v3.5)
+// STELLENAUSSCHREIBUNGEN & KI-STELLENGENERATOR (v4.0)
 // =========================================================================
 
 // API: Alle Stellen abrufen (Öffentlich für /apply und Dashboard)
@@ -7714,7 +8085,7 @@ app.post('/api/apply/:id/message', async (req, res) => {
 });
 
 // =========================================================================
-// MANAGEMENT API: BEWERBUNGEN ÜBERNEHMEN, ANNEHMEN & ABLEHNEN (v3.5)
+// MANAGEMENT API: BEWERBUNGEN ÜBERNEHMEN, ANNEHMEN & ABLEHNEN (v4.0)
 // =========================================================================
 
 // API: Alle Bewerbungen abrufen (Nur eingeloggte Staff)
