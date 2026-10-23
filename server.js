@@ -855,70 +855,134 @@ async function syncActiveTicketsFromDiscord() {
 // =========================================================================
 function isSupporterOrAdmin(member, guildOrGuildId) {
     if (!member) return false;
-    const userId = member.id || member.user?.id;
-    if (userId === OWNER_ID) return true;
-    if (cloudStorage.systemSettings?.whitelistedUsers && cloudStorage.systemSettings.whitelistedUsers.includes(userId)) return true;
-    if (cloudStorage.systemSettings?.authorizedSupporters && cloudStorage.systemSettings.authorizedSupporters.includes(userId)) return true;
+    try {
+        const userId = member.id || member.user?.id;
+        if (!userId) return false;
 
-    // Guild & GuildId Auflösung
-    let gId = null;
-    let guildObj = null;
-    if (typeof guildOrGuildId === 'string') {
-        gId = guildOrGuildId;
-        guildObj = client.guilds.cache.get(gId);
-    } else if (guildOrGuildId && guildOrGuildId.id) {
-        guildObj = guildOrGuildId;
-        gId = guildOrGuildId.id;
-    } else if (member.guild) {
-        guildObj = member.guild;
-        gId = member.guild.id;
-    }
+        // 1. Bot-Owner & Root Whitelist
+        if (userId === OWNER_ID) return true;
+        if (cloudStorage.systemSettings?.whitelistedUsers && cloudStorage.systemSettings.whitelistedUsers.includes(userId)) return true;
+        if (cloudStorage.systemSettings?.authorizedSupporters && cloudStorage.systemSettings.authorizedSupporters.includes(userId)) return true;
 
-    // Server-Besitzer (Owner des Servers)
-    if (guildObj && guildObj.ownerId === userId) return true;
+        // 2. Guild & GuildId Auflösung
+        let gId = null;
+        let guildObj = null;
+        if (typeof guildOrGuildId === 'string') {
+            gId = guildOrGuildId;
+            guildObj = client.guilds.cache.get(gId);
+        } else if (guildOrGuildId && guildOrGuildId.id) {
+            guildObj = guildOrGuildId;
+            gId = guildOrGuildId.id;
+        } else if (member.guild) {
+            guildObj = member.guild;
+            gId = member.guild.id;
+        }
 
-    // Discord Permissions (Administrator, ManageGuild, ManageMessages, ModerateMembers)
-    if (member.permissions) {
-        if (member.permissions.has(PermissionFlagsBits.Administrator) ||
-            member.permissions.has(PermissionFlagsBits.ManageGuild) ||
-            member.permissions.has(PermissionFlagsBits.ManageMessages) ||
-            member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+        // Falls GuildMember im Cache existiert, nutze ihn für vollständige Rollen & Permissions
+        let fullMember = member;
+        if (guildObj?.members?.cache?.has(userId)) {
+            fullMember = guildObj.members.cache.get(userId);
+        }
+
+        // 3. Server-Besitzer (Owner des Discord-Servers)
+        if (guildObj && String(guildObj.ownerId) === String(userId)) return true;
+        if (fullMember.guild && String(fullMember.guild.ownerId) === String(userId)) return true;
+
+        // 4. Discord Permissions (Admin, ManageGuild, ManageChannels, ManageRoles, etc.)
+        const staffFlags = [
+            PermissionFlagsBits.Administrator,
+            PermissionFlagsBits.ManageGuild,
+            PermissionFlagsBits.ManageChannels,
+            PermissionFlagsBits.ManageRoles,
+            PermissionFlagsBits.BanMembers,
+            PermissionFlagsBits.KickMembers,
+            PermissionFlagsBits.ManageMessages,
+            PermissionFlagsBits.ModerateMembers,
+            PermissionFlagsBits.ViewAuditLog
+        ];
+
+        const checkPermBitField = (perms) => {
+            if (!perms) return false;
+            try {
+                if (typeof perms.has === 'function') {
+                    return staffFlags.some(flag => perms.has(flag));
+                }
+                const bf = new PermissionsBitField(BigInt(perms));
+                return staffFlags.some(flag => bf.has(flag));
+            } catch (e) {
+                return false;
+            }
+        };
+
+        if (checkPermBitField(fullMember.permissions) || checkPermBitField(member.permissions)) {
             return true;
         }
-    }
 
-    // Server-spezifische Support-Rollen & User-IDs aus den Server-Einstellungen
-    if (gId) {
-        const gSettings = getGuildSettings(gId);
-        // Konfigurierte Haupt-Supportrolle
-        if (gSettings.supportRoleId && member.roles?.cache && member.roles.cache.has(gSettings.supportRoleId)) {
+        // 5. Rollen-IDs und Rollen-Namen extrahieren
+        const roleIds = new Set();
+        const roleNames = [];
+        let hasStaffRolePerm = false;
+
+        if (fullMember.roles?.cache) {
+            fullMember.roles.cache.forEach(r => {
+                roleIds.add(r.id);
+                if (r.name) roleNames.push(r.name);
+                if (r.permissions && checkPermBitField(r.permissions)) hasStaffRolePerm = true;
+            });
+        }
+        if (member.roles?.cache && member !== fullMember) {
+            member.roles.cache.forEach(r => {
+                roleIds.add(r.id);
+                if (r.name) roleNames.push(r.name);
+                if (r.permissions && checkPermBitField(r.permissions)) hasStaffRolePerm = true;
+            });
+        }
+
+        const rawRoleArray = Array.isArray(fullMember.roles) ? fullMember.roles : (Array.isArray(member.roles) ? member.roles : []);
+        rawRoleArray.forEach(rid => {
+            roleIds.add(rid);
+            if (guildObj?.roles?.cache?.has(rid)) {
+                const r = guildObj.roles.cache.get(rid);
+                if (r.name) roleNames.push(r.name);
+                if (r.permissions && checkPermBitField(r.permissions)) hasStaffRolePerm = true;
+            }
+        });
+
+        if (hasStaffRolePerm) return true;
+
+        // 6. Server-spezifische Einstellungen (Guild Settings)
+        if (gId) {
+            const gSettings = getGuildSettings(gId);
+            if (gSettings.supportRoleId && roleIds.has(gSettings.supportRoleId)) return true;
+            if (gSettings.staffSettings?.supportRoleId && roleIds.has(gSettings.staffSettings.supportRoleId)) return true;
+            if (Array.isArray(gSettings.staffSettings?.supportRoleIds)) {
+                if (gSettings.staffSettings.supportRoleIds.some(rid => roleIds.has(rid))) return true;
+            }
+            if (Array.isArray(gSettings.staffSettings?.supporterUserIds)) {
+                if (gSettings.staffSettings.supporterUserIds.includes(userId)) return true;
+            }
+            if (gSettings.teamMembers && gSettings.teamMembers[userId]) {
+                const tm = gSettings.teamMembers[userId];
+                if (tm.probationStatus !== 'failed') return true;
+            }
+        }
+
+        // 7. Globaler Fallback (falls im Vault konfiguriert)
+        if (cloudStorage.systemSettings?.supportRoleId && roleIds.has(cloudStorage.systemSettings.supportRoleId)) {
             return true;
         }
-        // Konfigurierte Multi-Supportrollen
-        if (Array.isArray(gSettings.staffSettings?.supportRoleIds)) {
-            if (gSettings.staffSettings.supportRoleIds.some(rId => member.roles?.cache && member.roles.cache.has(rId))) {
-                return true;
-            }
+
+        // 8. Intelligente Prüfung von Rollen nach Namen
+        const staffRoleRegex = /supporter|support|moderator|mod|admin|administrator|team|staff|helfer|leitung|inhaber|owner|entwickler|developer|management|manager|führung/i;
+        if (roleNames.some(name => staffRoleRegex.test(name))) {
+            return true;
         }
-        // Konfigurierte Supporter User-IDs
-        if (Array.isArray(gSettings.staffSettings?.supporterUserIds)) {
-            if (gSettings.staffSettings.supporterUserIds.includes(userId)) {
-                return true;
-            }
-        }
+
+        return false;
+    } catch (err) {
+        console.error('[isSupporterOrAdmin] Error in permission check:', err);
+        return false;
     }
-
-    // Kein globaler Fallback mehr, da Rollen-IDs strikt serverseitig isoliert sind
-
-    // Intelligente Prüfung von Discord-Rollen nach Namen (z. B. "Supporter", "Support", "Moderator", "Team", "Staff")
-    if (member.roles?.cache) {
-        const hasMatchingRole = member.roles.cache.some(r => 
-            /supporter|support|moderator|mod|admin|team|staff|helfer|leitung/i.test(r.name)
-        );
-        if (hasMatchingRole) return true;
-    }
-
-    return false;
 }
 
 
@@ -2128,10 +2192,11 @@ client.on('messageCreate', async message => {
 // ADVANCED INTERACTION DISPATCHER (INCL. AUTO-CLAIM & KI-SUPPORT)
 // =========================================================================
 client.on('interactionCreate', async interaction => {
+    const guild = interaction.guild;
     // AEROGUARD DM FAQ & INTERACTION HANDLERS
     // VOICE SUPPORT LEITSTELLEN BUTTONS
     if (interaction.isButton() && interaction.customId.startsWith('vsupport_move_')) {
-        const isStaff = isSupporterOrAdmin(interaction.member, guild);
+        const isStaff = isSupporterOrAdmin(interaction.member, interaction.guild);
         if (!isStaff) {
             return interaction.reply({ content: '⛔ Nur Supporter und Moderatoren können User verschieben.', ephemeral: true });
         }
@@ -2462,7 +2527,7 @@ client.on('interactionCreate', async interaction => {
         const sug = cloudStorage.suggestions ? cloudStorage.suggestions[sugId] : null;
         if (!sug) return interaction.reply({ content: '❌ Vorschlag nicht gefunden.', ephemeral: true });
 
-        const isSupp = isSupporterOrAdmin(interaction.member, guild);
+        const isSupp = isSupporterOrAdmin(interaction.member, interaction.guild);
         if (!isSupp) {
             return interaction.reply({ content: '⛔ **Zugriff verweigert:** Nur Teammitglieder (Supporter/Admins) können den Status von Vorschlägen ändern.', ephemeral: true });
         }
@@ -2487,7 +2552,7 @@ client.on('interactionCreate', async interaction => {
         interaction.customId.startsWith('sug_set_progress_') ||
         interaction.customId.startsWith('sug_set_pending_')
     )) {
-        const isSupp = isSupporterOrAdmin(interaction.member, guild);
+        const isSupp = isSupporterOrAdmin(interaction.member, interaction.guild);
         if (!isSupp) return interaction.reply({ content: '⛔ Zugriff verweigert.', ephemeral: true });
 
         let newStatus = 'PENDING';
@@ -3250,6 +3315,7 @@ client.on('interactionCreate', async interaction => {
     }
 
     if (interaction.isChatInputCommand()) {
+        try {
         const { commandName, guild, channel } = interaction;
         const userId = interaction.user.id;
         const isStaff = isSupporterOrAdmin(interaction.member, guild);
@@ -3290,10 +3356,10 @@ client.on('interactionCreate', async interaction => {
         const staffCmds = [
             'template', 'clear', 'warn', 'warnlist', 'clearwarns', 'mute', 'unmute', 'slowmode', 
             'lockchannel', 'unlockchannel', 'nuke', 'lockdown', 'unlockdown', 
-            'ticket', 'support-next', 'setup-ticketpanel', 'setup-infohub', 'poll', 
-            'dm', 'addrole', 'removerole', 'status', 'supporter', 'setup-modlog', 
+            'support-next', 'setup-ticketpanel', 'setup-infohub', 
+            'dm', 'addrole', 'removerole', 'supporter', 'setup-modlog', 
             'setup-welcome', 'setup-livestatus', 'setup-autorole', 'backup-server', 'test-welcome', 'social-alert', 'honeypot', 
-            'blacklist', 'style-channels', 'suggest-setup', 'giveaway', 'set-placeid', 
+            'blacklist', 'style-channels', 'suggest-setup', 'set-placeid', 
             'rbx-shout', 'rbx-serverlogs', 'rbx-shutdown', 'clan-war', 'rbx-savedata', 'rbx-cleardata'
         ];
 
@@ -3863,11 +3929,11 @@ client.on('interactionCreate', async interaction => {
         // 🏛️ SERVER VORLAGEN (/template apply & /template list)
         // =========================================================================
         if (commandName === 'template') {
-            if (interaction.user.id !== OWNER_ID) {
-                return interaction.reply({ content: '⛔ **Zugriff verweigert:** Das Anwenden von vollständigen Server-Vorlagen ist exklusiv dem Bot-Besitzer vorbehalten.', ephemeral: true });
-            }
-
             const sub = interaction.options.getSubcommand();
+
+            if (sub === 'apply' && interaction.user.id !== OWNER_ID && interaction.guild?.ownerId !== interaction.user.id) {
+                return interaction.reply({ content: '⛔ **Zugriff verweigert:** Das Anwenden von vollständigen Server-Vorlagen ist dem Server-Besitzer oder dem Bot-Entwickler vorbehalten.', ephemeral: true });
+            }
 
             if (sub === 'list') {
                 const isBotOwner = (interaction.user.id === OWNER_ID);
@@ -4857,6 +4923,47 @@ client.on('interactionCreate', async interaction => {
             return interaction.reply(`🔊 **Moderation:** Die Stummschaltung von ${target} wurde aufgehoben.`);
         }
 
+        if (commandName === 'warn') {
+            const targetUser = interaction.options.getUser('target');
+            const grund = interaction.options.getString('grund');
+            if (!targetUser) {
+                return interaction.reply({ content: '❌ Bitte gib einen gültigen Nutzer an.', ephemeral: true });
+            }
+
+            if (!cloudStorage.warnDatabase) cloudStorage.warnDatabase = {};
+            if (!cloudStorage.warnDatabase[targetUser.id]) {
+                cloudStorage.warnDatabase[targetUser.id] = [];
+            }
+
+            const warnEntry = {
+                date: new Date().toLocaleDateString('de-DE'),
+                grund: grund,
+                executor: interaction.user.tag || interaction.user.username,
+                timestamp: Date.now()
+            };
+            cloudStorage.warnDatabase[targetUser.id].push(warnEntry);
+            saveCloudVaultToDisk();
+
+            const totalWarns = cloudStorage.warnDatabase[targetUser.id].length;
+
+            const warnEmbed = new EmbedBuilder()
+                .setTitle('⚠️ Formelle Verwarnung erteilt')
+                .setColor(0xf59e0b)
+                .setDescription(`Der Nutzer <@${targetUser.id}> (${targetUser.tag || targetUser.username}) wurde verwarnt.`)
+                .addFields(
+                    { name: '👤 Verwarnter Nutzer', value: `<@${targetUser.id}>`, inline: true },
+                    { name: '🛡️ Moderator', value: `<@${interaction.user.id}>`, inline: true },
+                    { name: '📊 Verwarnungen gesamt', value: `**${totalWarns}**`, inline: true },
+                    { name: '📝 Grund', value: grund, inline: false }
+                )
+                .setFooter({ text: 'AeroGuard Moderations-System' })
+                .setTimestamp();
+
+            await targetUser.send(`⚠️ **Du wurdest auf ${interaction.guild ? interaction.guild.name : 'dem Server'} verwarnt!**\n**Grund:** ${grund}\n**Moderator:** ${interaction.user.tag || interaction.user.username}`).catch(() => {});
+
+            return interaction.reply({ embeds: [warnEmbed] });
+        }
+
         if (commandName === 'warnlist') {
             const target = interaction.options.getUser('ziel');
             const warns = getWarns(target.id);
@@ -5098,6 +5205,17 @@ client.on('interactionCreate', async interaction => {
 
             saveCloudVaultToDisk();
             return interaction.reply(msg);
+        }
+    
+        } catch (cmdErr) {
+            console.error(`[Command Error: /${interaction.commandName}]`, cmdErr);
+            addLog('error', `Fehler bei /${interaction.commandName}: ${cmdErr.message}`);
+            const errorMsg = `⚠️ **Fehler bei der Ausführung von \`/${interaction.commandName}\`:**\n\`${cmdErr.message || 'Interner Server-Fehler'}\``;
+            if (interaction.deferred || interaction.replied) {
+                await interaction.editReply({ content: errorMsg }).catch(() => {});
+            } else {
+                await interaction.reply({ content: errorMsg, ephemeral: true }).catch(() => {});
+            }
         }
     }
 
@@ -6013,6 +6131,19 @@ const extendedCommandDefinitions = [
         .addSubcommand(sub => sub.setName('remove').setDescription('Entfernt einen Nutzer aus dem Ticket').addUserOption(o => o.setName('nutzer').setDescription('Nutzer').setRequired(true)))
         .addSubcommand(sub => sub.setName('transcript').setDescription('Erstellt ein HTML-Transkript des Tickets'))
 ].map(cmd => cmd.toJSON());
+
+async function deployGlobalCommands() {
+    if (!process.env.DISCORD_TOKEN || !client.user) return;
+    try {
+        const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
+        await rest.put(Routes.applicationCommands(client.user.id), { body: extendedCommandDefinitions });
+        console.log('[SLASH-SYNC] 64 globale Slash Commands erfolgreich bei Discord registriert.');
+        addLog('info', '64 globale Slash Commands erfolgreich bei Discord registriert.');
+    } catch(e) {
+        console.error('[SLASH-SYNC] Fehler beim globalen Slash Command Sync:', e);
+        addLog('error', 'Fehler beim globalen Slash-Command Sync: ' + e.message);
+    }
+}
 
 async function deployExtendedCommands(guildId) {
     if (!process.env.DISCORD_TOKEN || !client.user) return;
@@ -7904,18 +8035,22 @@ client.once('ready', async () => {
     addLog('info', 'AeroGuard Cloud Engine Online als: ' + client.user.tag);
     await syncActiveTicketsFromDiscord();
     
-    // Auto-Sync Slash-Commands auf allen verbundenen Servern
-    client.guilds.cache.forEach(async guild => {
+    // Auto-Sync: 1. Global deployen (für alle Server und DMs)
+    await deployGlobalCommands().catch(() => {});
+
+    // 2. Direktes Guild-Deploy für alle aktiven Server im Cache
+    for (const guild of client.guilds.cache.values()) {
         try {
             await deployExtendedCommands(guild.id);
             addLog('info', 'Slash Commands für Server ' + guild.name + ' (' + guild.id + ') synchronisiert.');
+            await new Promise(r => setTimeout(r, 200));
         } catch(e) {
             addLog('error', 'Fehler beim Sync für ' + guild.id + ': ' + e.message);
         }
-    });
+    }
 
     if (process.env.GUILD_ID) {
-        await deployExtendedCommands(process.env.GUILD_ID);
+        await deployExtendedCommands(process.env.GUILD_ID).catch(() => {});
     }
         // Sofortiger Start des Social-Alerts Checkers & Probezeit-Checkers
     setTimeout(() => {
