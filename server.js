@@ -4470,8 +4470,7 @@ client.on('interactionCreate', async interaction => {
         }
 
         // =========================================================================
-        // 📡 SOCIAL ALERT SLASH COMMAND
- (Twitch, YouTube, TikTok)
+        // 📡 SOCIAL ALERT SLASH COMMAND (Twitch, YouTube, TikTok)
         // =========================================================================
         if (commandName === 'social-alert') {
             const sub = interaction.options.getSubcommand();
