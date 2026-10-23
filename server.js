@@ -379,9 +379,12 @@ function getGuildSettings(guildId) {
                 lockdown: false,
                 logging: true
             },
-            ticketCategoryId: cloudStorage.systemSettings.ticketCategoryId || null,
-            supportRoleId: cloudStorage.systemSettings.supportRoleId || null,
-            ticketLogChannelId: cloudStorage.systemSettings.ticketLogChannelId || null,
+            ticketCategoryId: null,
+            supportRoleId: null,
+            ticketLogChannelId: null,
+            teamChannelId: null,
+            teamMembers: {},
+            ticketCounter: 0,
             ticketWelcomeMessage: "🌌 Willkommen in der AeroGuard Support-Zentrale! Wähle eine Kategorie, um dein Ticket zu eröffnen.",
             ticketCategories: [
                 { id: "support", label: "🔮 Allgemeiner Support", color: "Success", requireRoblox: false },
@@ -470,6 +473,9 @@ function getGuildSettings(guildId) {
     if (g.welcomeChannelId === undefined) g.welcomeChannelId = g.logging?.welcomeChannelId || null;
     if (g.autoRoleId === undefined) g.autoRoleId = null;
     if (g.welcomeMessage === undefined) g.welcomeMessage = null;
+    if (!g.teamMembers) g.teamMembers = {};
+    if (g.teamChannelId === undefined) g.teamChannelId = null;
+    if (g.ticketCounter === undefined) g.ticketCounter = 0;
     if (!g.staffSettings) {
         g.staffSettings = {
             enabled: true,
@@ -902,10 +908,7 @@ function isSupporterOrAdmin(member, guildOrGuildId) {
         }
     }
 
-    // Globale Fallback Support-Rolle
-    if (cloudStorage.systemSettings?.supportRoleId && member.roles?.cache && member.roles.cache.has(cloudStorage.systemSettings.supportRoleId)) {
-        return true;
-    }
+    // Kein globaler Fallback mehr, da Rollen-IDs strikt serverseitig isoliert sind
 
     // Intelligente Prüfung von Discord-Rollen nach Namen (z. B. "Supporter", "Support", "Moderator", "Team", "Staff")
     if (member.roles?.cache) {
@@ -1010,8 +1013,7 @@ async function sendWelcomeMessage(member, options = {}) {
         const welcomeChannelId = 
             gSettings.welcome?.channelId ||
             gSettings.logging?.welcomeChannelId ||
-            gSettings.welcomeChannelId ||
-            cloudStorage.systemSettings?.welcomeChannelId;
+            gSettings.welcomeChannelId;
 
         if (!welcomeChannelId) {
             return { success: false, reason: 'Kein Willkommens-Kanal konfiguriert' };
@@ -1105,8 +1107,7 @@ async function applyAutoRole(member) {
         
         const autoRoleId = 
             gSettings.autoRoleId ||
-            gSettings.welcome?.autoRoleId ||
-            cloudStorage.systemSettings?.autoRoleId;
+            gSettings.welcome?.autoRoleId;
 
         if (!autoRoleId) return { success: false, reason: 'Keine Autorole konfiguriert' };
 
@@ -1465,7 +1466,8 @@ function analyzeTicketWithAI(reason) {
 // MOD-LOG SNAPSHOT ENGINE
 // =========================================================================
 async function sendModLogSnapshot(guild, offender, reason, originChannel) {
-    const modLogId = cloudStorage.systemSettings.modLogChannelId;
+    const gSettings = getGuildSettings(guild.id);
+    const modLogId = gSettings.logging?.modLogChannelId || cloudStorage.systemSettings?.modLogChannelId;
     if (!modLogId) return;
 
     try {
@@ -1918,8 +1920,8 @@ client.on('messageCreate', async message => {
 
         // Auto-detect or create category
         let parentCategory = null;
-        if (cloudStorage.systemSettings.ticketCategoryId) {
-            parentCategory = message.guild.channels.cache.get(cloudStorage.systemSettings.ticketCategoryId);
+        if (gSettings.ticketCategoryId) {
+            parentCategory = message.guild.channels.cache.get(gSettings.ticketCategoryId);
         }
         if (!parentCategory) {
             parentCategory = message.guild.channels.cache.find(c => c.type === ChannelType.GuildCategory && c.name.toLowerCase().includes('ticket'));
@@ -1930,7 +1932,7 @@ client.on('messageCreate', async message => {
                     name: '📁 SUPPORT-TICKETS',
                     type: ChannelType.GuildCategory
                 });
-                cloudStorage.systemSettings.ticketCategoryId = parentCategory.id;
+                gSettings.ticketCategoryId = parentCategory.id;
                 saveCloudVaultToDisk();
             } catch(e) {}
         }
@@ -2024,7 +2026,8 @@ client.on('messageCreate', async message => {
 
 
 
-    if (cloudStorage.systemSettings.lockdownActive && !isSupporterOrAdmin(message.member, message.guild)) {
+    const gSettings = getGuildSettings(message.guild.id);
+    if (gSettings.modules?.lockdown && !isSupporterOrAdmin(message.member, message.guild)) {
         try {
             await message.delete();
             return message.author.send("🚨 **Der Server befindet sich aktuell im Lockdown.** Nachrichten können momentan nur von Administratoren gesendet werden.").catch(()=>{});
@@ -2051,11 +2054,13 @@ client.on('messageCreate', async message => {
     const timestamps = userMessageTimestamps.get(userId);
     timestamps.push(now);
 
-    const expirationTime = now - cloudStorage.systemSettings.antiSpamInterval;
+    const antiSpamInterval = cloudStorage.systemSettings?.antiSpamInterval || 5000;
+    const expirationTime = now - antiSpamInterval;
     const activeTimestamps = timestamps.filter(t => t > expirationTime);
     userMessageTimestamps.set(userId, activeTimestamps);
 
-    if (activeTimestamps.length > cloudStorage.systemSettings.antiSpamThreshold) {
+    const antiSpamLimit = gSettings.autoMod?.antiSpamThreshold || cloudStorage.systemSettings?.antiSpamThreshold || 5;
+    if (activeTimestamps.length > antiSpamLimit) {
         try {
             await message.delete().catch(() => {});
             const currentStrikes = (cloudStorage.autoModStrikes[userId] || 0) + 1;
@@ -2197,7 +2202,125 @@ client.on('interactionCreate', async interaction => {
         }
     }
 
+        // =========================================================================
+    // 🛡️ TEAM PROBEZEIT BUTTON EVALUATION (Bestanden / Nicht Bestanden / Verlängern)
+    // =========================================================================
+    if (interaction.isButton() && (interaction.customId.startsWith('team_prob_') || interaction.customId.startsWith('btn_team_'))) {
+        const parts = interaction.customId.split('_');
+        // team_prob_action_guildId_userId
+        const action = parts[2]; // 'pass', 'fail', 'extend'
+        const guildId = parts[3];
+        const targetUserId = parts[4];
+
+        const targetGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+        if (!targetGuild) {
+            return interaction.reply({ content: '❌ Server nicht gefunden.', ephemeral: true });
+        }
+
+        const isServerOwner = (targetGuild.ownerId === interaction.user.id);
+        const isRootOwner = (interaction.user.id === OWNER_ID);
+        let isAdmin = false;
+        try {
+            const member = await targetGuild.members.fetch(interaction.user.id).catch(() => null);
+            if (member && member.permissions.has(PermissionFlagsBits.Administrator)) isAdmin = true;
+        } catch(e) {}
+
+        if (!isServerOwner && !isRootOwner && !isAdmin) {
+            return interaction.reply({ content: '⛔ **Zugriff verweigert:** Nur der Server-Besitzer, Administratoren oder der Bot-Owner dürfen über die Probezeit entscheiden.', ephemeral: true });
+        }
+
+        const gSettings = getGuildSettings(targetGuild.id);
+        if (!gSettings.teamMembers || !gSettings.teamMembers[targetUserId]) {
+            return interaction.reply({ content: '❌ Teammitglied nicht in der Datenbank gefunden.', ephemeral: true });
+        }
+
+        const tm = gSettings.teamMembers[targetUserId];
+        const targetMember = await targetGuild.members.fetch(targetUserId).catch(() => null);
+        const targetRole = tm.roleId ? (targetGuild.roles.cache.get(tm.roleId) || await targetGuild.roles.fetch(tm.roleId).catch(() => null)) : null;
+
+        const teamChannel = (gSettings.teamChannelId ? targetGuild.channels.cache.get(gSettings.teamChannelId) : null) ||
+            targetGuild.channels.cache.find(c => c.isTextBased() && (c.name.includes('team') || c.name.includes('intern') || c.name.includes('mod')));
+
+        if (action === 'pass') {
+            tm.probationStatus = 'passed';
+            tm.onProbation = false;
+            tm.evaluatedBy = interaction.user.id;
+            tm.evaluatedAt = Date.now();
+            saveCloudVaultToDisk();
+
+            if (targetMember) {
+                targetMember.send(`🎉 **Herzlichen Glückwunsch!**\nDu hast deine Probezeit als **${tm.position || tm.roleName}** auf **${targetGuild.name}** erfolgreich bestanden und bist nun offiziell festes Teammitglied! 🚀`).catch(() => {});
+            }
+
+            if (teamChannel && teamChannel.permissionsFor(targetGuild.members.me)?.has(PermissionFlagsBits.SendMessages)) {
+                const passEmbed = new EmbedBuilder()
+                    .setTitle('🌟 Probezeit Bestanden!')
+                    .setColor(0x10b981)
+                    .setDescription(`Wir gratulieren <@${targetUserId}> (**${tm.userTag}**)! Die Probezeit als **${tm.position || tm.roleName}** wurde soeben offiziell **erfolgreich abgeschlossen**. Willkommen als festes Teammitglied! 🌟`)
+                    .setFooter({ text: `Entscheidung durch: ${interaction.user.tag}` })
+                    .setTimestamp();
+                await teamChannel.send({ embeds: [passEmbed] }).catch(() => {});
+            }
+
+            const updatedEmbed = EmbedBuilder.from(interaction.message.embeds[0] || new EmbedBuilder())
+                .setColor(0x10b981)
+                .setTitle('✅ Probezeit Bestanden: Entschieden')
+                .addFields({ name: 'Entscheidung', value: `✅ **Bestanden** durch <@${interaction.user.id}>`, inline: false });
+
+            return interaction.update({ embeds: [updatedEmbed], components: [] });
+        } else if (action === 'fail') {
+            tm.probationStatus = 'failed';
+            tm.onProbation = false;
+            tm.evaluatedBy = interaction.user.id;
+            tm.evaluatedAt = Date.now();
+
+            if (targetMember && targetRole) {
+                await targetMember.roles.remove(targetRole, `Probezeit nicht bestanden (Entscheidung durch ${interaction.user.tag})`).catch(() => {});
+            }
+            saveCloudVaultToDisk();
+
+            if (targetMember) {
+                targetMember.send(`ℹ️ **Probezeit beendet:** Die Teamleitung von **${targetGuild.name}** hat entschieden, deine Probezeit als **${tm.position || tm.roleName}** nicht zu verlängern. Wir danken für deinen Einsatz!`).catch(() => {});
+            }
+
+            if (teamChannel && teamChannel.permissionsFor(targetGuild.members.me)?.has(PermissionFlagsBits.SendMessages)) {
+                const failEmbed = new EmbedBuilder()
+                    .setTitle('ℹ️ Probezeit Beendet')
+                    .setColor(0xef4444)
+                    .setDescription(`Die Probezeit von <@${targetUserId}> (**${tm.userTag}**; ${tm.position || tm.roleName}) wurde beendet und die Rolle entzogen.`)
+                    .setFooter({ text: `Entscheidung durch: ${interaction.user.tag}` })
+                    .setTimestamp();
+                await teamChannel.send({ embeds: [failEmbed] }).catch(() => {});
+            }
+
+            const updatedEmbed = EmbedBuilder.from(interaction.message.embeds[0] || new EmbedBuilder())
+                .setColor(0xef4444)
+                .setTitle('❌ Probezeit Nicht Bestanden: Rolle Entzogen')
+                .addFields({ name: 'Entscheidung', value: `❌ **Nicht bestanden (Rolle entfernt)** durch <@${interaction.user.id}>`, inline: false });
+
+            return interaction.update({ embeds: [updatedEmbed], components: [] });
+        } else if (action === 'extend') {
+            const addDays = 7;
+            tm.probationEndAt = Date.now() + addDays * 86400000;
+            tm.probationDays = (tm.probationDays || 14) + addDays;
+            tm.notifiedOwner = false;
+            saveCloudVaultToDisk();
+
+            if (targetMember) {
+                targetMember.send(`⏳ Deine Probezeit als **${tm.position || tm.roleName}** auf **${targetGuild.name}** wurde um **${addDays} Tage** verlängert (neues Ende: <t:${Math.floor(tm.probationEndAt / 1000)}:D>). Nutze die Chance! 💪`).catch(() => {});
+            }
+
+            const updatedEmbed = EmbedBuilder.from(interaction.message.embeds[0] || new EmbedBuilder())
+                .setColor(0xf59e0b)
+                .setTitle('⏳ Probezeit Verlängert (+7 Tage)')
+                .addFields({ name: 'Entscheidung', value: `⏳ **Verlängert um 7 Tage** durch <@${interaction.user.id}> (Neues Ende: <t:${Math.floor(tm.probationEndAt / 1000)}:D>)`, inline: false });
+
+            return interaction.update({ embeds: [updatedEmbed], components: [] });
+        }
+    }
+
     if (interaction.isButton() && interaction.customId === 'dm_faq_btn') {
+
         const faqEmbed = new EmbedBuilder()
             .setTitle('❓ AeroGuard — Häufig gestellte Fragen (FAQ)')
             .setColor(0x00f3ff)
@@ -2726,8 +2849,8 @@ client.on('interactionCreate', async interaction => {
         const selectedCat = categories.find(c => c.id === catId);
         const catLabel = selectedCat ? selectedCat.label : 'Support';
 
-        cloudStorage.systemSettings.ticketCounter = (cloudStorage.systemSettings.ticketCounter || 0) + 1;
-        const ticketNum = cloudStorage.systemSettings.ticketCounter;
+        gSettings.ticketCounter = (gSettings.ticketCounter || 0) + 1;
+        const ticketNum = gSettings.ticketCounter;
         const numStr = String(ticketNum).padStart(4, '0');
         const safeUser = interaction.user.username.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 15) || 'user';
         const channelName = 'ticket-' + numStr + '-' + safeUser;
@@ -2736,9 +2859,6 @@ client.on('interactionCreate', async interaction => {
         let parentCategory = null;
         if (gSettings.ticketCategoryId) {
             parentCategory = interaction.guild.channels.cache.get(gSettings.ticketCategoryId);
-        }
-        if (!parentCategory && cloudStorage.systemSettings.ticketCategoryId) {
-            parentCategory = interaction.guild.channels.cache.get(cloudStorage.systemSettings.ticketCategoryId);
         }
         if (!parentCategory) {
             parentCategory = interaction.guild.channels.cache.find(c => c.type === ChannelType.GuildCategory && c.name.toLowerCase().includes('ticket'));
@@ -3436,9 +3556,12 @@ client.on('interactionCreate', async interaction => {
                 const supportRolle = interaction.options.getRole('support_rolle');
                 const logKanal = interaction.options.getChannel('log_kanal');
 
-                cloudStorage.systemSettings.ticketCategoryId = kategorie.id;
-                cloudStorage.systemSettings.supportRoleId = supportRolle.id;
-                if (logKanal) cloudStorage.systemSettings.ticketLogChannelId = logKanal.id;
+                const gSettings = getGuildSettings(guild.id);
+                gSettings.ticketCategoryId = kategorie.id;
+                gSettings.supportRoleId = supportRolle.id;
+                if (!gSettings.staffSettings) gSettings.staffSettings = {};
+                gSettings.staffSettings.supportRoleId = supportRolle.id;
+                if (logKanal) gSettings.ticketLogChannelId = logKanal.id;
                 saveCloudVaultToDisk();
 
                 const setupEmbed = new EmbedBuilder()
@@ -3660,8 +3783,6 @@ client.on('interactionCreate', async interaction => {
             gSettings.autoRoleId = rolle.id;
             if (!gSettings.welcome) gSettings.welcome = {};
             gSettings.welcome.autoRoleId = rolle.id;
-            if (!cloudStorage.systemSettings) cloudStorage.systemSettings = {};
-            cloudStorage.systemSettings.autoRoleId = rolle.id;
             saveCloudVaultToDisk();
 
             const embed = new EmbedBuilder()
@@ -3729,7 +3850,6 @@ client.on('interactionCreate', async interaction => {
             gSettings.welcome.channelId = ch.id;
             if (!gSettings.modules) gSettings.modules = {};
             gSettings.modules.logging = true;
-            cloudStorage.systemSettings.welcomeChannelId = ch.id;
             saveCloudVaultToDisk();
             return interaction.reply(`✅ **Willkommens-System aktiviert:** Beitrittsmeldungen werden ab sofort in <#${ch.id}> gepostet!
 
@@ -4022,7 +4142,7 @@ client.on('interactionCreate', async interaction => {
                     return interaction.reply({ content: `❌ Server mit ID \`${targetGuildId}\` nicht gefunden.`, ephemeral: true });
                 }
 
-                const name = targetGuild.name;
+                                const name = targetGuild.name;
                 await targetGuild.leave();
 
                 return interaction.reply({
@@ -4030,7 +4150,33 @@ client.on('interactionCreate', async interaction => {
                     ephemeral: true
                 });
             }
+
+            if (sub === 'organize') {
+                const targetGuildId = interaction.options.getString('server_id') || interaction.guildId;
+                const targetGuild = client.guilds.cache.get(targetGuildId) || await client.guilds.fetch(targetGuildId).catch(() => null);
+                if (!targetGuild) {
+                    return interaction.reply({ content: `❌ Server mit ID \`${targetGuildId}\` nicht gefunden.`, ephemeral: true });
+                }
+
+                await interaction.deferReply({ ephemeral: true });
+                const reorganizeAll = interaction.options.getBoolean('alle_neu_ordnen') || false;
+                const res = await autoCategorizeGuildChannels(targetGuild, { reorganizeAll });
+
+                const embed = new EmbedBuilder()
+                    .setTitle('📁 Auto-Kanal-Kategorisierung Abgeschlossen')
+                    .setDescription(`Auf Server **${targetGuild.name}** wurden die Kanäle erfolgreich strukturiert!`)
+                    .setColor(0x10b981)
+                    .addFields(
+                        { name: '📊 Zuordnungen', value: `${res.categorizedCount} Kanäle zugeordnet`, inline: true },
+                        { name: '📁 Verarbeitete Kanäle', value: `${res.totalChannels} Kanäle geprüft`, inline: true }
+                    )
+                    .setFooter({ text: 'AeroGuard Auto-Kategorisierung • Owner Exclusive' })
+                    .setTimestamp();
+
+                return interaction.editReply({ embeds: [embed] });
+            }
         }
+
 
         // =========================================================================
         // 👑 BESITZER-FUNKTION: /bot-shutdown (Graceful Shutdown per Slash Command)
@@ -4053,14 +4199,204 @@ client.on('interactionCreate', async interaction => {
                 ephemeral: true
             });
 
-            setTimeout(() => {
+                        setTimeout(() => {
                 handleGracefulShutdown(reason);
             }, 1000);
             return;
         }
 
         // =========================================================================
-        // 📡 SOCIAL ALERT SLASH COMMAND (Twitch, YouTube, TikTok)
+        // 🛡️ TEAM & PROBEZEIT LIFECYCLE SLASH COMMAND (/team add, /team list, /team remove, /team eval)
+        // =========================================================================
+        if (commandName === 'team') {
+            const isAuthorized = isSupporterOrAdmin(interaction.member, guild) || interaction.user.id === OWNER_ID || interaction.guild.ownerId === interaction.user.id;
+            if (!isAuthorized) {
+                return interaction.reply({ content: '⛔ **Zugriff verweigert:** Nur Administratoren, Serverbesitzer oder autorisiertes Leitungspersonal können Teammitglieder verwalten.', ephemeral: true });
+            }
+
+            const sub = interaction.options.getSubcommand();
+            const gSettings = getGuildSettings(guild.id);
+            if (!gSettings.teamMembers) gSettings.teamMembers = {};
+
+            if (sub === 'add') {
+                await interaction.deferReply({ ephemeral: true });
+                const targetUser = interaction.options.getUser('mitglied');
+                const targetRole = interaction.options.getRole('rolle');
+                const position = interaction.options.getString('position') || targetRole.name;
+                const onProbation = interaction.options.getBoolean('probezeit') || false;
+                const probationDays = interaction.options.getInteger('probezeit_tage') || 14;
+                const customChannel = interaction.options.getChannel('ankuendigung_kanal');
+
+                const targetMember = await guild.members.fetch(targetUser.id).catch(() => null);
+                if (!targetMember) {
+                    return interaction.editReply(`❌ Nutzer <@${targetUser.id}> befindet sich nicht auf diesem Server.`);
+                }
+
+                const botMember = guild.members.me || await guild.members.fetchMe().catch(() => null);
+                if (botMember && targetRole.position >= botMember.roles.highest.position && guild.ownerId !== client.user.id) {
+                    return interaction.editReply(`⚠️ Die Rolle **${targetRole.name}** steht über oder gleich der Bot-Rolle. Bitte verschiebe die Rolle des Bots in den Servereinstellungen weiter nach oben.`);
+                }
+
+                try {
+                    await targetMember.roles.add(targetRole, `Teamaufnahme durch ${interaction.user.tag}`);
+                } catch(e) {
+                    return interaction.editReply(`❌ Rolle konnte nicht zugewiesen werden: ${e.message}`);
+                }
+
+                const now = Date.now();
+                const probationEndAt = onProbation ? (now + probationDays * 86400000) : null;
+
+                gSettings.teamMembers[targetUser.id] = {
+                    userId: targetUser.id,
+                    userTag: targetUser.tag || targetUser.username,
+                    avatarUrl: targetUser.displayAvatarURL(),
+                    roleId: targetRole.id,
+                    roleName: targetRole.name,
+                    position: position,
+                    addedBy: interaction.user.id,
+                    addedByTag: interaction.user.tag || interaction.user.username,
+                    addedAt: now,
+                    onProbation: onProbation,
+                    probationDays: onProbation ? probationDays : 0,
+                    probationEndAt: probationEndAt,
+                    probationStatus: onProbation ? 'active' : 'permanent',
+                    notifiedOwner: false
+                };
+                saveCloudVaultToDisk();
+
+                let announceCh = customChannel;
+                if (!announceCh && gSettings.teamChannelId) {
+                    announceCh = guild.channels.cache.get(gSettings.teamChannelId);
+                }
+                if (!announceCh) {
+                    announceCh = guild.channels.cache.find(c => 
+                        c.isTextBased() && 
+                        (c.name.includes('team') || c.name.includes('intern') || c.name.includes('ankündigung') || c.name.includes('announcement') || c.name.includes('mod'))
+                    );
+                }
+                if (!announceCh && gSettings.logging?.modLogChannelId) {
+                    announceCh = guild.channels.cache.get(gSettings.logging.modLogChannelId);
+                }
+                if (!announceCh) announceCh = interaction.channel;
+
+                if (announceCh && announceCh.isTextBased() && announceCh.permissionsFor(guild.members.me)?.has(PermissionFlagsBits.SendMessages)) {
+                    const announceEmbed = new EmbedBuilder()
+                        .setTitle('🎉 Neues Teammitglied!')
+                        .setColor(onProbation ? 0xf59e0b : 0x10b981)
+                        .setDescription(`Wir heißen <@${targetUser.id}> herzlich in unserem Team auf **${guild.name}** willkommen! 🚀`)
+                        .addFields(
+                            { name: '👤 Teammitglied', value: `<@${targetUser.id}> (${targetUser.tag})`, inline: true },
+                            { name: '🛡️ Rang & Rolle', value: `**${position}** (<@&${targetRole.id}>)`, inline: true },
+                            { name: '⏳ Status', value: onProbation ? `🕒 **Auf Probezeit** (${probationDays} Tage – bis <t:${Math.floor(probationEndAt / 1000)}:D>)` : '🌟 **Festes Teammitglied**', inline: false },
+                            { name: '👑 Eingetragen von', value: `<@${interaction.user.id}>`, inline: true }
+                        )
+                        .setThumbnail(targetUser.displayAvatarURL())
+                        .setFooter({ text: 'AeroGuard Team & Lifecycle Engine' })
+                        .setTimestamp();
+
+                    await announceCh.send({ embeds: [announceEmbed] }).catch(() => {});
+                }
+
+                try {
+                    const dmText = onProbation
+                        ? `🎉 **Willkommen im Team von ${guild.name}!**\nDu hast soeben die Rolle **${targetRole.name}** als **${position}** erhalten.\n⏳ Du befindest dich für **${probationDays} Tage** auf Probezeit (bis <t:${Math.floor(probationEndAt / 1000)}:D>). Viel Erfolg!`
+                        : `🎉 **Willkommen im Team von ${guild.name}!**\nDu hast soeben die Rolle **${targetRole.name}** als **${position}** erhalten. Willkommen als festes Teammitglied! 🚀`;
+                    await targetMember.send(dmText).catch(() => {});
+                } catch(e) {}
+
+                addLog('info', `Team: ${targetUser.tag} als ${position} (Probezeit: ${onProbation ? probationDays + ' Tage' : 'Nein'}) auf "${guild.name}" hinzugefügt.`, guild.name);
+
+                return interaction.editReply({
+                    content: `✅ <@${targetUser.id}> wurde erfolgreich als **${position}** (<@&${targetRole.id}>) zum Team hinzugefügt!${onProbation ? `\n⏳ **Probezeit:** ${probationDays} Tage (bis <t:${Math.floor(probationEndAt / 1000)}:D>). Nach Ablauf erhält der Server-Besitzer automatisch eine Benachrichtigung zur Auswertung.` : ''}`
+                });
+            }
+
+            if (sub === 'list') {
+                const members = Object.values(gSettings.teamMembers || {});
+                if (members.length === 0) {
+                    return interaction.reply({ content: 'ℹ️ Auf diesem Server wurden noch keine Teammitglieder über AeroGuard registriert.', ephemeral: true });
+                }
+
+                const listText = members.map(m => {
+                    let statusStr = '🌟 Festes Mitglied';
+                    if (m.onProbation && m.probationStatus === 'active') {
+                        const daysLeft = Math.max(0, Math.ceil((m.probationEndAt - Date.now()) / 86400000));
+                        statusStr = `🕒 Auf Probezeit (${daysLeft} Tage verbleibend)`;
+                    } else if (m.probationStatus === 'passed') {
+                        statusStr = '✅ Probezeit bestanden';
+                    } else if (m.probationStatus === 'failed') {
+                        statusStr = '❌ Probezeit nicht bestanden';
+                    }
+                    return `• <@${m.userId}> — **${m.position || m.roleName}** (<@&${m.roleId}>)\n  Status: ${statusStr}`;
+                }).join('\n\n');
+
+                const embed = new EmbedBuilder()
+                    .setTitle(`🛡️ Team-Übersicht: ${guild.name}`)
+                    .setDescription(listText)
+                    .setColor(0x00f3ff)
+                    .setFooter({ text: `Gesamt: ${members.length} registrierte Teammitglieder` })
+                    .setTimestamp();
+
+                return interaction.reply({ embeds: [embed], ephemeral: true });
+            }
+
+            if (sub === 'remove') {
+                const targetUser = interaction.options.getUser('mitglied');
+                const reason = interaction.options.getString('grund') || 'Durch Teamleitung entfernt';
+
+                if (!gSettings.teamMembers[targetUser.id]) {
+                    return interaction.reply({ content: `❌ <@${targetUser.id}> ist nicht als Teammitglied in AeroGuard registriert.`, ephemeral: true });
+                }
+
+                const tm = gSettings.teamMembers[targetUser.id];
+                const targetMember = await guild.members.fetch(targetUser.id).catch(() => null);
+                if (targetMember && tm.roleId) {
+                    await targetMember.roles.remove(tm.roleId, reason).catch(() => {});
+                }
+
+                delete gSettings.teamMembers[targetUser.id];
+                saveCloudVaultToDisk();
+
+                return interaction.reply({ content: `🗑️ <@${targetUser.id}> wurde aus dem Team entfernt und die Rolle entzogen. Grund: ${reason}`, ephemeral: true });
+            }
+
+            if (sub === 'eval') {
+                const targetUser = interaction.options.getUser('mitglied');
+                const decision = interaction.options.getString('entscheidung');
+
+                if (!gSettings.teamMembers[targetUser.id]) {
+                    return interaction.reply({ content: `❌ <@${targetUser.id}> ist nicht als Teammitglied registriert.`, ephemeral: true });
+                }
+
+                const tm = gSettings.teamMembers[targetUser.id];
+                const targetMember = await guild.members.fetch(targetUser.id).catch(() => null);
+
+                if (decision === 'pass') {
+                    tm.probationStatus = 'passed';
+                    tm.onProbation = false;
+                    saveCloudVaultToDisk();
+                    if (targetMember) targetMember.send(`🎉 Herzlichen Glückwunsch! Deine Probezeit auf **${guild.name}** wurde vorzeitig als **BESTANDEN** bewertet!`).catch(() => {});
+                    return interaction.reply({ content: `✅ <@${targetUser.id}> hat die Probezeit bestanden und ist nun festes Teammitglied!`, ephemeral: true });
+                } else if (decision === 'fail') {
+                    tm.probationStatus = 'failed';
+                    tm.onProbation = false;
+                    if (targetMember && tm.roleId) await targetMember.roles.remove(tm.roleId).catch(() => {});
+                    saveCloudVaultToDisk();
+                    if (targetMember) targetMember.send(`ℹ️ Deine Probezeit auf **${guild.name}** wurde beendet.`).catch(() => {});
+                    return interaction.reply({ content: `❌ Die Probezeit für <@${targetUser.id}> wurde als nicht bestanden markiert und die Rolle entfernt.`, ephemeral: true });
+                } else if (decision === 'extend') {
+                    tm.probationEndAt = Date.now() + 7 * 86400000;
+                    tm.probationDays = (tm.probationDays || 14) + 7;
+                    tm.notifiedOwner = false;
+                    saveCloudVaultToDisk();
+                    return interaction.reply({ content: `⏳ Die Probezeit für <@${targetUser.id}> wurde um 7 Tage verlängert.`, ephemeral: true });
+                }
+            }
+        }
+
+        // =========================================================================
+        // 📡 SOCIAL ALERT SLASH COMMAND
+ (Twitch, YouTube, TikTok)
         // =========================================================================
         if (commandName === 'social-alert') {
             const sub = interaction.options.getSubcommand();
@@ -4556,15 +4892,19 @@ client.on('interactionCreate', async interaction => {
         }
 
         if (commandName === 'lockdown') {
-            cloudStorage.systemSettings.lockdownActive = true;
+            const gSettings = getGuildSettings(guild.id);
+            if (!gSettings.modules) gSettings.modules = {};
+            gSettings.modules.lockdown = true;
             saveCloudVaultToDisk();
-            return interaction.reply('🚨 **SERVER LOCKDOWN AKTIVIERT!** Alle nicht-administrativen Chats wurden cloud-seitig eingefroren.');
+            return interaction.reply('🚨 **SERVER LOCKDOWN AKTIVIERT!** Alle regulären Chats wurden für diesen Server eingefroren.');
         }
 
         if (commandName === 'unlockdown') {
-            cloudStorage.systemSettings.lockdownActive = false;
+            const gSettings = getGuildSettings(guild.id);
+            if (!gSettings.modules) gSettings.modules = {};
+            gSettings.modules.lockdown = false;
             saveCloudVaultToDisk();
-            return interaction.reply('✅ **SERVER LOCKDOWN DEAKTIVIERT!** Die Sektoren sind wieder geöffnet.');
+            return interaction.reply('✅ **SERVER LOCKDOWN DEAKTIVIERT!** Die Server-Sektoren sind wieder freigegeben.');
         }
 
         if (commandName === 'slowmode') {
@@ -4764,7 +5104,9 @@ client.on('interactionCreate', async interaction => {
     // Channel Selection Matrix Handling
     if (interaction.isChannelSelectMenu() && interaction.customId === 'modlog_channel_select') {
         const selectedChannelId = interaction.values[0];
-        cloudStorage.systemSettings.modLogChannelId = selectedChannelId;
+        const gSettings = getGuildSettings(interaction.guild.id);
+        if (!gSettings.logging) gSettings.logging = {};
+        gSettings.logging.modLogChannelId = selectedChannelId;
         saveCloudVaultToDisk();
         return await interaction.reply({ content: `🟩 **Mod-Log verankert:** Snapshots und Beweisfotos werden ab sofort in <#${selectedChannelId}> gespeichert!`, ephemeral: true });
     }
@@ -5528,14 +5870,54 @@ const extendedCommandDefinitions = [
             .setName('list')
             .setDescription('Zeigt alle Server und deren Status (Aktiv / Deaktiviert) an')
         )
-        .addSubcommand(sub => sub
+                .addSubcommand(sub => sub
             .setName('leave')
             .setDescription('Lässt den Bot einen Server sofort verlassen')
             .addStringOption(o => o.setName('server_id').setDescription('Server-ID des Servers').setRequired(true))
             .addStringOption(o => o.setName('grund').setDescription('Optionaler Grund').setRequired(false))
+        )
+        .addSubcommand(sub => sub
+            .setName('organize')
+            .setDescription('📁 Ordnet Kanäle automatisch in saubere Kategorien ein')
+            .addStringOption(o => o.setName('server_id').setDescription('Server-ID (Standard: Dieser Server)').setRequired(false))
+            .addBooleanOption(o => o.setName('alle_neu_ordnen').setDescription('Alle Kanäle neu strukturieren? (Standard: Nur unkategorisierte)').setRequired(false))
+        ),
+    new SlashCommandBuilder()
+        .setName('team')
+        .setDescription('🛡️ AeroGuard Team-Verwaltung & Probezeit-Lifecycle')
+        .addSubcommand(sub => sub
+            .setName('add')
+            .setDescription('Fügt ein neues Teammitglied hinzu mit optionaler automatischer Probezeit')
+            .addUserOption(o => o.setName('mitglied').setDescription('Das neue Teammitglied').setRequired(true))
+            .addRoleOption(o => o.setName('rolle').setDescription('Die Team-Rolle').setRequired(true))
+            .addStringOption(o => o.setName('position').setDescription('Titel / Position (z.B. Supporter, Moderator, Developer)').setRequired(false))
+            .addBooleanOption(o => o.setName('probezeit').setDescription('Soll das Mitglied auf Probezeit gesetzt werden?').setRequired(false))
+            .addIntegerOption(o => o.setName('probezeit_tage').setDescription('Dauer der Probezeit in Tagen (Standard: 14)').setRequired(false))
+            .addChannelOption(o => o.setName('ankuendigung_kanal').setDescription('Kanal für die Team-Ankündigung (Standard: Team-Kanal / Logs)').setRequired(false))
+        )
+        .addSubcommand(sub => sub
+            .setName('list')
+            .setDescription('Listet alle Teammitglieder und deren Probezeit-Status auf')
+        )
+        .addSubcommand(sub => sub
+            .setName('remove')
+            .setDescription('Entfernt ein Teammitglied und entzieht die Rolle')
+            .addUserOption(o => o.setName('mitglied').setDescription('Das zu entfernende Teammitglied').setRequired(true))
+            .addStringOption(o => o.setName('grund').setDescription('Optionaler Grund für die Entfernung').setRequired(false))
+        )
+        .addSubcommand(sub => sub
+            .setName('eval')
+            .setDescription('Entscheidet über die Probezeit eines Teammitglieds')
+            .addUserOption(o => o.setName('mitglied').setDescription('Das Teammitglied').setRequired(true))
+            .addStringOption(o => o.setName('entscheidung').setDescription('Bestanden oder Nicht Bestanden').setRequired(true).addChoices(
+                { name: '✅ Probezeit Bestanden (Festes Teammitglied)', value: 'pass' },
+                { name: '❌ Nicht Bestanden (Rolle entfernen)', value: 'fail' },
+                { name: '⏳ Probezeit um 7 Tage verlängern', value: 'extend' }
+            ))
         ),
     new SlashCommandBuilder()
         .setName('bot-shutdown')
+
         .setDescription('👑 [Owner-Exklusiv] Fährt den Bot ordnungsgemäß herunter (Graceful Shutdown)')
         .addStringOption(o => o.setName('grund').setDescription('Grund für das Herunterfahren (z. B. Wartungsarbeiten)').setRequired(false)),
     new SlashCommandBuilder()
@@ -5715,52 +6097,57 @@ async function broadcastVersionUpdate(options = {}) {
     const customPing = options.ping || ''; // e.g. '@everyone' or '@here' or role mention
 
     const updateEmbed = new EmbedBuilder()
-        .setTitle('🚀 AeroGuard Core v4.0 Enterprise — Update ist LIVE!')
+        .setTitle('🚀 AeroGuard Core v4.5 Enterprise — Multi-Guild & Owner Suite ist LIVE!')
         .setColor(0x00f3ff)
         .setDescription(
-            'Das offizielle Versions-Upgrade auf **AeroGuard Core v4.0 Enterprise** wurde erfolgreich ausgerollt! 🎉\n\n' +
-            'Dieses Update bringt maximale Flexibilität für deine Community, einen brandneuen Creator Social Hub, unbarmherzigen Anti-Raid Schutz und eine runderneuerte Web-Präsenz.'
+            'Das offizielle Update **AeroGuard Core v4.5 Enterprise** wurde erfolgreich ausgerollt! 🎉\n\n' +
+            'Dieses Update bringt vollständige Multi-Guild Isolierung für den öffentlichen Einsatz, die brandneue Web-Dashboard Owner-Zentrale, automatische Kanal-Kategorisierung sowie das interaktive `/team add` Probezeit-Lifecycle System.'
         )
         .addFields(
             {
-                name: '🎮 1. Flexible Roblox-Verifizierung (3 Modi)',
+                name: '🌐 1. 100% Autarke Multi-Guild Architektur',
                 value: 
-                    '• 🟢 **Freiwillig & Optional (Empfohlen):** Keine Ticket-Blockaden mehr! Alle Spieler können Support-Tickets direkt öffnen, ohne ihren Roblox-Account verknüpfen zu müssen.\n' +
-                    '• 🟡 **Kategorie-spezifisch:** Verifizierung nur bei Ticket-Gründen mit aktivem Haken (z. B. Ingame Bug-Reports oder VIP-Rang).\n' +
-                    '• 🔴 **Global verpflichtend:** Roblox-Zwang für alle Tickets & Serverfunktionen.\n' +
-                    '• *In allen Modi: Automatischer Nickname-Sync & Gruppenrang-Synchronisation.*'
+                    '• **Vollständige Server-Isolierung:** Jede Discord-Serverinstanz verwaltet Einstellungen, Rollen, Auto-Roles, Tickets und Willkommens-Systeme komplett unabhängig.\n' +
+                    '• **Keine Datenleaks:** Auto-Member Rollen, Ticket-Kategorien und Lockdowns können sich ab sofort niemals mehr serverübergreifend überschneiden.'
             },
             {
-                name: '📡 2. Streamer & Creator Social Hub',
+                name: '👑 2. Web-Dashboard Owner-Suite (Root)',
                 value: 
-                    '• Multi-Plattform Live-Alerts für **Twitch** 🟣, **YouTube** 🔴 & **TikTok** 🎵\n' +
-                    '• Frei konfigurierbare Rollen-Pings (z. B. `@Stream-Ping`), Inhaltsfilter & 1-Klick Test-Button im Dashboard\n' +
-                    '• Slash-Befehle: `/social-alert test`, `/social-alert add`, `/social-alert list`, `/social-alert channel`'
+                    '• **Server-Picker:** Volle Übersicht aller verbundenen Server mit Live-Status und Berechtigungschecks.\n' +
+                    '• **Rollen-Zuweisung:** Der Bot-Owner kann sich beliebige berechtigte Rollen oder Administrator-Rechte mit 1 Klick direkt über die Webseite geben.\n' +
+                    '• **Remote Governance:** Server sperren, aktivieren, Bot verlassen lassen oder Shutdowns steuern.'
             },
             {
-                name: '🍯 3. Honeypot Anti-Raid & Bot-Trap Schutzschild',
+                name: '📁 3. Intelligente Auto-Kanal-Kategorisierung (Owner Exclusive)',
                 value: 
-                    '• Intelligente Falle (`#🍯・bot-falle`) für Raids, Selfbots & Spambots\n' +
-                    '• Vollstreckt in Millisekunden: **Permanent-Bann 🔨** (inkl. 24h Chat-Löschung), Kick oder 7-Tage-Timeout\n' +
-                    '• Automatischer Mod-Log Alarm & 1-Klick Setup im Web-Dashboard (`/honeypot setup`)'
+                    '• Automatische Zuordnung aller Server-Kanäle in sauber strukturierte Kategorien (`INFOS`, `COMMUNITY`, `SUPPORT`, `VOICE`, `TEAM`).\n' +
+                    '• Einordnung unkategorisierter Kanäle oder vollständige Neusortierung mit 1 Klick im Dashboard oder per Slash-Command.'
             },
             {
-                name: '🏷️ 4. Enterprise v4.0 Architektur & Neue Website',
+                name: '🛡️ 4. `/team add` & Automatischer Probezeit-Lifecycle',
                 value: 
-                    '• Alle Bot-Lifecycles, Status-Meldungen & das Dashboard laufen nun offiziell auf Enterprise v4.0\n' +
-                    '• Persistente Cloud-Vault Datenspeicherung & Zero-Downtime Deploys auf Render.com\n' +
-                    '• Öffentliche Website mit interaktivem v4.0 Feature-Spotlight aktualisiert!'
+                    '• **Team-Befehl:** `/team add` fügt Teammitglieder mit Rolle und optionaler Probezeit (z. B. 7 oder 14 Tage) hinzu.\n' +
+                    '• **Ankündigung:** Postet automatisch eine Willkommensmeldung im Team-Kanal.\n' +
+                    '• **Automatischer Entscheidungs-Check:** Nach Ablauf der Probezeit erhält der Serverbesitzer eine interaktive Benachrichtigung mit Buttons (`Bestanden`, `Nicht Bestanden (Rolle entfernen)`, `Verlängern`).\n' +
+                    '• **Dashboard Team-Manager:** Live-Übersicht aller Teammitglieder und Probezeiten auf der Webseite.'
             },
             {
-                name: '🌐 Nützliche Links & Web-Dashboard',
+                name: '⚡ 5. Umfassende Bugfixes & Performance',
                 value: 
-                    '🔗 [Web-Dashboard öffnen](https://roblox-discord-g44u.onrender.com/dashboard) • ' +
-                    '🌐 [Offizielle Website](https://roblox-discord-g44u.onrender.com) • ' +
-                    '📝 [Bewerbungsportal](https://roblox-discord-g44u.onrender.com/apply)'
+                    '• Beseitigung globaler Settings-Leaks bei Tickets, Auto-Roles und Mod-Logs.\n' +
+                    '• Verbesserte Rollenhierarchie-Validierung und Ratenbegrenzungs-Schutz für Discord API REST v10.'
+            },
+            {
+                name: '🔗 Nützliche Links & Web-Dashboard',
+                value: 
+                    '🌐 [Web-Dashboard öffnen](https://roblox-discord-g44u.onrender.com/dashboard) • ' +
+                    '🏠 [Offizielle Website](https://roblox-discord-g44u.onrender.com) • ' +
+                    '📋 [Bewerbungsportal](https://roblox-discord-g44u.onrender.com/apply)'
             }
         )
-        .setFooter({ text: 'AeroGuard Core v4.0 Enterprise • Offizielle Update-Benachrichtigung' })
+        .setFooter({ text: 'AeroGuard Core v4.5 Enterprise • Offizielle Update-Benachrichtigung' })
         .setTimestamp();
+
 
     if (client.user) {
         updateEmbed.setThumbnail(client.user.displayAvatarURL());
@@ -7209,7 +7596,7 @@ async function setupOfficialAeroGuardSupportServer(guild, requestingUserId) {
     if (!gSettings.roblox) gSettings.roblox = {};
     gSettings.roblox.verifiedRoleId = verifiedRole.id;
 
-    saveCloudVaultToDisk();
+        saveCloudVaultToDisk();
     addLog('info', `Offizieller AeroGuard Support-Server erfolgreich auf ${guild.name} aufgesetzt!`, 'SupportSetup');
 
     return {
@@ -7227,6 +7614,211 @@ async function setupOfficialAeroGuardSupportServer(guild, requestingUserId) {
         auditLogsChannelId: chAuditLogs.id
     };
 }
+
+// =========================================================================
+// INTELLIGENTE KANAL- & KATEGORIE-AUTO-ZUORDNUNG (OWNER EXKLUSIV)
+// =========================================================================
+async function autoCategorizeGuildChannels(guild, options = {}) {
+    const defaultCategories = [
+        {
+            key: 'info',
+            name: 'INFOS & ANKÜNDIGUNGEN',
+            emoji: '📢',
+            match: /regeln|rules|info|ankündigung|announcement|willkommen|welcome|updates|changelog|status|bot-status|faq|boost|social|live|partner|events|nitro|richtlinien/i
+        },
+        {
+            key: 'community',
+            name: 'TEXT & COMMUNITY',
+            emoji: '💬',
+            match: /chat|allgemein|general|community|talk|bot-command|command|meme|clip|bilder|screenshot|media|musik|music|level|ranking|spam|minigame|giveaway|umfrage|vorschlag|suggest/i
+        },
+        {
+            key: 'support',
+            name: 'SUPPORT & HILFE',
+            emoji: '🎫',
+            match: /support|ticket|hilfe|help|bewerbung|apply|report|bug|spieler-report|kontakt|fragen|warteraum/i
+        },
+        {
+            key: 'voice',
+            name: 'VOICE LOUNGE',
+            emoji: '🔊',
+            match: /voice|talk|lounge|gaming|stream|afk|duo|squad|trio|chill|labern/i
+        },
+        {
+            key: 'team',
+            name: 'MANAGEMENT & TEAM',
+            emoji: '🛡️',
+            match: /team|intern|mod|admin|leitung|management|logs|mod-log|audit|besprechung|team-voice|team-chat/i
+        }
+    ];
+
+    const channels = await guild.channels.fetch();
+    const uncategorizedOnly = options.reorganizeAll !== true;
+
+    // Filter non-category channels
+    const toProcess = channels.filter(c => {
+        if (!c || c.type === ChannelType.GuildCategory) return false;
+        if (uncategorizedOnly && c.parentId) return false;
+        return true;
+    });
+
+    let categorizedCount = 0;
+    const details = [];
+
+    // Find or create categories
+    const catMap = {};
+    for (const catDef of defaultCategories) {
+        let existing = guild.channels.cache.find(c => 
+            c.type === ChannelType.GuildCategory && 
+            (c.name.toLowerCase().includes(catDef.key) || c.name.toLowerCase().includes(catDef.name.toLowerCase()))
+        );
+        if (!existing) {
+            existing = await guild.channels.create({
+                name: `${catDef.emoji} ${catDef.name}`,
+                type: ChannelType.GuildCategory,
+                reason: 'AeroGuard Intelligente Auto-Kategorisierung (Owner Exclusive)'
+            }).catch(() => null);
+            await new Promise(r => setTimeout(r, 250));
+        }
+        if (existing) catMap[catDef.key] = existing;
+    }
+
+    for (const ch of toProcess.values()) {
+        let targetCatKey = 'community';
+
+        if (ch.type === ChannelType.GuildVoice || ch.type === ChannelType.GuildStageVoice) {
+            if (/team|mod|admin|intern|leitung/i.test(ch.name)) {
+                targetCatKey = 'team';
+            } else {
+                targetCatKey = 'voice';
+            }
+        } else {
+            if (/team|mod|admin|intern|leitung|audit|logs/i.test(ch.name)) {
+                targetCatKey = 'team';
+            } else if (/support|ticket|hilfe|help|bewerbung|apply|report/i.test(ch.name)) {
+                targetCatKey = 'support';
+            } else if (/regeln|rules|info|ankündigung|announcement|willkommen|welcome|updates|changelog|status/i.test(ch.name)) {
+                targetCatKey = 'info';
+            } else {
+                targetCatKey = 'community';
+            }
+        }
+
+        const targetCat = catMap[targetCatKey];
+        if (targetCat && ch.parentId !== targetCat.id) {
+            try {
+                await ch.setParent(targetCat.id, { lockPermissions: false });
+                categorizedCount++;
+                details.push({ channelName: ch.name, categoryName: targetCat.name });
+                await new Promise(r => setTimeout(r, 180));
+            } catch(e) {
+                console.warn(`[AUTO-CATEGORIZE] Fehler bei #${ch.name}:`, e.message);
+            }
+        }
+    }
+
+    addLog('info', `Auto-Kategorisierung auf "${guild.name}": ${categorizedCount} Kanäle zugeordnet.`, guild.name);
+    return {
+        success: true,
+        categorizedCount,
+        totalChannels: toProcess.size,
+        details
+    };
+}
+
+// =========================================================================
+// TEAM & PROBEZEIT LIFECYCLE SCHEDULER
+// =========================================================================
+async function checkTeamProbations() {
+    try {
+        if (!client.isReady()) return;
+        for (const guild of client.guilds.cache.values()) {
+            const gSettings = getGuildSettings(guild.id);
+            if (!gSettings.teamMembers) continue;
+            let modified = false;
+
+            for (const [userId, tm] of Object.entries(gSettings.teamMembers)) {
+                if (tm.onProbation && tm.probationStatus === 'active' && tm.probationEndAt && Date.now() >= tm.probationEndAt && !tm.notifiedOwner) {
+                    try {
+                        let owner = null;
+                        try {
+                            owner = await guild.fetchOwner();
+                        } catch(e) {}
+
+                        const evalEmbed = new EmbedBuilder()
+                            .setTitle('⏳ Probezeit Beendet: Entscheidungs-Check')
+                            .setColor(0x9b5de5)
+                            .setDescription(
+                                `Hey ${owner ? `<@${owner.id}>` : 'Server-Besitzer'}!\n\n` +
+                                `Die Probezeit von <@${tm.userId}> (**${tm.userTag}**) als **${tm.position || tm.roleName}** auf deinem Server **${guild.name}** ist abgelaufen.\n\n` +
+                                `**Hat der Teamler die Probezeit nach deiner Meinung bestanden?**\n` +
+                                `Triff jetzt deine Entscheidung mit den Buttons unten:`
+                            )
+                            .addFields(
+                                { name: '👤 Teammitglied', value: `<@${tm.userId}> (${tm.userTag})`, inline: true },
+                                { name: '🛡️ Rolle / Rang', value: `${tm.position || tm.roleName} (<@&${tm.roleId}>)`, inline: true },
+                                { name: '⏱️ Probezeit-Dauer', value: `${tm.probationDays || 14} Tage`, inline: true },
+                                { name: '📅 Hinzugefügt am', value: `<t:${Math.floor((tm.addedAt || Date.now()) / 1000)}:R>`, inline: true },
+                                { name: '👑 Hinzugefügt von', value: `<@${tm.addedBy}> (${tm.addedByTag || 'Staff'})`, inline: true }
+                            )
+                            .setFooter({ text: `Server: ${guild.name} (${guild.id}) • AeroGuard Team Engine` })
+                            .setTimestamp();
+
+                        const actionRow = new ActionRowBuilder().addComponents(
+                            new ButtonBuilder()
+                                .setCustomId(`team_prob_pass_${guild.id}_${tm.userId}`)
+                                .setLabel('✅ Probezeit Bestanden')
+                                .setStyle(ButtonStyle.Success),
+                            new ButtonBuilder()
+                                .setCustomId(`team_prob_fail_${guild.id}_${tm.userId}`)
+                                .setLabel('❌ Nicht Bestanden (Rolle entfernen)')
+                                .setStyle(ButtonStyle.Danger),
+                            new ButtonBuilder()
+                                .setCustomId(`team_prob_extend_${guild.id}_${tm.userId}`)
+                                .setLabel('⏳ Verlängern (+7 Tage)')
+                                .setStyle(ButtonStyle.Secondary)
+                        );
+
+                        let sent = false;
+                        if (owner) {
+                            try {
+                                await owner.send({ embeds: [evalEmbed], components: [actionRow] });
+                                sent = true;
+                            } catch (dmErr) {}
+                        }
+
+                        if (!sent) {
+                            const targetChannel = 
+                                (gSettings.teamChannelId ? guild.channels.cache.get(gSettings.teamChannelId) : null) ||
+                                (gSettings.logging?.modLogChannelId ? guild.channels.cache.get(gSettings.logging.modLogChannelId) : null) ||
+                                guild.channels.cache.find(c => c.isTextBased() && (c.name.includes('team') || c.name.includes('mod') || c.name.includes('intern') || c.name.includes('admin'))) ||
+                                guild.systemChannel;
+
+                            if (targetChannel && targetChannel.permissionsFor(guild.members.me)?.has(PermissionFlagsBits.SendMessages)) {
+                                await targetChannel.send({
+                                    content: owner ? `<@${owner.id}>` : undefined,
+                                    embeds: [evalEmbed],
+                                    components: [actionRow]
+                                }).catch(() => {});
+                                sent = true;
+                            }
+                        }
+
+                        tm.notifiedOwner = true;
+                        modified = true;
+                        addLog('info', `Probezeit-Entscheidungsanfrage für ${tm.userTag} auf Server "${guild.name}" ausgelöst.`, guild.name);
+                    } catch(err) {
+                        console.error('[PROBATION CHECK ERROR]', err);
+                    }
+                }
+            }
+            if (modified) saveCloudVaultToDisk();
+        }
+    } catch(e) {
+        console.error('[PROBATION ENGINE ERROR]', e);
+    }
+}
+
 
 
 // =========================================================================
@@ -7317,10 +7909,13 @@ client.once('ready', async () => {
     if (process.env.GUILD_ID) {
         await deployExtendedCommands(process.env.GUILD_ID);
     }
-    // Sofortiger Start des Social-Alerts Checkers (Twitch/YouTube)
+        // Sofortiger Start des Social-Alerts Checkers & Probezeit-Checkers
     setTimeout(() => {
         checkSocialAlertsEngine().catch(() => {});
+        checkTeamProbations().catch(() => {});
     }, 5000);
+    setInterval(checkTeamProbations, 60000);
+
     // Auto-Broadcast: Bot ist ONLINE gegangen
     setTimeout(async () => {
         try {
@@ -9443,6 +10038,447 @@ app.post('/api/admin/bot/broadcast-status', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
+
+// =========================================================================
+// API: OWNER-SUITE & MULTI-SERVER REMOTE ENGINE (OWNER EXKLUSIV)
+// =========================================================================
+app.get('/api/owner/servers', async (req, res) => {
+    if (!req.session.user || req.session.user.id !== OWNER_ID) {
+        return res.status(403).json({ error: '⛔ Zugriff verweigert: Nur der Bot-Besitzer hat Zugriff auf die Owner-Suite.' });
+    }
+
+    const disabledList = cloudStorage.systemSettings?.disabledGuilds || [];
+    const list = [];
+
+    for (const guild of client.guilds.cache.values()) {
+        const botMember = guild.members.me || await guild.members.fetchMe().catch(() => null);
+        const ownerMember = guild.members.cache.get(OWNER_ID) || await guild.members.fetch(OWNER_ID).catch(() => null);
+
+        const botHighestPos = botMember ? botMember.roles.highest.position : 0;
+        const hasAdmin = botMember ? botMember.permissions.has(PermissionFlagsBits.Administrator) : false;
+        const canManageRoles = botMember ? botMember.permissions.has(PermissionFlagsBits.ManageRoles) : false;
+        const canManageChannels = botMember ? botMember.permissions.has(PermissionFlagsBits.ManageChannels) : false;
+
+        const roles = Array.from(guild.roles.cache.values())
+            .filter(r => r.name !== '@everyone')
+            .sort((a, b) => b.position - a.position)
+            .map(r => ({
+                id: r.id,
+                name: r.name,
+                color: r.hexColor,
+                position: r.position,
+                isAdmin: r.permissions.has(PermissionFlagsBits.Administrator),
+                isManaged: r.managed,
+                canAssign: (!r.managed && r.position < botHighestPos && (canManageRoles || hasAdmin)),
+                ownerHasRole: ownerMember ? ownerMember.roles.cache.has(r.id) : false
+            }));
+
+        const channels = guild.channels.cache;
+        const uncategorizedCount = channels.filter(c => c.type !== ChannelType.GuildCategory && !c.parentId).size;
+
+        list.push({
+            id: guild.id,
+            name: guild.name,
+            icon: guild.iconURL() || '',
+            memberCount: guild.memberCount,
+            ownerId: guild.ownerId,
+            isDisabled: disabledList.includes(guild.id),
+            isOwnerPresent: !!ownerMember,
+            botPermissions: {
+                hasAdmin,
+                canManageRoles,
+                canManageChannels,
+                highestRoleName: botMember?.roles.highest.name || 'Keine',
+                highestRolePos: botHighestPos
+            },
+            uncategorizedCount,
+            channelCount: channels.filter(c => c.type !== ChannelType.GuildCategory).size,
+            categoryCount: channels.filter(c => c.type === ChannelType.GuildCategory).size,
+            roles
+        });
+    }
+
+    res.json({ servers: list });
+});
+
+app.post('/api/owner/guild/:guildId/assign-role', async (req, res) => {
+    if (!req.session.user || req.session.user.id !== OWNER_ID) {
+        return res.status(403).json({ error: '⛔ Zugriff verweigert: Nur der verifizierte Bot-Besitzer darf diese Funktion ausführen!' });
+    }
+
+    const guild = client.guilds.cache.get(req.params.guildId) || await client.guilds.fetch(req.params.guildId).catch(() => null);
+    if (!guild) return res.status(404).json({ error: 'Server nicht gefunden' });
+
+    let ownerMember = await guild.members.fetch(OWNER_ID).catch(() => null);
+    if (!ownerMember) {
+        let inviteUrl = null;
+        try {
+            const ch = guild.channels.cache.find(c => c.isTextBased() && c.permissionsFor(guild.members.me)?.has(PermissionFlagsBits.CreateInstantInvite));
+            if (ch) {
+                const inv = await ch.createInvite({ maxAge: 3600, maxUses: 1, reason: 'Bot-Owner Beitritt' });
+                inviteUrl = inv.url;
+            }
+        } catch(e) {}
+
+        return res.status(400).json({
+            error: `Du befindest dich aktuell nicht auf Server "${guild.name}". Tritt zuerst dem Server bei!`,
+            inviteUrl: inviteUrl || null
+        });
+    }
+
+    const botMember = guild.members.me || await guild.members.fetchMe().catch(() => null);
+    if (!botMember) return res.status(500).json({ error: 'Bot-Mitgliedsdaten konnten nicht geladen werden.' });
+
+    const createAdmin = req.body.createAdmin === true;
+    const roleId = req.body.roleId;
+
+    if (createAdmin) {
+        try {
+            let adminRole = guild.roles.cache.find(r => 
+                r.permissions.has(PermissionFlagsBits.Administrator) && 
+                r.position < botMember.roles.highest.position && 
+                !r.managed
+            );
+
+            if (!adminRole) {
+                if (!botMember.permissions.has(PermissionFlagsBits.Administrator) && !botMember.permissions.has(PermissionFlagsBits.ManageRoles)) {
+                    return res.status(403).json({ error: 'Der Bot besitzt auf diesem Server keine Administrator- oder Rollenverwaltungs-Rechte.' });
+                }
+
+                adminRole = await guild.roles.create({
+                    name: '👑 AeroGuard Root Admin',
+                    color: 0xef4444,
+                    permissions: [PermissionFlagsBits.Administrator],
+                    hoist: true,
+                    reason: `Root Admin Elevation für Bot-Besitzer via Web-Dashboard`
+                });
+            }
+
+            await ownerMember.roles.add(adminRole, 'Root Admin Elevation via Web-Dashboard');
+            addLog('info', `Owner Role Elevation: Admin-Rolle "${adminRole.name}" an Bot-Owner auf "${guild.name}" vergeben.`, guild.name);
+            return res.json({
+                success: true,
+                message: `Administrator-Rolle "${adminRole.name}" erfolgreich auf "${guild.name}" erhalten!`,
+                roleName: adminRole.name,
+                roleId: adminRole.id
+            });
+        } catch(err) {
+            console.error('[OWNER GIVE ADMIN ERROR]', err);
+            return res.status(500).json({ error: 'Fehler beim Zuweisen der Administrator-Rolle: ' + err.message });
+        }
+    }
+
+    if (!roleId) {
+        return res.status(400).json({ error: 'Keine Rolle angegeben.' });
+    }
+
+    const targetRole = guild.roles.cache.get(roleId) || await guild.roles.fetch(roleId).catch(() => null);
+    if (!targetRole) {
+        return res.status(404).json({ error: 'Rolle nicht gefunden.' });
+    }
+
+    if (targetRole.managed) {
+        return res.status(400).json({ error: `Die Rolle "${targetRole.name}" ist eine verwaltete Integrationsrolle und kann nicht manuell vergeben werden.` });
+    }
+
+    if (targetRole.position >= botMember.roles.highest.position && guild.ownerId !== client.user.id) {
+        return res.status(400).json({
+            error: `Die Rolle "${targetRole.name}" steht in der Discord-Rollenhierarchie über oder gleich der höchsten Rolle des Bots (${botMember.roles.highest.name}). Der Bot kann diese Rolle nicht vergeben. Bitte ziehe die Bot-Rolle in den Server-Einstellungen weiter nach oben!`
+        });
+    }
+
+    try {
+        await ownerMember.roles.add(targetRole, 'Owner Self-Role via Web-Dashboard');
+        addLog('info', `Owner Role Assignment: Rolle "${targetRole.name}" an Bot-Owner auf "${guild.name}" vergeben.`, guild.name);
+        return res.json({
+            success: true,
+            message: `Rolle "${targetRole.name}" erfolgreich auf "${guild.name}" erhalten!`,
+            roleName: targetRole.name,
+            roleId: targetRole.id
+        });
+    } catch(err) {
+        console.error('[OWNER ASSIGN ROLE ERROR]', err);
+        return res.status(500).json({ error: 'Fehler beim Zuweisen der Rolle: ' + err.message });
+    }
+});
+
+app.post('/api/owner/guild/:guildId/remove-role', async (req, res) => {
+    if (!req.session.user || req.session.user.id !== OWNER_ID) {
+        return res.status(403).json({ error: '⛔ Zugriff verweigert: Nur der verifizierte Bot-Besitzer darf diese Funktion ausführen!' });
+    }
+
+    const guild = client.guilds.cache.get(req.params.guildId) || await client.guilds.fetch(req.params.guildId).catch(() => null);
+    if (!guild) return res.status(404).json({ error: 'Server nicht gefunden' });
+
+    const ownerMember = await guild.members.fetch(OWNER_ID).catch(() => null);
+    if (!ownerMember) return res.status(400).json({ error: 'Du befindest dich nicht auf diesem Server.' });
+
+    const roleId = req.body.roleId;
+    if (!roleId) return res.status(400).json({ error: 'Keine Rolle angegeben.' });
+
+    const targetRole = guild.roles.cache.get(roleId) || await guild.roles.fetch(roleId).catch(() => null);
+    if (!targetRole) return res.status(404).json({ error: 'Rolle nicht gefunden.' });
+
+    try {
+        await ownerMember.roles.remove(targetRole, 'Owner Self-Role Removal via Web-Dashboard');
+        return res.json({
+            success: true,
+            message: `Rolle "${targetRole.name}" erfolgreich von dir auf "${guild.name}" entfernt!`,
+            roleName: targetRole.name
+        });
+    } catch(err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/owner/guild/:guildId/auto-categorize', async (req, res) => {
+    if (!req.session.user || req.session.user.id !== OWNER_ID) {
+        return res.status(403).json({ error: '⛔ Zugriff verweigert: Nur der verifizierte Bot-Besitzer darf die Auto-Kategorisierung ausführen!' });
+    }
+
+    const guild = client.guilds.cache.get(req.params.guildId) || await client.guilds.fetch(req.params.guildId).catch(() => null);
+    if (!guild) return res.status(404).json({ error: 'Server nicht gefunden' });
+
+    try {
+        const result = await autoCategorizeGuildChannels(guild, req.body || {});
+        res.json({ success: true, ...result });
+    } catch(err) {
+        console.error('Auto categorize error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/owner/guild/:guildId/toggle-status', async (req, res) => {
+    if (!req.session.user || req.session.user.id !== OWNER_ID) {
+        return res.status(403).json({ error: '⛔ Zugriff verweigert: Nur der Bot-Besitzer darf den Serverstatus ändern.' });
+    }
+
+    if (!cloudStorage.systemSettings) cloudStorage.systemSettings = {};
+    if (!Array.isArray(cloudStorage.systemSettings.disabledGuilds)) cloudStorage.systemSettings.disabledGuilds = [];
+
+    const guildId = req.params.guildId;
+    const isCurrentlyDisabled = cloudStorage.systemSettings.disabledGuilds.includes(guildId);
+
+    if (isCurrentlyDisabled) {
+        cloudStorage.systemSettings.disabledGuilds = cloudStorage.systemSettings.disabledGuilds.filter(id => id !== guildId);
+    } else {
+        cloudStorage.systemSettings.disabledGuilds.push(guildId);
+    }
+    saveCloudVaultToDisk();
+
+    res.json({ success: true, isDisabled: !isCurrentlyDisabled });
+});
+
+app.post('/api/owner/guild/:guildId/leave', async (req, res) => {
+    if (!req.session.user || req.session.user.id !== OWNER_ID) {
+        return res.status(403).json({ error: '⛔ Zugriff verweigert: Nur der Bot-Besitzer darf den Bot Server verlassen lassen.' });
+    }
+
+    const guild = client.guilds.cache.get(req.params.guildId) || await client.guilds.fetch(req.params.guildId).catch(() => null);
+    if (!guild) return res.status(404).json({ error: 'Server nicht gefunden' });
+
+    const name = guild.name;
+    await guild.leave();
+    res.json({ success: true, message: `Server "${name}" erfolgreich verlassen.` });
+});
+
+app.post('/api/owner/bot/restart', async (req, res) => {
+    if (!req.session.user || req.session.user.id !== OWNER_ID) {
+        return res.status(403).json({ error: '⛔ Zugriff verweigert: Nur der Bot-Besitzer darf den Bot neu starten.' });
+    }
+
+    res.json({ success: true, message: 'Bot-Neustart eingeleitet' });
+    setTimeout(() => {
+        process.exit(0);
+    }, 800);
+});
+
+// =========================================================================
+// API: TEAM & PROBEZEIT MANAGEMENT
+// =========================================================================
+app.get('/api/guild/:guildId/team', async (req, res) => {
+    if (!req.session.user) return res.status(401).json({ error: 'Nicht angemeldet' });
+    const perm = await getUserGuildPermission(req.session.user.id, req.params.guildId);
+    if (!perm.authorized && req.session.user.id !== OWNER_ID) {
+        return res.status(403).json({ error: 'Zugriff verweigert.' });
+    }
+
+    const guild = client.guilds.cache.get(req.params.guildId) || await client.guilds.fetch(req.params.guildId).catch(() => null);
+    if (!guild) return res.status(404).json({ error: 'Server nicht gefunden' });
+
+    const gSettings = getGuildSettings(guild.id);
+    const members = Object.values(gSettings.teamMembers || {});
+
+    const augmented = await Promise.all(members.map(async m => {
+        const mem = await guild.members.fetch(m.userId).catch(() => null);
+        return {
+            ...m,
+            isStillMember: !!mem,
+            currentRoles: mem ? Array.from(mem.roles.cache.values()).map(r => ({ id: r.id, name: r.name, color: r.hexColor })) : [],
+            avatarUrl: mem ? mem.user.displayAvatarURL() : (m.avatarUrl || '')
+        };
+    }));
+
+    res.json({ teamMembers: augmented, teamChannelId: gSettings.teamChannelId || null });
+});
+
+app.post('/api/guild/:guildId/team/add', async (req, res) => {
+    if (!req.session.user) return res.status(401).json({ error: 'Nicht angemeldet' });
+    const perm = await getUserGuildPermission(req.session.user.id, req.params.guildId);
+    if (!perm.authorized && req.session.user.id !== OWNER_ID) {
+        return res.status(403).json({ error: 'Zugriff verweigert.' });
+    }
+
+    const guild = client.guilds.cache.get(req.params.guildId) || await client.guilds.fetch(req.params.guildId).catch(() => null);
+    if (!guild) return res.status(404).json({ error: 'Server nicht gefunden' });
+
+    const { userId, roleId, position, onProbation, probationDays, channelId } = req.body;
+    if (!userId || !roleId) {
+        return res.status(400).json({ error: 'Benutzer-ID und Rollen-ID sind erforderlich.' });
+    }
+
+    const targetMember = await guild.members.fetch(userId).catch(() => null);
+    if (!targetMember) {
+        return res.status(404).json({ error: 'Der angegebene Nutzer befindet sich nicht auf diesem Server.' });
+    }
+
+    const targetRole = guild.roles.cache.get(roleId) || await guild.roles.fetch(roleId).catch(() => null);
+    if (!targetRole) {
+        return res.status(404).json({ error: 'Rolle nicht gefunden.' });
+    }
+
+    const botMember = guild.members.me || await guild.members.fetchMe().catch(() => null);
+    if (botMember && targetRole.position >= botMember.roles.highest.position && guild.ownerId !== client.user.id) {
+        return res.status(400).json({ error: `Die Rolle "${targetRole.name}" steht in der Discord-Hierarchie über der Bot-Rolle. Bitte verschiebe die Bot-Rolle nach oben!` });
+    }
+
+    try {
+        await targetMember.roles.add(targetRole, `Teamaufnahme durch Dashboard (${req.session.user.username})`);
+    } catch(e) {
+        return res.status(500).json({ error: 'Fehler beim Zuweisen der Rolle: ' + e.message });
+    }
+
+    const now = Date.now();
+    const days = parseInt(probationDays) || 14;
+    const probationEndAt = onProbation ? (now + days * 86400000) : null;
+    const gSettings = getGuildSettings(guild.id);
+    if (!gSettings.teamMembers) gSettings.teamMembers = {};
+
+    gSettings.teamMembers[targetMember.id] = {
+        userId: targetMember.id,
+        userTag: targetMember.user.tag || targetMember.user.username,
+        avatarUrl: targetMember.user.displayAvatarURL(),
+        roleId: targetRole.id,
+        roleName: targetRole.name,
+        position: position || targetRole.name,
+        addedBy: req.session.user.id,
+        addedByTag: req.session.user.username,
+        addedAt: now,
+        onProbation: !!onProbation,
+        probationDays: onProbation ? days : 0,
+        probationEndAt: probationEndAt,
+        probationStatus: onProbation ? 'active' : 'permanent',
+        notifiedOwner: false
+    };
+    saveCloudVaultToDisk();
+
+    let announceCh = channelId ? guild.channels.cache.get(channelId) : null;
+    if (!announceCh && gSettings.teamChannelId) announceCh = guild.channels.cache.get(gSettings.teamChannelId);
+    if (!announceCh) announceCh = guild.channels.cache.find(c => c.isTextBased() && (c.name.includes('team') || c.name.includes('intern') || c.name.includes('mod')));
+
+    if (announceCh && announceCh.permissionsFor(guild.members.me)?.has(PermissionFlagsBits.SendMessages)) {
+        const announceEmbed = new EmbedBuilder()
+            .setTitle('🎉 Neues Teammitglied!')
+            .setColor(onProbation ? 0xf59e0b : 0x10b981)
+            .setDescription(`Wir heißen <@${targetMember.id}> herzlich in unserem Team auf **${guild.name}** willkommen! 🚀`)
+            .addFields(
+                { name: '👤 Teammitglied', value: `<@${targetMember.id}> (${targetMember.user.tag})`, inline: true },
+                { name: '🛡️ Rang & Rolle', value: `**${position || targetRole.name}** (<@&${targetRole.id}>)`, inline: true },
+                { name: '⏳ Status', value: onProbation ? `🕒 **Auf Probezeit** (${days} Tage – bis <t:${Math.floor(probationEndAt / 1000)}:D>)` : '🌟 **Festes Teammitglied**', inline: false },
+                { name: '👑 Eingetragen via', value: `Web-Dashboard (${req.session.user.username})`, inline: true }
+            )
+            .setThumbnail(targetMember.user.displayAvatarURL())
+            .setFooter({ text: 'AeroGuard Team & Lifecycle Engine' })
+            .setTimestamp();
+        await announceCh.send({ embeds: [announceEmbed] }).catch(() => {});
+    }
+
+    res.json({ success: true, member: gSettings.teamMembers[targetMember.id] });
+});
+
+app.post('/api/guild/:guildId/team/:userId/eval', async (req, res) => {
+    if (!req.session.user) return res.status(401).json({ error: 'Nicht angemeldet' });
+    const perm = await getUserGuildPermission(req.session.user.id, req.params.guildId);
+    if (!perm.authorized && req.session.user.id !== OWNER_ID) {
+        return res.status(403).json({ error: 'Zugriff verweigert.' });
+    }
+
+    const guild = client.guilds.cache.get(req.params.guildId) || await client.guilds.fetch(req.params.guildId).catch(() => null);
+    if (!guild) return res.status(404).json({ error: 'Server nicht gefunden' });
+
+    const gSettings = getGuildSettings(guild.id);
+    const tm = gSettings.teamMembers ? gSettings.teamMembers[req.params.userId] : null;
+    if (!tm) return res.status(404).json({ error: 'Teammitglied nicht gefunden' });
+
+    const decision = req.body.decision;
+    const targetMember = await guild.members.fetch(req.params.userId).catch(() => null);
+
+    if (decision === 'pass') {
+        tm.probationStatus = 'passed';
+        tm.onProbation = false;
+        tm.evaluatedBy = req.session.user.id;
+        tm.evaluatedAt = Date.now();
+        saveCloudVaultToDisk();
+        if (targetMember) targetMember.send(`🎉 **Herzlichen Glückwunsch!** Deine Probezeit auf **${guild.name}** wurde durch die Leitung als **BESTANDEN** bewertet!`).catch(() => {});
+        return res.json({ success: true, message: 'Probezeit als bestanden markiert.', status: 'passed' });
+    } else if (decision === 'fail') {
+        tm.probationStatus = 'failed';
+        tm.onProbation = false;
+        tm.evaluatedBy = req.session.user.id;
+        tm.evaluatedAt = Date.now();
+        if (targetMember && tm.roleId) {
+            await targetMember.roles.remove(tm.roleId, 'Probezeit nicht bestanden (via Dashboard)').catch(() => {});
+        }
+        saveCloudVaultToDisk();
+        if (targetMember) targetMember.send(`ℹ️ Deine Probezeit auf **${guild.name}** wurde beendet.`).catch(() => {});
+        return res.json({ success: true, message: 'Probezeit als nicht bestanden markiert und Rolle entfernt.', status: 'failed' });
+    } else if (decision === 'extend') {
+        const addDays = parseInt(req.body.days) || 7;
+        tm.probationEndAt = Date.now() + addDays * 86400000;
+        tm.probationDays = (tm.probationDays || 14) + addDays;
+        tm.notifiedOwner = false;
+        saveCloudVaultToDisk();
+        if (targetMember) targetMember.send(`⏳ Deine Probezeit auf **${guild.name}** wurde um ${addDays} Tage verlängert.`).catch(() => {});
+        return res.json({ success: true, message: `Probezeit um ${addDays} Tage verlängert.`, status: 'active', probationEndAt: tm.probationEndAt });
+    }
+
+    res.status(400).json({ error: 'Ungültige Entscheidung' });
+});
+
+app.post('/api/guild/:guildId/team/:userId/remove', async (req, res) => {
+    if (!req.session.user) return res.status(401).json({ error: 'Nicht angemeldet' });
+    const perm = await getUserGuildPermission(req.session.user.id, req.params.guildId);
+    if (!perm.authorized && req.session.user.id !== OWNER_ID) {
+        return res.status(403).json({ error: 'Zugriff verweigert.' });
+    }
+
+    const guild = client.guilds.cache.get(req.params.guildId) || await client.guilds.fetch(req.params.guildId).catch(() => null);
+    if (!guild) return res.status(404).json({ error: 'Server nicht gefunden' });
+
+    const gSettings = getGuildSettings(guild.id);
+    const tm = gSettings.teamMembers ? gSettings.teamMembers[req.params.userId] : null;
+    if (tm) {
+        const targetMember = await guild.members.fetch(req.params.userId).catch(() => null);
+        if (targetMember && tm.roleId) {
+            await targetMember.roles.remove(tm.roleId, 'Teammitglied via Dashboard entfernt').catch(() => {});
+        }
+        delete gSettings.teamMembers[req.params.userId];
+        saveCloudVaultToDisk();
+    }
+
+    res.json({ success: true });
+});
+
 
 // =========================================================================
 // OFFIZIELLES IMPRESSUM & HOSTING-INFORMATIONEN (RENDER.COM)
