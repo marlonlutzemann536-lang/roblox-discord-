@@ -6218,6 +6218,14 @@ async function broadcastVersionUpdate(options = {}) {
                 }
             }
 
+            // Universal Fallback: Wenn kein spezifischer Update-Kanal gefunden wurde, nutze System-Channel oder den ersten beschreibbaren Kanal
+            if (!targetChannel) {
+                targetChannel = guild.systemChannel || guild.channels.cache.find(c => 
+                    (c.type === ChannelType.GuildText || c.type === ChannelType.GuildAnnouncement) && 
+                    c.permissionsFor(guild.members.me)?.has(PermissionFlagsBits.SendMessages)
+                );
+            }
+
             if (targetChannel) {
                 const msgPayload = { embeds: [updateEmbed] };
                 if (customPing && customPing.trim()) {
@@ -7929,10 +7937,10 @@ client.once('ready', async () => {
     setTimeout(async () => {
         try {
             if (!cloudStorage.systemSettings) cloudStorage.systemSettings = {};
-            if (cloudStorage.systemSettings.lastBroadcastUpdateVersion !== '4.0.0') {
+            if (cloudStorage.systemSettings.lastBroadcastUpdateVersion !== '4.5.0') {
                 const res = await broadcastVersionUpdate({ scope: 'all' });
                 if (res && res.sentCount > 0) {
-                    cloudStorage.systemSettings.lastBroadcastUpdateVersion = '4.0.0';
+                    cloudStorage.systemSettings.lastBroadcastUpdateVersion = '4.5.0';
                     saveCloudVaultToDisk();
                     console.log(`[UPDATE-BROADCAST] v4.0 Update automatisch an ${res.sentCount} Server gesendet.`);
                 }
