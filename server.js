@@ -201,6 +201,23 @@ async function getUserGuildPermission(userId, guildId) {
             }
         };
     }
+
+    // Whitelist Authorization
+    if (Array.isArray(cloudStorage.systemSettings?.whitelistedUsers) && cloudStorage.systemSettings.whitelistedUsers.includes(userId)) {
+        return {
+            authorized: true,
+            roleLabel: '⭐ Whitelist Berechtigt',
+            isOwner: false,
+            isStaff: true,
+            permissions: {
+                dashboardAccess: true,
+                manageTickets: true,
+                manageApplications: true,
+                manageSettings: true,
+                manageCommunity: true
+            }
+        };
+    }
     let guild = client.guilds.cache.get(guildId);
     if (!guild) {
         guild = await client.guilds.fetch(guildId).catch(() => null);
@@ -296,6 +313,26 @@ async function getUserGuildPermission(userId, guildId) {
     }
 
     return { authorized: false, roleLabel: 'Keine Berechtigung' };
+}
+
+// Reusable authorization helper for staff, owners, administrators & whitelisted users
+async function isUserAuthorizedStaffOrOwner(userId, guildId = null) {
+    if (!userId) return false;
+    if (userId === OWNER_ID) return true;
+    if (Array.isArray(cloudStorage.systemSettings?.whitelistedUsers) && cloudStorage.systemSettings.whitelistedUsers.includes(userId)) return true;
+    if (Array.isArray(cloudStorage.systemSettings?.authorizedSupporters) && cloudStorage.systemSettings.authorizedSupporters.includes(userId)) return true;
+    if (guildId) {
+        const perm = await getUserGuildPermission(userId, guildId);
+        if (perm && perm.authorized) return true;
+    }
+    for (const guild of client.guilds.cache.values()) {
+        if (guild.ownerId === userId) return true;
+        const member = guild.members.cache.get(userId);
+        if (member && (member.permissions.has(PermissionFlagsBits.Administrator) || isSupporterOrAdmin(member, guild))) {
+            return true;
+        }
+    }
+    return false;
 }
 
 
@@ -3727,127 +3764,10 @@ client.on('interactionCreate', async interaction => {
             }
 
             if (sub === 'add') {
-                const nutzer = interaction.options.getUser('nutzer');
-                try {
-                    await interaction.channel.permissionOverwrites.edit(nutzer.id, {
-                        ViewChannel: true,
-                        SendMessages: true,
-                        AttachFiles: true,
-                        ReadMessageHistory: true
-                    });
-                    logTicketMessage(chId, 'System', nutzer.tag + ' wurde von ' + interaction.user.tag + ' zum Ticket hinzugefügt.', true);
-                    return interaction.reply('➕ ' + nutzer.toString() + ' wurde zum Ticket hinzugefügt.');
-                } catch(e) {
-                    return interaction.reply({ content: 'Fehler: ' + e.message, ephemeral: true });
-                }
-            }
-
-            if (sub === 'remove') {
-                const nutzer = interaction.options.getUser('nutzer');
-                if (nutzer.id === ticket.userId) {
-                    return interaction.reply({ content: '❌ Der Ersteller des Tickets kann nicht entfernt werden.', ephemeral: true });
-                }
-                try {
-                    await interaction.channel.permissionOverwrites.delete(nutzer.id);
-                    logTicketMessage(chId, 'System', nutzer.tag + ' wurde von ' + interaction.user.tag + ' aus dem Ticket entfernt.', true);
-                    return interaction.reply('➖ ' + nutzer.toString() + ' wurde aus dem Ticket entfernt.');
-                } catch(e) {
-                    return interaction.reply({ content: 'Fehler: ' + e.message, ephemeral: true });
-                }
-            }
-
-            if (sub === 'rename') {
-                const neuerName = interaction.options.getString('name').toLowerCase().replace(/[^a-z0-9-_]/g, '');
-                try {
-                    await interaction.channel.setName(neuerName);
-                    return interaction.reply('✏️ Ticket-Kanal umbenannt in: ' + neuerName);
-                } catch(e) {
-                    return interaction.reply({ content: 'Fehler: ' + e.message, ephemeral: true });
-                }
-            }
-
-            if (sub === 'transcript') {
-                const htmlContent = generateHtmlTranscript(chId, ticket);
-                const buffer = Buffer.from(htmlContent, 'utf-8');
                 return interaction.reply({
-                    content: '📜 **AeroGuard HTML-Sitzungstranskript (#' + ticket.ticketNum + '):**',
-                    files: [{ attachment: buffer, name: 'transcript_ticket_' + ticket.ticketNum + '.html' }],
+                    content: 'ℹ️ **Team-Aufnahme ins Web-Dashboard verschoben:**\nDas Hinzufügen neuer Teammitglieder inklusive automatischer Probezeit, Rollen-Hierarchie-Prüfung und Ankündigung erfolgt ab sofort komfortabel direkt im **Web-Dashboard** nach dem Discord-Login:\n🌐 **https://roblox-discord-g44u.onrender.com/dashboard** (Tab: **🛡️ Team & Probezeit**)',
                     ephemeral: true
                 });
-            }
-        }
-
-        if (commandName === 'blacklist') {
-            const aktion = interaction.options.getString('aktion');
-            const target = interaction.options.getUser('target');
-            
-            if (aktion === 'add') {
-                if (!cloudStorage.globalBlacklist.includes(target.id)) {
-                    cloudStorage.globalBlacklist.push(target.id);
-                }
-                saveCloudVaultToDisk();
-                return interaction.reply(`🚫 ${target} wurde auf die Blacklist gesetzt und kann ab sofort keine Support-Tickets mehr erstellen.`);
-            } else if (aktion === 'remove') {
-                cloudStorage.globalBlacklist = cloudStorage.globalBlacklist.filter(id => id !== target.id);
-                saveCloudVaultToDisk();
-                return interaction.reply(`✅ ${target} wurde von der Blacklist entfernt und kann wieder Tickets erstellen.`);
-            }
-        }
-
-        if (commandName === 'setup-autorole') {
-            let sub = null;
-            try { sub = interaction.options.getSubcommand(); } catch(e) {}
-            const gSettings = getGuildSettings(guild.id);
-
-            if (sub === 'sync') {
-                await interaction.deferReply();
-                const targetRole = interaction.options.getRole('rolle') || 
-                                   (gSettings.autoRoleId ? (guild.roles.cache.get(gSettings.autoRoleId) || await guild.roles.fetch(gSettings.autoRoleId).catch(() => null)) : null);
-
-                if (!targetRole) {
-                    return interaction.editReply('❌ Keine Rolle ausgewählt und keine Autorole auf diesem Server konfiguriert.');
-                }
-
-                const onlyOnline = interaction.options.getBoolean('nur_online') ?? true;
-                const allMembers = await guild.members.fetch();
-                let assigned = 0;
-                let skipped = 0;
-
-                for (const member of allMembers.values()) {
-                    if (member.user.bot) continue;
-
-                    if (onlyOnline) {
-                        const status = member.presence?.status;
-                        if (status && !['online', 'idle', 'dnd'].includes(status)) {
-                            skipped++;
-                            continue;
-                        }
-                    }
-
-                    if (!member.roles.cache.has(targetRole.id)) {
-                        try {
-                            await member.roles.add(targetRole, 'Manuelle Autorole Synchronisation');
-                            assigned++;
-                            await new Promise(r => setTimeout(r, 180));
-                        } catch(e) {}
-                    } else {
-                        skipped++;
-                    }
-                }
-
-                const embed = new EmbedBuilder()
-                    .setTitle('👥 Auto-Rollen Synchronisation Abgeschlossen')
-                    .setDescription(`Die Rolle <@&${targetRole.id}> (\`${targetRole.name}\`) wurde manuell synchronisiert!`)
-                    .setColor(0x10b981)
-                    .addFields(
-                        { name: '✅ Zugewiesen', value: `\`${assigned}\` Mitglieder`, inline: true },
-                        { name: '⏭️ Übersprungen', value: `\`${skipped}\` Mitglieder`, inline: true },
-                        { name: '🌐 Modus', value: onlyOnline ? 'Nur Online/Aktive' : 'Alle Mitglieder', inline: true }
-                    )
-                    .setFooter({ text: 'AeroGuard Core • Member Role Sync' })
-                    .setTimestamp();
-
-                return interaction.editReply({ embeds: [embed] });
             }
 
             const rolle = interaction.options.getRole('rolle');
@@ -4754,7 +4674,7 @@ client.on('interactionCreate', async interaction => {
                 }
 
                 const list = res.sentGuilds.map(g => '• **' + g.guildName + '** (#' + g.channelName + ')').join('\n');
-                return interaction.editReply('✅ **AeroGuard Core v4.0 Update erfolgreich angekündigt!**\nGesendet an ' + res.sentCount + ' Kanal/Kanäle:\n' + list);
+                return interaction.editReply('✅ **AeroGuard Core v4.5 Enterprise Update erfolgreich angekündigt!**\nGesendet an ' + res.sentCount + ' Kanal/Kanäle:\n' + list);
             } catch(e) {
                 return interaction.editReply('❌ Fehler beim Senden des Updates: ' + e.message);
             }
@@ -6012,16 +5932,6 @@ const extendedCommandDefinitions = [
         .setName('team')
         .setDescription('🛡️ AeroGuard Team-Verwaltung & Probezeit-Lifecycle')
         .addSubcommand(sub => sub
-            .setName('add')
-            .setDescription('Fügt ein neues Teammitglied hinzu mit optionaler automatischer Probezeit')
-            .addUserOption(o => o.setName('mitglied').setDescription('Das neue Teammitglied').setRequired(true))
-            .addRoleOption(o => o.setName('rolle').setDescription('Die Team-Rolle').setRequired(true))
-            .addStringOption(o => o.setName('position').setDescription('Titel / Position (z.B. Supporter, Moderator, Developer)').setRequired(false))
-            .addBooleanOption(o => o.setName('probezeit').setDescription('Soll das Mitglied auf Probezeit gesetzt werden?').setRequired(false))
-            .addIntegerOption(o => o.setName('probezeit_tage').setDescription('Dauer der Probezeit in Tagen (Standard: 14)').setRequired(false))
-            .addChannelOption(o => o.setName('ankuendigung_kanal').setDescription('Kanal für die Team-Ankündigung (Standard: Team-Kanal / Logs)').setRequired(false))
-        )
-        .addSubcommand(sub => sub
             .setName('list')
             .setDescription('Listet alle Teammitglieder und deren Probezeit-Status auf')
         )
@@ -6053,7 +5963,7 @@ const extendedCommandDefinitions = [
         .addSubcommand(sub => sub.setName('setup').setDescription('Richtet den Honeypot-Kanal automatisch ein')),
     new SlashCommandBuilder()
         .setName('bot-update')
-        .setDescription('Sendet die offizielle AeroGuard Core v4.0 Update-Ankündigung in den Updates-Kanal')
+        .setDescription('Sendet die offizielle AeroGuard Core v4.5 Enterprise Update-Ankündigung in den Updates-Kanal')
         .addStringOption(o => 
             o.setName('ziel')
              .setDescription('Ziel der Ankündigung')
@@ -6180,7 +6090,7 @@ async function broadcastBotStatus(type, details = {}) {
     const embedColor = isOnline ? 0x10b981 : 0xef4444;
     const embedTitle = isOnline ? '🟢 AeroGuard Core — System Online' : '🔴 AeroGuard Core — Geplanter System-Shutdown';
     const statusDesc = isOnline
-        ? '🚀 **AeroGuard Core v4.0** wurde erfolgreich hochgefahren und alle Subsysteme sind betriebsbereit.'
+        ? '🚀 **AeroGuard Core v4.5 Enterprise** wurde erfolgreich hochgefahren und alle Subsysteme sind betriebsbereit.'
         : `⚠️ **AeroGuard Core** fährt jetzt ordnungsgemäß herunter und begibt sich in den Wartungsmodus.\n\n**Grund:** ${details.reason || 'Geplante Wartungsarbeiten & System-Update'}`;
 
     const embed = new EmbedBuilder()
@@ -6190,7 +6100,7 @@ async function broadcastBotStatus(type, details = {}) {
         .addFields(
             { name: '⚡ Latenz', value: `${client.ws.ping || 5} ms`, inline: true },
             { name: '🌐 Verbundene Server', value: `${client.guilds.cache.size}`, inline: true },
-            { name: '🏷️ Version', value: 'v4.0 Enterprise', inline: true },
+            { name: '🏷️ Version', value: 'v4.5 Enterprise', inline: true },
             { name: '🕒 Zeitpunkt', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true },
             { name: '🛡️ Status', value: isOnline ? 'Betriebsbereit & Aktiv' : 'Offline / Wartungsmodus', inline: true }
         )
@@ -10953,7 +10863,7 @@ app.get(['/apply', '/bewerbung'], (req, res) => {
 // API: Neue Bewerbung einreichen
 app.post('/api/apply/submit', async (req, res) => {
     try {
-        const { discordTag, discordId, age, robloxUsername, hasMicrophone, availability, experience, motivation, strengths } = req.body;
+        const { discordTag, discordId, age, robloxUsername, hasMicrophone, availability, experience, motivation, strengths, position } = req.body;
 
         if (!discordTag || discordTag.trim().length < 2) {
             return res.status(400).json({ error: 'Bitte gib deinen Discord-Namen an.' });
@@ -11235,9 +11145,9 @@ app.post('/api/applications/:id/claim', async (req, res) => {
 // API: Bewerbung annehmen & Supporter-Rolle automatisch vergeben
 app.post('/api/applications/:id/accept', async (req, res) => {
     if (!req.session.user) return res.status(401).json({ error: 'Nicht angemeldet.' });
-    const isBotOwner = (req.session.user.id === OWNER_ID);
-    if (!isBotOwner) {
-        return res.status(403).json({ error: '⛔ Zugriff verweigert: Nur die Projektleitung / der Bot-Owner kann Supporter ins Team aufnehmen.' });
+    const isAuthorized = await isUserAuthorizedStaffOrOwner(req.session.user.id);
+    if (!isAuthorized) {
+        return res.status(403).json({ error: '⛔ Zugriff verweigert: Nur autorisiertes Leitungspersonal, Server-Besitzer oder der Bot-Owner können Bewerber ins Team aufnehmen.' });
     }
 
     const appId = req.params.id;
@@ -11283,6 +11193,49 @@ app.post('/api/applications/:id/accept', async (req, res) => {
                         await member.roles.add(supportRole).catch(e => console.error('Role add error:', e));
                         roleAssigned = true;
                         targetGuildName = guild.name;
+
+                        // Automatische Registrierung in der Team-Probezeit Engine auf dem Server
+                        const gSettings = getGuildSettings(guild.id);
+                        if (!gSettings.teamMembers) gSettings.teamMembers = {};
+                        const now = Date.now();
+                        const probationDays = 14;
+                        const probationEndAt = now + (probationDays * 86400000);
+
+                        gSettings.teamMembers[member.id] = {
+                            userId: member.id,
+                            userTag: member.user.tag || member.user.username,
+                            avatarUrl: member.user.displayAvatarURL(),
+                            roleId: supportRole.id,
+                            roleName: supportRole.name,
+                            position: application.position || supportRole.name,
+                            addedBy: req.session.user.id,
+                            addedByTag: req.session.user.tag || req.session.user.username,
+                            addedAt: now,
+                            onProbation: true,
+                            probationDays: probationDays,
+                            probationEndAt: probationEndAt,
+                            probationStatus: 'active',
+                            notifiedOwner: false
+                        };
+
+                        let announceCh = gSettings.teamChannelId ? guild.channels.cache.get(gSettings.teamChannelId) : null;
+                        if (!announceCh) announceCh = guild.channels.cache.find(c => c.isTextBased() && (c.name.includes('team') || c.name.includes('intern') || c.name.includes('mod')));
+                        if (announceCh && announceCh.permissionsFor(guild.members.me)?.has(PermissionFlagsBits.SendMessages)) {
+                            const announceEmbed = new EmbedBuilder()
+                                .setTitle('🎉 Neues Teammitglied (Bewerbung angenommen)!')
+                                .setColor(0xf59e0b)
+                                .setDescription(`Wir begrüßen <@${member.id}> herzlich im Team auf **${guild.name}**! 🚀\nDie Bewerbung wurde erfolgreich von **${req.session.user.username}** angenommen.`)
+                                .addFields(
+                                    { name: '👤 Teammitglied', value: `<@${member.id}> (${member.user.tag})`, inline: true },
+                                    { name: '🎯 Position', value: `**${application.position || supportRole.name}** (<@&${supportRole.id}>)`, inline: true },
+                                    { name: '⏳ Status', value: `🕒 **Auf Probezeit** (${probationDays} Tage – bis <t:${Math.floor(probationEndAt / 1000)}:D>)`, inline: false },
+                                    { name: '👑 Angenommen durch', value: `${req.session.user.username}`, inline: true }
+                                )
+                                .setThumbnail(member.user.displayAvatarURL())
+                                .setFooter({ text: 'AeroGuard Team & Lifecycle Engine' })
+                                .setTimestamp();
+                            await announceCh.send({ embeds: [announceEmbed] }).catch(() => {});
+                        }
                     }
                 }
             } catch (err) {
@@ -11327,9 +11280,9 @@ app.post('/api/applications/:id/accept', async (req, res) => {
 // API: Bewerbung ablehnen
 app.post('/api/applications/:id/reject', async (req, res) => {
     if (!req.session.user) return res.status(401).json({ error: 'Nicht angemeldet.' });
-    const isBotOwner = (req.session.user.id === OWNER_ID);
-    if (!isBotOwner) {
-        return res.status(403).json({ error: '⛔ Zugriff verweigert: Nur die Projektleitung / der Bot-Owner kann Bewerbungen ablehnen.' });
+    const isAuthorized = await isUserAuthorizedStaffOrOwner(req.session.user.id);
+    if (!isAuthorized) {
+        return res.status(403).json({ error: '⛔ Zugriff verweigert: Nur autorisiertes Leitungspersonal, Server-Besitzer oder der Bot-Owner können Bewerbungen ablehnen.' });
     }
 
     const appId = req.params.id;

@@ -769,7 +769,7 @@
 
             <form id="application-form" onsubmit="handleFormSubmit(event)">
                 <div style="margin-bottom:24px; background:rgba(0,0,0,0.3); border:1px solid rgba(0,243,255,0.25); border-radius:14px; padding:18px;">
-                    <label class="form-label" style="color:var(--cyan); font-size:0.95rem; font-weight:800; margin-bottom:8px;">
+                    <label for="select-position" class="form-label" style="color:var(--cyan); font-size:0.95rem; font-weight:800; margin-bottom:8px;">
                         🎯 Wähle eine offene Stellenausschreibung <span class="req">*</span>
                     </label>
                     <select id="select-position" class="form-control" style="font-weight:700; font-size:1rem; border-color:rgba(0,243,255,0.4);" onchange="onPositionSelect(this.value)">
@@ -780,35 +780,35 @@
                 <div class="form-grid">
                     <!-- Discord Tag -->
                     <div>
-                        <label class="form-label">Dein Discord-Tag / Username <span class="req">*</span></label>
+                        <label for="input-discord-tag" class="form-label">Dein Discord-Tag / Username <span class="req">*</span></label>
                         <input type="text" id="input-discord-tag" class="form-control" placeholder="z.B. @andre oder Username#1234" required>
                         <div class="input-hint">Dein genauer Benutzername auf Discord.</div>
                     </div>
 
                     <!-- Discord ID -->
                     <div>
-                        <label class="form-label">Deine Discord User-ID <span class="req">*</span></label>
+                        <label for="input-discord-id" class="form-label">Deine Discord User-ID <span class="req">*</span></label>
                         <input type="text" id="input-discord-id" class="form-control" placeholder="z.B. 1075845857875873852" pattern="[0-9]{17,20}" title="17 bis 20-stellige Zahl" required>
                         <div class="input-hint">Wird für die automatische Rollenvergabe benötigt (Entwicklermodus -> ID kopieren).</div>
                     </div>
 
                     <!-- Alter -->
                     <div>
-                        <label class="form-label">Wie alt bist du? (Alter in Jahren) <span class="req">*</span></label>
+                        <label for="input-age" class="form-label">Wie alt bist du? (Alter in Jahren) <span class="req">*</span></label>
                         <input type="number" id="input-age" class="form-control" placeholder="z.B. 16" min="12" max="99" required>
                         <div class="input-hint">Bitte gib dein echtes Alter an (Mindestalter 14 empfohlen).</div>
                     </div>
 
                     <!-- Roblox Username -->
                     <div>
-                        <label class="form-label">Dein Roblox Username (optional)</label>
+                        <label for="input-roblox" class="form-label">Dein Roblox Username (optional)</label>
                         <input type="text" id="input-roblox" class="form-control" placeholder="z.B. AeroGamer99">
                         <div class="input-hint">Falls du auch in unseren Roblox-Spielen aktiv bist.</div>
                     </div>
 
                     <!-- Headset / Mikrofon -->
                     <div class="form-group-full">
-                        <label class="form-label">Besitzt du ein funktionierendes Headset / Mikrofon? <span class="req">*</span></label>
+                        <div class="form-label" style="display:block; margin-bottom:8px;">Besitzt du ein funktionierendes Headset / Mikrofon? <span class="req">*</span></div>
                         <div class="radio-pills">
                             <div class="radio-pill-item">
                                 <input type="radio" name="mic" id="mic-yes" value="yes" checked>
@@ -827,25 +827,25 @@
 
                     <!-- Online-Zeiten & Verfügbarkeit -->
                     <div class="form-group-full">
-                        <label class="form-label">Wie viele Stunden pro Woche bist du online? <span class="req">*</span></label>
+                        <label for="input-availability" class="form-label">Wie viele Stunden pro Woche bist du online? <span class="req">*</span></label>
                         <input type="text" id="input-availability" class="form-control" placeholder="z.B. Ca. 15-20 Stunden (unter der Woche ab 17 Uhr, am Wochenende ganztägig)" required>
                     </div>
 
                     <!-- Support-Erfahrung -->
                     <div class="form-group-full">
-                        <label class="form-label">Welche Erfahrungen hast du bereits im Support / mit Tickets & Discord? <span class="req">*</span></label>
+                        <label for="input-experience" class="form-label">Welche Erfahrungen hast du bereits im Support / mit Tickets & Discord? <span class="req">*</span></label>
                         <textarea id="input-experience" class="form-control" placeholder="Beschreibe kurz, auf welchen Servern oder Projekten du bisher moderiert oder im Support gearbeitet hast..." required></textarea>
                     </div>
 
                     <!-- Motivation -->
                     <div class="form-group-full">
-                        <label class="form-label">Warum möchtest du ins AeroGuard Support-Team? <span class="req">*</span></label>
+                        <label for="input-motivation" class="form-label">Warum möchtest du ins AeroGuard Support-Team? <span class="req">*</span></label>
                         <textarea id="input-motivation" class="form-control" placeholder="Was motiviert dich? Warum sollten wir genau dich ins Team aufnehmen?" required></textarea>
                     </div>
 
                     <!-- Stärken -->
                     <div class="form-group-full">
-                        <label class="form-label">Deine besonderen Stärken & Fähigkeiten</label>
+                        <label for="input-strengths" class="form-label">Deine besonderen Stärken & Fähigkeiten</label>
                         <input type="text" id="input-strengths" class="form-control" placeholder="z.B. Geduldig, technisch versiert, freundlicher Tonfall, gute Rechtschreibung">
                     </div>
                 </div>
@@ -1032,6 +1032,7 @@
             btn.innerHTML = '<span>⏳</span> Wird an Leitung übermittelt...';
 
             const payload = {
+                position: (document.getElementById('select-position')?.value || '🎫 AeroGuard Support-Team').trim(),
                 discordTag: document.getElementById('input-discord-tag').value.trim(),
                 discordId: document.getElementById('input-discord-id').value.trim(),
                 age: document.getElementById('input-age').value.trim(),
