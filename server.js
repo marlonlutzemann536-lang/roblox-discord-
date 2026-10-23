@@ -1,103 +1,5 @@
 function getDefaultApplications() {
-    return {
-        "APP-DEMO-01": {
-            "id": "APP-DEMO-01",
-            "secretToken": "demo_token_123456",
-            "applicantTag": "MaxMustermann#1234",
-            "applicantId": "1075845857875873852",
-            "applicantAvatar": null,
-            "age": 16,
-            "robloxUsername": "MaxPlayz_DE",
-            "hasMicrophone": true,
-            "position": "🎫 AeroGuard Supporter / Ticket-Support",
-            "availability": "Ca. 15-20 Stunden pro Woche (unter der Woche ab 17 Uhr, am Wochenende ganztägig)",
-            "experience": "1 Jahr Erfahrung als Discord-Supporter auf einem 800-Member Server, kenne Ticket-Tools und Roblox Ingame-Support.",
-            "motivation": "Ich nutze AeroGuard schon länger und möchte das Projekt aktiv unterstützen und anderen Spielern bei Fragen helfen.",
-            "strengths": "Sehr geduldig, hilfsbereit, technisches Verständnis für Bots und Roblox.",
-            "status": "pending",
-            "claimedBy": null,
-            "claimedAt": null,
-            "submittedAt": Date.now() - 3600000,
-            "updatedAt": Date.now() - 3600000,
-            "decisionReason": "",
-            "messages": [
-                {
-                    "id": "msg_welcome",
-                    "senderType": "bot",
-                    "senderName": "🤖 AeroGuard System",
-                    "timestamp": Date.now() - 3600000,
-                    "text": "Bewerbung erfolgreich eingereicht! Unser Team wird deine Angaben sorgfältig prüfen."
-                }
-            ]
-        },
-        "APP-DEMO-02": {
-            "id": "APP-DEMO-02",
-            "secretToken": "demo_token_654321",
-            "applicantTag": "JulianDev#9999",
-            "applicantId": "823948293849203948",
-            "applicantAvatar": null,
-            "age": 17,
-            "robloxUsername": "Julian_Aero",
-            "hasMicrophone": true,
-            "position": "🛡️ Discord Moderator / Staff-Team",
-            "availability": "Täglich ab 16 Uhr online (ca. 20 Stunden/Woche)",
-            "experience": "Moderator auf 2 größeren Gaming-Communitys, vertraut mit Timeouts und Streit-Schlichtung.",
-            "motivation": "Ich möchte für Recht und Ordnung in den Chats und Sprachräumen sorgen und das Team bei Regelverstößen entlasten.",
-            "strengths": "Ruhig in Konfliktsituationen, durchsetzungsfähig und fair.",
-            "status": "in_review",
-            "claimedBy": { "id": "1075845857875873852", "tag": "2003marlonl" },
-            "claimedAt": Date.now() - 1800000,
-            "submittedAt": Date.now() - 7200000,
-            "updatedAt": Date.now() - 1800000,
-            "decisionReason": "",
-            "messages": [
-                {
-                    "id": "msg_julian_1",
-                    "senderType": "bot",
-                    "senderName": "🤖 AeroGuard System",
-                    "timestamp": Date.now() - 7200000,
-                    "text": "Bewerbung eingereicht für Discord Moderator."
-                },
-                {
-                    "id": "msg_julian_2",
-                    "senderType": "staff",
-                    "senderName": "2003marlonl (Leitung)",
-                    "timestamp": Date.now() - 1800000,
-                    "text": "Hey Julian! Wann hättest du heute Zeit für ein kurzes Kennenlernen im Voice?"
-                }
-            ]
-        },
-        "APP-DEMO-03": {
-            "id": "APP-DEMO-03",
-            "secretToken": "demo_token_777888",
-            "applicantTag": "Sarah_Roblox#2024",
-            "applicantId": "912837465019283746",
-            "applicantAvatar": null,
-            "age": 15,
-            "robloxUsername": "SarahStar",
-            "hasMicrophone": true,
-            "position": "🎫 AeroGuard Supporter / Ticket-Support",
-            "availability": "Freitags und am Wochenende ca. 10-15 Stunden",
-            "experience": "Erfahrung im Ticket-Support auf Roblox-Fan-Servern, kenne mich mit AeroGuard-Befehlen aus.",
-            "motivation": "Ich möchte neuen Spielern auf dem Server helfen und ein freundliches Gesicht für das Projekt sein.",
-            "strengths": "Sehr freundlich, hilfsbereit und aktiv.",
-            "status": "pending",
-            "claimedBy": null,
-            "claimedAt": null,
-            "submittedAt": Date.now() - 900000,
-            "updatedAt": Date.now() - 900000,
-            "decisionReason": "",
-            "messages": [
-                {
-                    "id": "msg_sarah_1",
-                    "senderType": "bot",
-                    "senderName": "🤖 AeroGuard System",
-                    "timestamp": Date.now() - 900000,
-                    "text": "Bewerbung erfolgreich über das Portal übermittelt."
-                }
-            ]
-        }
-    };
+    return {};
 }
 
 // =========================================================================
@@ -420,7 +322,8 @@ function getGuildSettings(guildId) {
                 levelSystem: true,
                 robloxHub: true,
                 lockdown: false,
-                logging: true
+                logging: true,
+                recruitment: true
             },
             ticketCategoryId: null,
             supportRoleId: null,
@@ -1613,7 +1516,7 @@ async function sendModLogSnapshot(guild, offender, reason, originChannel) {
 // CHAT-AUTOMOD, ANTI-RAID & ANTI-SPAM
 // =========================================================================
 // =========================================================================
-// 🍯 HONEYPOT & SOCIAL ALERTS ENGINE (v4.0)
+// 🍯 HONEYPOT & SOCIAL ALERTS ENGINE (v5.0)
 // =========================================================================
 async function handleHoneypotTrigger(message, honeypot, gSettings) {
     const author = message.author;
@@ -1674,7 +1577,7 @@ async function handleHoneypotTrigger(message, honeypot, gSettings) {
             const trapEmbed = new EmbedBuilder()
                 .setTitle('🍯 SICHERHEITS-ALARM: HONEYPOT-FALLE AUSGELÖST!')
                 .setColor(0xff0055)
-                .setDescription(`Ein verdächtiger Nutzer oder Bot hat im gesicherten Fallenkanal <#${message.channel.id}> geschrieben und wurde vom **AeroGuard Core v4.0** Schutzschild neutralisiert.`)
+                .setDescription(`Ein verdächtiger Nutzer oder Bot hat im gesicherten Fallenkanal <#${message.channel.id}> geschrieben und wurde vom **AeroGuard Core v5.0 Enterprise** Schutzschild neutralisiert.`)
                 .addFields(
                     { name: '👤 Verdächtiger', value: `${author} (${author.tag} • ID: \`${author.id}\`)`, inline: true },
                     { name: '📅 Account-Alter', value: `${accountAgeDays} Tage alt`, inline: true },
@@ -1682,7 +1585,7 @@ async function handleHoneypotTrigger(message, honeypot, gSettings) {
                     { name: '📝 Abgefangene Nachricht', value: '```\n' + rawContent.substring(0, 500) + '\n```' }
                 )
                 .setThumbnail(author.displayAvatarURL({ dynamic: true }))
-                .setFooter({ text: 'AeroGuard Security Core v4.0 • Anti-Raid System' })
+                .setFooter({ text: 'AeroGuard Security Core v5.0 • Anti-Raid System' })
                 .setTimestamp();
 
             await modChan.send({ embeds: [trapEmbed] }).catch(() => {});
@@ -1793,7 +1696,7 @@ async function sendSocialAlert(guild, creator, options = {}) {
             { name: '⏰ Status', value: options.isTest ? '🧪 Test-Alarm' : '🔴 Jetzt aktiv', inline: true }
         )
         .setImage(sampleBanner)
-        .setFooter({ text: `AeroGuard Social Alerts v4.0 • ${guild.name}`, iconURL: guild.iconURL() })
+        .setFooter({ text: `AeroGuard Social Alerts v5.0 • ${guild.name}`, iconURL: guild.iconURL() })
         .setTimestamp();
 
     if (options.avatarUrl) {
@@ -1831,7 +1734,7 @@ client.on('messageCreate', async message => {
         }
     }
 
-    // 🍯 1. HONEYPOT ANTI-RAID & BOT-TRAP CHECK (v4.0)
+    // 🍯 1. HONEYPOT ANTI-RAID & BOT-TRAP CHECK (v5.0)
     // Läuft vor allen anderen Filtern, damit auch Fremd-Bots zuverlässig in die Falle tappen!
     if (message.guild && message.channel) {
         // Niemals auf eigene Bot-Nachrichten reagieren
@@ -2789,7 +2692,7 @@ client.on('interactionCreate', async interaction => {
             : ticketSystemConfig.categories;
         const selectedCat = categories.find(c => c.id === catId); 
         const catLabel = selectedCat ? selectedCat.label : "Support";
-        // ROBLOX GATEWAY VERIFICATION MODE (OPTIONAL vs CATEGORY vs GLOBAL - v4.0)
+        // ROBLOX GATEWAY VERIFICATION MODE (OPTIONAL vs CATEGORY vs GLOBAL - v5.0)
         const rbxSettings = gSettings.roblox || {};
         const vMode = rbxSettings.verificationMode || (rbxSettings.requireVerificationGlobal ? 'global' : 'optional');
         let requireRoblox = false;
@@ -2878,7 +2781,7 @@ client.on('interactionCreate', async interaction => {
         return await interaction.showModal(verifyModal);
     }
 
-    // MODAL SUBMIT: Roblox Account Verification via Real API (v4.0 mit Auto-Rolle & Nickname-Sync)
+    // MODAL SUBMIT: Roblox Account Verification via Real API (v5.0 mit Auto-Rolle & Nickname-Sync)
     if (interaction.isModalSubmit() && interaction.customId.startsWith('modal_rbx_link_')) {
         await interaction.deferReply({ ephemeral: true });
         const parts = interaction.customId.split('_');
@@ -4573,7 +4476,7 @@ client.on('interactionCreate', async interaction => {
                     .setTitle('🍯 Honeypot Anti-Raid Sicherheitsstatus')
                     .setDescription(isActive ? ('🟢 **Aktiviert**\nFallen-Kanal: <#' + honeypot.channelId + '>\nSanktion: ' + b + (honeypot.punishment || 'ban') + b) : '🔴 **Inaktiv** (Kein Fallen-Kanal eingerichtet)')
                     .setColor(isActive ? 0x10b981 : 0xef4444)
-                    .setFooter({ text: 'AeroGuard Security Core v4.0' });
+                    .setFooter({ text: 'AeroGuard Security Core v5.0' });
                 return interaction.reply({ embeds: [statusEmbed], ephemeral: true });
             }
 
@@ -4617,7 +4520,7 @@ client.on('interactionCreate', async interaction => {
 
                     // Offizielles Warn-Embed in den Fallen-Kanal projizieren
                     const trapBannerEmbed = new EmbedBuilder()
-                        .setTitle('🍯 AeroGuard Core v4.0 • Anti-Raid Sicherheits-Falle')
+                        .setTitle('🍯 AeroGuard Core v5.0 Enterprise • Anti-Raid Sicherheits-Falle')
                         .setColor(0xf59e0b)
                         .setDescription(
                             '⚠️ **ACHTUNG: DIESER KANAL IST EINE BOT-FALLE!**\n\n' +
@@ -4671,7 +4574,7 @@ client.on('interactionCreate', async interaction => {
                 }
 
                 const list = res.sentGuilds.map(g => '• **' + g.guildName + '** (#' + g.channelName + ')').join('\n');
-                return interaction.editReply('✅ **AeroGuard Core v4.5 Enterprise Update erfolgreich angekündigt!**\nGesendet an ' + res.sentCount + ' Kanal/Kanäle:\n' + list);
+                return interaction.editReply('✅ **AeroGuard Core v5.0 Enterprise Update erfolgreich angekündigt!**\nGesendet an ' + res.sentCount + ' Kanal/Kanäle:\n' + list);
             } catch(e) {
                 return interaction.editReply('❌ Fehler beim Senden des Updates: ' + e.message);
             }
@@ -5960,7 +5863,7 @@ const extendedCommandDefinitions = [
         .addSubcommand(sub => sub.setName('setup').setDescription('Richtet den Honeypot-Kanal automatisch ein')),
     new SlashCommandBuilder()
         .setName('bot-update')
-        .setDescription('Sendet die offizielle AeroGuard Core v4.5 Enterprise Update-Ankündigung in den Updates-Kanal')
+        .setDescription('Sendet die offizielle AeroGuard Core v5.0 Enterprise Update-Ankündigung in den Updates-Kanal')
         .addStringOption(o => 
             o.setName('ziel')
              .setDescription('Ziel der Ankündigung')
@@ -6087,7 +5990,7 @@ async function broadcastBotStatus(type, details = {}) {
     const embedColor = isOnline ? 0x10b981 : 0xef4444;
     const embedTitle = isOnline ? '🟢 AeroGuard Core — System Online' : '🔴 AeroGuard Core — Geplanter System-Shutdown';
     const statusDesc = isOnline
-        ? '🚀 **AeroGuard Core v4.5 Enterprise** wurde erfolgreich hochgefahren und alle Subsysteme sind betriebsbereit.'
+        ? '🚀 **AeroGuard Core v5.0 Enterprise** wurde erfolgreich hochgefahren und alle Subsysteme sind betriebsbereit.'
         : `⚠️ **AeroGuard Core** fährt jetzt ordnungsgemäß herunter und begibt sich in den Wartungsmodus.\n\n**Grund:** ${details.reason || 'Geplante Wartungsarbeiten & System-Update'}`;
 
     const embed = new EmbedBuilder()
@@ -6097,7 +6000,7 @@ async function broadcastBotStatus(type, details = {}) {
         .addFields(
             { name: '⚡ Latenz', value: `${client.ws.ping || 5} ms`, inline: true },
             { name: '🌐 Verbundene Server', value: `${client.guilds.cache.size}`, inline: true },
-            { name: '🏷️ Version', value: 'v4.5 Enterprise', inline: true },
+            { name: '🏷️ Version', value: 'v5.0 Enterprise', inline: true },
             { name: '🕒 Zeitpunkt', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true },
             { name: '🛡️ Status', value: isOnline ? 'Betriebsbereit & Aktiv' : 'Offline / Wartungsmodus', inline: true }
         )
@@ -6135,7 +6038,7 @@ async function broadcastBotStatus(type, details = {}) {
 }
 
 // =========================================================================
-// AEROGUARD CORE v4.0: BOT UPDATE & CHANGELOG BROADCAST ENGINE
+// AEROGUARD CORE v5.0: BOT UPDATE & CHANGELOG BROADCAST ENGINE
 // =========================================================================
 async function broadcastVersionUpdate(options = {}) {
     const targetScope = options.scope || 'all'; // 'all', 'official', or 'this_server'
@@ -6143,10 +6046,10 @@ async function broadcastVersionUpdate(options = {}) {
     const customPing = options.ping || ''; // e.g. '@everyone' or '@here' or role mention
 
     const updateEmbed = new EmbedBuilder()
-        .setTitle('🚀 AeroGuard Core v4.5 Enterprise — Multi-Guild & Owner Suite ist LIVE!')
+        .setTitle('🚀 AeroGuard Core v5.0 Enterprise — Multi-Guild & Owner Suite ist LIVE!')
         .setColor(0x00f3ff)
         .setDescription(
-            'Das offizielle Update **AeroGuard Core v4.5 Enterprise** wurde erfolgreich ausgerollt! 🎉\n\n' +
+            'Das offizielle Update **AeroGuard Core v5.0 Enterprise** wurde erfolgreich ausgerollt! 🎉\n\n' +
             'Dieses Update bringt vollständige Multi-Guild Isolierung für den öffentlichen Einsatz, die brandneue Web-Dashboard Owner-Zentrale, automatische Kanal-Kategorisierung sowie das interaktive `/team add` Probezeit-Lifecycle System.'
         )
         .addFields(
@@ -6191,7 +6094,7 @@ async function broadcastVersionUpdate(options = {}) {
                     '📋 [Bewerbungsportal](https://roblox-discord-g44u.onrender.com/apply)'
             }
         )
-        .setFooter({ text: 'AeroGuard Core v4.5 Enterprise • Offizielle Update-Benachrichtigung' })
+        .setFooter({ text: 'AeroGuard Core v5.0 Enterprise • Offizielle Update-Benachrichtigung' })
         .setTimestamp();
 
 
@@ -6280,7 +6183,7 @@ async function broadcastVersionUpdate(options = {}) {
                 await targetChannel.send(msgPayload);
                 sentCount++;
                 sentGuilds.push({ guildId: guild.id, guildName: guild.name, channelName: targetChannel.name });
-                addLog('info', `Update-Ankündigung v4.0 erfolgreich in #${targetChannel.name} auf ${guild.name} gesendet.`, 'UpdateBroadcast');
+                addLog('info', `Update-Ankündigung v5.0 erfolgreich in #${targetChannel.name} auf ${guild.name} gesendet.`, 'UpdateBroadcast');
             }
         } catch(err) {
             console.error(`[UPDATE-BROADCAST] Fehler beim Senden an ${guild.name}:`, err.message);
@@ -6830,11 +6733,11 @@ async function applyServerTemplate(guild, templateId) {
 
 
 // =========================================================================
-// 👑 ROOT OWNER: OFFIZIELLER AEROGUARD SUPPORT-SERVER VOLL-AUTOMATISIERT (v4.0)
+// 👑 ROOT OWNER: OFFIZIELLER AEROGUARD SUPPORT-SERVER VOLL-AUTOMATISIERT (v5.0)
 // =========================================================================
 
 // =========================================================================
-// 👑 ROOT OWNER: ROLLEN-UPDATER & BEREINIGUNGS-SYSTEM (v4.0)
+// 👑 ROOT OWNER: ROLLEN-UPDATER & BEREINIGUNGS-SYSTEM (v5.0)
 // =========================================================================
 async function cleanupAndUpdateServerRoles(guild, requestingUserId) {
     if (requestingUserId !== OWNER_ID) {
@@ -7876,7 +7779,7 @@ async function checkTeamProbations() {
 
 
 // =========================================================================
-// VOICE-SUPPORT & WARTERAUM AUTOMATION ENGINE (v4.0)
+// VOICE-SUPPORT & WARTERAUM AUTOMATION ENGINE (v5.0)
 // =========================================================================
 client.on('voiceStateUpdate', async (oldState, newState) => {
     try {
@@ -7995,7 +7898,7 @@ client.once('ready', async () => {
                 if (res && res.sentCount > 0) {
                     cloudStorage.systemSettings.lastBroadcastUpdateVersion = '4.5.0';
                     saveCloudVaultToDisk();
-                    console.log(`[UPDATE-BROADCAST] v4.5 Enterprise Update automatisch an ${res.sentCount} Server gesendet.`);
+                    console.log(`[UPDATE-BROADCAST] v5.0 Enterprise Update automatisch an ${res.sentCount} Server gesendet.`);
                 }
             }
         } catch(e) {
@@ -8377,7 +8280,7 @@ app.post('/api/guild/:guildId/setup-honeypot', async (req, res) => {
 
             // Warnung im Fallenkanal posten
             const trapBannerEmbed = new EmbedBuilder()
-                .setTitle('🍯 AeroGuard Core v4.0 • Anti-Raid Sicherheits-Falle')
+                .setTitle('🍯 AeroGuard Core v5.0 Enterprise • Anti-Raid Sicherheits-Falle')
                 .setColor(0xf59e0b)
                 .setDescription(
                     '⚠️ **ACHTUNG: DIESER KANAL IST EINE BOT-FALLE!**\n\n' +
@@ -8721,7 +8624,7 @@ app.get('/transcript/:ticketId', (req, res) => {
 // ROUTE: PUBLIC LANDING PAGE (/)
 // =========================================================================
 // =========================================================================
-// ROUTE: PUBLIC LANDING PAGE (/) - AEROGUARD CORE v4.0 ENTERPRISE
+// ROUTE: PUBLIC LANDING PAGE (/) - AEROGUARD CORE v5.0 ENTERPRISE
 // =========================================================================
 app.get('/', (req, res) => {
     const user = req.session.user;
@@ -8740,8 +8643,8 @@ app.get('/', (req, res) => {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AeroGuard Core v4.0 — High-End Discord & Roblox Suite</title>
-    <meta name="description" content="AeroGuard Core v4.0: Die ultimative Enterprise Discord & Roblox Suite mit flexibler Roblox-Verifizierung, Streamer Social Hub (Twitch, YouTube, TikTok), Honeypot Anti-Raid Schutzschild und Ticketsystem 2.0.">
+    <title>AeroGuard Core v5.0 Enterprise — High-End Discord & Roblox Suite</title>
+    <meta name="description" content="AeroGuard Core v5.0 Enterprise: Die ultimative Enterprise Discord & Roblox Suite mit flexibler Roblox-Verifizierung, Streamer Social Hub (Twitch, YouTube, TikTok), Honeypot Anti-Raid Schutzschild und Ticketsystem 2.0.">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -8974,13 +8877,13 @@ app.get('/', (req, res) => {
                 <div>
                     <div class="brand-title">
                         AEROGUARD <span style="color:var(--cyan)">CORE</span>
-                        <span class="badge-v4">v4.0</span>
+                        <span class="badge-v4">v5.0</span>
                     </div>
                 </div>
             </a>
             
             <div class="nav-links">
-                <a href="#v4-update" class="nav-link nav-link-highlight">🚀 v4.0 Neuheiten</a>
+                <a href="#v4-update" class="nav-link nav-link-highlight">🚀 v5.0 Neuheiten</a>
                 <a href="#features" class="nav-link">Features</a>
                 <a href="#telemetry" class="nav-link">Status</a>
                 <a href="/apply" class="nav-link" style="color:var(--green);font-weight:700;">📝 Jetzt Bewerben</a>
@@ -8995,13 +8898,13 @@ app.get('/', (req, res) => {
         <section class="hero">
             <div class="hero-badge">
                 <div class="pulse-dot"></div>
-                <span>🚀 JETZT LIVE: AEROGUARD CORE v4.0 ENTERPRISE SUITE</span>
+                <span>🚀 JETZT LIVE: AEROGUARD CORE v5.0 ENTERPRISE SUITE</span>
             </div>
             <h1 class="hero-title">
                 Sicherer Support, Creator-Hub & Anti-Raid Schutz für <span>deine Community</span>.
             </h1>
             <p class="hero-desc">
-                AeroGuard Core v4.0 vereint flexibles Roblox-Gatekeeping ohne Ticket-Blockaden, einen brandneuen Multi-Plattform Streamer-Hub (Twitch, YouTube, TikTok), ein unbarmherziges Honeypot-Schutzschild gegen Raid-Bots und professionelle 24/7 Enterprise-Automation.
+                AeroGuard Core v5.0 Enterprise vereint flexibles Roblox-Gatekeeping ohne Ticket-Blockaden, einen brandneuen Multi-Plattform Streamer-Hub (Twitch, YouTube, TikTok), ein unbarmherziges Honeypot-Schutzschild gegen Raid-Bots und professionelle 24/7 Enterprise-Automation.
             </p>
             <div class="hero-actions">
                 <a href="${inviteUrl}" target="_blank" class="btn-cta-primary">
@@ -9011,7 +8914,7 @@ app.get('/', (req, res) => {
                     📊 Web-Dashboard öffnen
                 </a>
                 <a href="#v4-update" class="btn-cta-highlight">
-                    ✨ Was ist neu in v4.0?
+                    ✨ Was ist neu in v5.0?
                 </a>
             </div>
         </section>
@@ -9038,19 +8941,19 @@ app.get('/', (req, res) => {
             </div>
             <div class="telemetry-item">
                 <div class="tel-label">Core Version</div>
-                <div class="tel-val" style="color:var(--cyan); font-size:1.6rem;">v4.0 <span style="font-size:0.85rem;color:var(--purple);font-weight:700;">PRO</span></div>
+                <div class="tel-val" style="color:var(--cyan); font-size:1.6rem;">v5.0 <span style="font-size:0.85rem;color:var(--purple);font-weight:700;">PRO</span></div>
             </div>
         </div>
 
         <!-- ========================================================================= -->
-        <!-- 🚀 WAS IST NEU IN AEROGUARD CORE v4.0? (HAUPT-SPOTLIGHT) -->
+        <!-- 🚀 WAS IST NEU IN AEROGUARD CORE v5.0? (HAUPT-SPOTLIGHT) -->
         <!-- ========================================================================= -->
         <section id="v4-update" style="margin-bottom:80px; scroll-margin-top: 100px;">
             <div class="section-headline">
                 <div class="hero-badge" style="margin-bottom:12px;">
                     <span>🌟 MAJOR UPDATE HIGHLIGHTS</span>
                 </div>
-                <h2>🚀 Was ist neu in AeroGuard Core v4.0?</h2>
+                <h2>🚀 Was ist neu in AeroGuard Core v5.0 Enterprise?</h2>
                 <p>
                     Vier bahnbrechende Kern-Features für maximale Flexibilität, Creator-Reichweite und kompromisslose Server-Sicherheit.
                 </p>
@@ -9177,22 +9080,22 @@ app.get('/', (req, res) => {
                     </div>
                 </div>
 
-                <!-- FEATURE 4: CORE V4.0 ARCHITECTURE -->
+                <!-- FEATURE 4: CORE v5.0 ARCHITECTURE -->
                 <div class="v4-card v4-card-enterprise">
                     <div>
                         <div class="v4-card-header">
                             <span class="v4-icon">🏷️</span>
                             <span class="v4-pill v4-pill-cyan">ENTERPRISE CORE</span>
                         </div>
-                        <h3 class="v4-title">4. Versions-Upgrade auf v4.0 Enterprise</h3>
+                        <h3 class="v4-title">4. Versions-Upgrade auf v5.0 Enterprise</h3>
                         <p class="v4-desc">
-                            Das gesamte Fundament von AeroGuard Core läuft nun auf der hochmodernen <strong>v4.0 Enterprise Engine</strong>. Maximale Uptime, blitzschnelle Latenzen und Render.com Cloud-Integration.
+                            Das gesamte Fundament von AeroGuard Core läuft nun auf der hochmodernen <strong>v5.0 Enterprise Engine</strong>. Maximale Uptime, blitzschnelle Latenzen und Render.com Cloud-Integration.
                         </p>
                         
                         <ul style="color:#cbd5e1; font-size:0.88rem; list-style:none; padding:0; display:flex; flex-direction:column; gap:10px; margin-bottom:20px;">
                             <li style="display:flex; gap:10px; align-items:flex-start;">
                                 <span style="color:var(--cyan);">💠</span>
-                                <div><strong style="color:#fff;">Cyberpunk v4.0 Badge & UI:</strong> Komplett veredelter Dashboard-Header mit High-Speed Navigations-Tabs.</div>
+                                <div><strong style="color:#fff;">Cyberpunk v5.0 Badge & UI:</strong> Komplett veredelter Dashboard-Header mit High-Speed Navigations-Tabs.</div>
                             </li>
                             <li style="display:flex; gap:10px; align-items:flex-start;">
                                 <span style="color:var(--cyan);">💾</span>
@@ -9327,18 +9230,18 @@ app.get('/', (req, res) => {
                 <div class="feature-card">
                     <div class="feature-card-header">
                         <div class="feature-icon">🎫</div>
-                        <span class="badge-new-v4" style="background:rgba(16, 185, 129, 0.15); color:#10b981; border-color:rgba(16, 185, 129, 0.4);">UPGRADED v4.0</span>
+                        <span class="badge-new-v4" style="background:rgba(16, 185, 129, 0.15); color:#10b981; border-color:rgba(16, 185, 129, 0.4);">UPGRADED v5.0</span>
                     </div>
                     <div class="feature-title">Kanal-Ticketsystem 2.0</div>
                     <div class="feature-desc">
-                        Keine unübersichtlichen DMs mehr! Nutzer öffnen per Modal ein Ticket in einem privaten Kanal. Neu in v4.0: Völlig flexibler Roblox-Zwang – keine blockierten Tickets mehr!
+                        Keine unübersichtlichen DMs mehr! Nutzer öffnen per Modal ein Ticket in einem privaten Kanal. Neu in v5.0: Völlig flexibler Roblox-Zwang – keine blockierten Tickets mehr!
                     </div>
                 </div>
 
                 <div class="feature-card">
                     <div class="feature-card-header">
                         <div class="feature-icon">📡</div>
-                        <span class="badge-new-v4">NEU IN v4.0</span>
+                        <span class="badge-new-v4">NEU IN v5.0</span>
                     </div>
                     <div class="feature-title">Streamer & Creator Social Hub</div>
                     <div class="feature-desc">
@@ -9348,7 +9251,7 @@ app.get('/', (req, res) => {
 
                 <div class="feature-card">
                     <div class="feature-icon">🍯</div>
-                    <span class="badge-new-v4" style="background:rgba(245, 158, 11, 0.15); color:#f59e0b; border-color:rgba(245, 158, 11, 0.4);">NEU IN v4.0</span>
+                    <span class="badge-new-v4" style="background:rgba(245, 158, 11, 0.15); color:#f59e0b; border-color:rgba(245, 158, 11, 0.4);">NEU IN v5.0</span>
                 </div>
                 <div class="feature-title">Honeypot Anti-Raid Schutzschild</div>
                 <div class="feature-desc">
@@ -9357,7 +9260,7 @@ app.get('/', (req, res) => {
 
                 <div class="feature-card">
                     <div class="feature-icon">🎮</div>
-                    <span class="badge-new-v4" style="background:rgba(16, 185, 129, 0.15); color:#10b981; border-color:rgba(16, 185, 129, 0.4);">UPGRADED v4.0</span>
+                    <span class="badge-new-v4" style="background:rgba(16, 185, 129, 0.15); color:#10b981; border-color:rgba(16, 185, 129, 0.4);">UPGRADED v5.0</span>
                 </div>
                 <div class="feature-title">Roblox 3-Modus Gateway</div>
                 <div class="feature-desc">
@@ -9450,7 +9353,7 @@ app.get('/', (req, res) => {
         <footer>
             <div class="footer-badge">
                 <span class="brand-icon" style="width:28px;height:28px;font-size:0.9rem;border-radius:8px;display:inline-flex;">AG</span>
-                <span>AeroGuard Core Enterprise v4.0</span> • Entwickelt für maximale Sicherheit & Performance
+                <span>AeroGuard Core Enterprise v5.0</span> • Entwickelt für maximale Sicherheit & Performance
             </div>
             <div style="margin: 20px 0; display: flex; justify-content: center; gap: 14px; flex-wrap: wrap;">
                 <a href="/impressum" class="btn-impressum-badge" style="display: inline-flex; align-items: center; gap: 8px; background: rgba(0, 243, 255, 0.08); border: 1px solid rgba(0, 243, 255, 0.4); color: #00f3ff; text-decoration: none; padding: 11px 24px; border-radius: 12px; font-weight: 800; font-size: 0.95rem; box-shadow: 0 0 20px rgba(0, 243, 255, 0.2); transition: all 0.3s ease;">
@@ -9860,7 +9763,7 @@ app.get('/dashboard', async (req, res) => {
 
 
 // =========================================================================
-// API: SERVER TEMPLATES & BOT LIFECYCLE CONTROLS (v4.0)
+// API: SERVER TEMPLATES & BOT LIFECYCLE CONTROLS (v5.0)
 // =========================================================================
 app.get('/api/templates', (req, res) => {
     if (!req.session.user) return res.status(401).json({ error: 'Nicht angemeldet' });
@@ -10666,12 +10569,85 @@ app.get(['/impressum', '/legal', '/hosting'], (req, res) => {
 });
 
 // =========================================================================
-// STELLENAUSSCHREIBUNGEN & KI-STELLENGENERATOR (v4.0)
+// STELLENAUSSCHREIBUNGEN & KI-STELLENGENERATOR (v5.0)
 // =========================================================================
 
+
+// =========================================================================
+// PUBLIC MULTI-GUILD RECRUITING & APPLY API (v5.0)
+// =========================================================================
+app.get('/api/guild/:guildId/apply-info', async (req, res) => {
+    try {
+        const guildId = req.params.guildId;
+        let guild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+        if (!guild) {
+            return res.status(404).json({ success: false, error: 'Discord-Server nicht gefunden oder Bot ist nicht auf diesem Server.' });
+        }
+
+        const gSettings = getGuildSettings(guild.id);
+        const isModuleActive = (gSettings.modules?.recruitment !== false);
+
+        let guildJobs = Object.values(cloudStorage.jobPostings || {})
+            .filter(j => (j.guildId === guild.id || (!j.guildId && j.active !== false)) && j.active !== false)
+            .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+        if (guildJobs.length === 0) {
+            guildJobs = [
+                {
+                    id: 'job_default_support_' + guild.id,
+                    guildId: guild.id,
+                    title: '🎫 Support-Team / Ticket-Moderator',
+                    category: 'Support',
+                    description: 'Unterstütze die Community von ' + guild.name + '! Bearbeite Support-Tickets und helfe Mitgliedern freundlich und zuverlässig weiter.',
+                    requirements: '• Mindestalter 14+ Jahre\n• Freundlicher und hilfsbereiter Tonfall\n• Zuverlässigkeit & regelmäßige Aktivität',
+                    tasks: '• Beantwortung von User-Anfragen & Tickets\n• Unterstützung der Server-Leitung',
+                    perks: '• Team-Rolle auf dem Discord-Server\n• Zugriff auf interne Staff-Kanäle',
+                    targetRole: '🎫 Support-Team',
+                    active: true
+                }
+            ];
+        }
+
+        res.json({
+            success: true,
+            guild: {
+                id: guild.id,
+                name: guild.name,
+                icon: guild.iconURL() || '',
+                memberCount: guild.memberCount,
+                recruitmentEnabled: isModuleActive,
+                customDescription: gSettings.recruitment?.customDescription || ('Offizielles Bewerbungsportal für ' + guild.name)
+            },
+            jobPostings: guildJobs
+        });
+    } catch(err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+app.get('/api/public/guilds-recruiting', (req, res) => {
+    const list = [];
+    for (const guild of client.guilds.cache.values()) {
+        const gSettings = getGuildSettings(guild.id);
+        if (gSettings.modules?.recruitment !== false) {
+            list.push({
+                id: guild.id,
+                name: guild.name,
+                icon: guild.iconURL() || '',
+                memberCount: guild.memberCount
+            });
+        }
+    }
+    res.json({ success: true, guilds: list });
+});
 // API: Alle Stellen abrufen (Öffentlich für /apply und Dashboard)
 app.get('/api/job-postings', (req, res) => {
-    const list = Object.values(cloudStorage.jobPostings || {}).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    const guildId = req.query.guildId || null;
+    let list = Object.values(cloudStorage.jobPostings || {});
+    if (guildId) {
+        list = list.filter(j => j.guildId === guildId || (!j.guildId && j.active !== false));
+    }
+    list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
     res.json({ success: true, jobPostings: list });
 });
 
@@ -10744,22 +10720,24 @@ app.post('/api/job-postings/ai-generate', async (req, res) => {
 });
 
 // API: Stellenausschreibung bearbeiten / aktualisieren (Owner Exklusiv)
-app.post('/api/job-postings/:id/update', (req, res) => {
-    if (!req.session.user || req.session.user.id !== OWNER_ID) {
-        return res.status(403).json({ error: '⛔ Zugriff verweigert: Nur der Bot-Besitzer kann Ausschreibungen bearbeiten.' });
-    }
-
+app.post('/api/job-postings/:id/update', async (req, res) => {
+    if (!req.session.user) return res.status(401).json({ error: 'Nicht angemeldet.' });
     const jobId = req.params.id;
     if (!cloudStorage.jobPostings || !cloudStorage.jobPostings[jobId]) {
         return res.status(404).json({ error: 'Ausschreibung nicht gefunden.' });
     }
 
-    const { title, category, description, requirements, tasks, perks, targetRole, active } = req.body;
+    const job = cloudStorage.jobPostings[jobId];
+    const isAuthorized = await isUserAuthorizedStaffOrOwner(req.session.user.id, job.guildId);
+    if (!isAuthorized) {
+        return res.status(403).json({ error: '⛔ Zugriff verweigert: Du benötigst Leitungs- oder Administratorrechte für diesen Server.' });
+    }
+
+    const { title, category, description, requirements, tasks, perks, targetRole, targetRoleId, active } = req.body;
     if (!title || title.trim().length < 3) {
         return res.status(400).json({ error: 'Bitte gib einen aussagekräftigen Titel an.' });
     }
 
-    const job = cloudStorage.jobPostings[jobId];
     job.title = title.trim();
     if (category !== undefined) job.category = category.trim();
     if (description !== undefined) job.description = description.trim();
@@ -10767,6 +10745,7 @@ app.post('/api/job-postings/:id/update', (req, res) => {
     if (tasks !== undefined) job.tasks = tasks.trim();
     if (perks !== undefined) job.perks = perks.trim();
     if (targetRole !== undefined) job.targetRole = targetRole.trim();
+    if (targetRoleId !== undefined) job.targetRoleId = targetRoleId ? String(targetRoleId).trim() : null;
     if (active !== undefined) job.active = Boolean(active);
     job.updatedAt = Date.now();
 
@@ -10777,12 +10756,15 @@ app.post('/api/job-postings/:id/update', (req, res) => {
 });
 
 // API: Neue Stellenausschreibung erstellen (Owner Exklusiv)
-app.post('/api/job-postings/create', (req, res) => {
-    if (!req.session.user || req.session.user.id !== OWNER_ID) {
-        return res.status(403).json({ error: '⛔ Zugriff verweigert: Nur der Bot-Besitzer kann Ausschreibungen erstellen.' });
+app.post('/api/job-postings/create', async (req, res) => {
+    if (!req.session.user) return res.status(401).json({ error: 'Nicht angemeldet.' });
+    const { title, category, description, requirements, tasks, perks, targetRole, targetRoleId, guildId, active } = req.body;
+
+    const isAuthorized = await isUserAuthorizedStaffOrOwner(req.session.user.id, guildId);
+    if (!isAuthorized) {
+        return res.status(403).json({ error: '⛔ Zugriff verweigert: Du benötigst Leitungs- oder Administratorrechte für diesen Server.' });
     }
 
-    const { title, category, description, requirements, tasks, perks, targetRole, active } = req.body;
     if (!title || title.trim().length < 3) {
         return res.status(400).json({ error: 'Bitte gib einen aussagekräftigen Titel an.' });
     }
@@ -10792,12 +10774,14 @@ app.post('/api/job-postings/create', (req, res) => {
     const jobId = 'job_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 5);
     const newJob = {
         id: jobId,
+        guildId: (guildId && String(guildId).trim()) || null,
         title: title.trim(),
         category: (category || 'Support').trim(),
         description: (description || '').trim(),
         requirements: (requirements || '').trim(),
         tasks: (tasks || '').trim(),
         perks: (perks || '').trim(),
+        targetRoleId: (targetRoleId && String(targetRoleId).trim()) || null,
         targetRole: (targetRole || '🎫 AeroGuard Support-Team').trim(),
         active: active !== false,
         createdAt: Date.now()
@@ -10805,7 +10789,7 @@ app.post('/api/job-postings/create', (req, res) => {
 
     cloudStorage.jobPostings[jobId] = newJob;
     saveCloudVaultToDisk();
-    addLog('info', `Neue Stellenausschreibung erstellt: ${newJob.title} (${jobId})`);
+    addLog('info', `Neue Stellenausschreibung erstellt: ${newJob.title} (${jobId}) für Server ${guildId || 'Global'}`);
 
     res.json({ success: true, jobPosting: newJob, message: 'Stellenausschreibung erfolgreich veröffentlicht!' });
 });
@@ -10860,7 +10844,7 @@ app.get(['/apply', '/bewerbung'], (req, res) => {
 // API: Neue Bewerbung einreichen
 app.post('/api/apply/submit', async (req, res) => {
     try {
-        const { discordTag, discordId, age, robloxUsername, hasMicrophone, availability, experience, motivation, strengths, position } = req.body;
+        const { discordTag, discordId, age, robloxUsername, hasMicrophone, availability, experience, motivation, strengths, position, guildId } = req.body;
 
         if (!discordTag || discordTag.trim().length < 2) {
             return res.status(400).json({ error: 'Bitte gib deinen Discord-Namen an.' });
@@ -10876,6 +10860,12 @@ app.post('/api/apply/submit', async (req, res) => {
             return res.status(400).json({ error: 'Bitte beschreibe deine Motivation ausführlicher (mindestens 10 Zeichen).' });
         }
 
+        const targetGuildId = (guildId && String(guildId).trim()) || null;
+        let targetGuild = targetGuildId ? (client.guilds.cache.get(targetGuildId) || await client.guilds.fetch(targetGuildId).catch(() => null)) : null;
+        if (!targetGuild && client.guilds.cache.size > 0) {
+            targetGuild = client.guilds.cache.get(OFFICIAL_SUPPORT_GUILD_ID) || client.guilds.cache.first();
+        }
+
         const crypto = require('crypto');
         const appId = 'APP-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
         const secretToken = crypto.randomBytes(16).toString('hex');
@@ -10885,18 +10875,20 @@ app.post('/api/apply/submit', async (req, res) => {
         const newApplication = {
             id: appId,
             secretToken: secretToken,
+            guildId: targetGuild ? targetGuild.id : null,
+            guildName: targetGuild ? targetGuild.name : 'AeroGuard Matrix',
             applicantTag: discordTag.trim(),
             applicantId: (discordId && /^\d{17,20}$/.test(discordId.trim())) ? discordId.trim() : null,
             applicantAvatar: null,
             age: parsedAge,
             robloxUsername: (robloxUsername || '').trim(),
             hasMicrophone: !!hasMicrophone,
-            position: '🎫 AeroGuard Support-Team',
+            position: (position && String(position).trim()) || '🎫 Support-Team',
             availability: (availability || 'Flexibel').trim(),
             experience: experience.trim(),
             motivation: motivation.trim(),
             strengths: (strengths || '').trim(),
-            status: 'pending', // 'pending' | 'in_review' | 'accepted' | 'rejected'
+            status: 'pending',
             claimedBy: null,
             claimedAt: null,
             submittedAt: Date.now(),
@@ -10908,12 +10900,11 @@ app.post('/api/apply/submit', async (req, res) => {
                     senderType: 'bot',
                     senderName: '🤖 AeroGuard System',
                     timestamp: Date.now(),
-                    text: 'Okay, ich habe deine Bewerbung jetzt an die zuständige Ebene weitergeleitet! Unser Team wird deine Angaben sorgfältig prüfen.'
+                    text: 'Okay, ich habe deine Bewerbung jetzt an die Leitung von ' + (targetGuild ? targetGuild.name : 'unserem Team') + ' weitergeleitet! Unser Team wird deine Angaben sorgfältig prüfen.'
                 }
             ]
         };
 
-        // If applicant is logged in via session, link avatar
         if (req.session.applicantUser?.avatar) {
             newApplication.applicantAvatar = getDiscordAvatarUrl(req.session.applicantUser);
             if (!newApplication.applicantId) newApplication.applicantId = req.session.applicantUser.id;
@@ -10924,14 +10915,14 @@ app.post('/api/apply/submit', async (req, res) => {
 
         cloudStorage.activeApplications[appId] = newApplication;
         saveCloudVaultToDisk();
-        addLog('info', `Neue Team-Bewerbung eingereicht: ${newApplication.applicantTag} (${appId})`);
+        addLog('info', `Neue Team-Bewerbung eingereicht: ${newApplication.applicantTag} (${appId}) für Server: ${newApplication.guildName}`);
 
-        // Notification to Staff / Owner on Discord
+        // Notification to Staff on target guild
         try {
             const notifEmbed = new EmbedBuilder()
-                .setTitle('📝 Neue Bewerbung: AeroGuard Support-Team')
+                .setTitle('📝 Neue Bewerbung: ' + newApplication.position)
                 .setColor(0x00f3ff)
-                .setDescription('Ein Nutzer hat sich soeben über das Webpanel für das **AeroGuard Support-Team** beworben!')
+                .setDescription('Ein Nutzer hat sich soeben über das Webpanel für **' + newApplication.position + '** auf **' + newApplication.guildName + '** beworben!')
                 .addFields(
                     { name: '👤 Bewerber', value: `${newApplication.applicantTag} ${newApplication.applicantId ? '(<@' + newApplication.applicantId + '>)' : ''}`, inline: true },
                     { name: '🎂 Alter', value: `${newApplication.age} Jahre`, inline: true },
@@ -10940,44 +10931,42 @@ app.post('/api/apply/submit', async (req, res) => {
                     { name: '⏱️ Onlinezeiten', value: newApplication.availability, inline: true },
                     { name: '💡 Motivation', value: newApplication.motivation.substring(0, 300) + (newApplication.motivation.length > 300 ? '...' : '') }
                 )
-                .setFooter({ text: `Bewerbungs-ID: ${appId} • AeroGuard Recruitment` })
+                .setFooter({ text: `Bewerbungs-ID: ${appId} • AeroGuard Recruitment (v5.0)` })
                 .setTimestamp();
 
             const row = new ActionRowBuilder().addComponents(
                 new ButtonBuilder()
-                    .setLabel('📝 Im Dashboard ansehen & übernehmen')
+                    .setLabel('🔍 Im Dashboard prüfen')
                     .setStyle(ButtonStyle.Link)
-                    .setURL('https://roblox-discord-g44u.onrender.com/dashboard')
+                    .setURL(process.env.DASHBOARD_URL || 'https://roblox-discord-g44u.onrender.com/dashboard')
             );
 
-            // Post to staff/mod channels on bot guilds
-            for (const guild of client.guilds.cache.values()) {
-                const staffCh = guild.channels.cache.find(c => 
-                    c.isTextBased() && (c.name.includes('staff') || c.name.includes('team') || c.name.includes('mod-log') || c.name.includes('leitung'))
-                );
-                if (staffCh) {
-                    await staffCh.send({ embeds: [notifEmbed], components: [row] }).catch(() => {});
+            if (targetGuild) {
+                const gSettings = getGuildSettings(targetGuild.id);
+                let targetChannel = gSettings.teamChannelId ? targetGuild.channels.cache.get(gSettings.teamChannelId) : null;
+                if (!targetChannel && gSettings.logging?.modLogChannelId) {
+                    targetChannel = targetGuild.channels.cache.get(gSettings.logging.modLogChannelId);
+                }
+                if (!targetChannel) {
+                    targetChannel = targetGuild.channels.cache.find(c => c.isTextBased() && (c.name.includes('team') || c.name.includes('intern') || c.name.includes('bewerbung') || c.name.includes('mod') || c.name.includes('log')));
+                }
+                if (targetChannel && targetChannel.permissionsFor(targetGuild.members.me)?.has(PermissionFlagsBits.SendMessages)) {
+                    await targetChannel.send({ embeds: [notifEmbed], components: [row] }).catch(() => {});
                 }
             }
-
-            // Also DM the Bot Owner
-            const owner = await client.users.fetch(OWNER_ID).catch(() => null);
-            if (owner) {
-                await owner.send({ embeds: [notifEmbed], components: [row] }).catch(() => {});
-            }
         } catch (notifErr) {
-            console.error('Error sending staff notification:', notifErr.message);
+            console.error('Could not send application notification embed to Discord channel:', notifErr);
         }
 
         res.json({
             success: true,
             appId: appId,
             secretToken: secretToken,
-            message: 'Okay, ich habe deine Bewerbung jetzt an die zuständige Ebene weitergeleitet! Unser Team wird deine Angaben sorgfältig prüfen.'
+            message: 'Deine Bewerbung wurde erfolgreich übermittelt!'
         });
     } catch (err) {
-        console.error('Submit application error:', err);
-        res.status(500).json({ error: 'Serverfehler beim Einreichen: ' + err.message });
+        console.error('Application submit error:', err);
+        res.status(500).json({ error: 'Serverfehler beim Einreichen der Bewerbung: ' + err.message });
     }
 });
 
@@ -11080,7 +11069,7 @@ app.post('/api/apply/:id/message', async (req, res) => {
 });
 
 // =========================================================================
-// MANAGEMENT API: BEWERBUNGEN ÜBERNEHMEN, ANNEHMEN & ABLEHNEN (v4.0)
+// MANAGEMENT API: BEWERBUNGEN ÜBERNEHMEN, ANNEHMEN & ABLEHNEN (v5.0)
 // =========================================================================
 
 // API: Alle Bewerbungen abrufen (Nur eingeloggte Staff)
@@ -11167,20 +11156,50 @@ app.post('/api/applications/:id/accept', async (req, res) => {
     let roleAssigned = false;
     let targetGuildName = '';
 
-    // Assign role on Discord guilds
+    // Assign role on Discord guilds (Prioritize server-specific guildId & targetRoleId)
     if (application.applicantId) {
-        for (const guild of client.guilds.cache.values()) {
+        const targetGuilds = [];
+        if (application.guildId && client.guilds.cache.has(application.guildId)) {
+            targetGuilds.push(client.guilds.cache.get(application.guildId));
+        } else {
+            targetGuilds.push(...client.guilds.cache.values());
+        }
+
+        // Determine configured role from job posting or application
+        let targetRoleId = application.targetRoleId;
+        let targetRoleName = application.targetRole;
+        if ((!targetRoleId || !targetRoleName) && cloudStorage.jobPostings) {
+            const matchedJob = Object.values(cloudStorage.jobPostings).find(j => 
+                (application.jobId && j.id === application.jobId) || 
+                (j.title === application.position)
+            );
+            if (matchedJob) {
+                if (!targetRoleId && matchedJob.targetRoleId) targetRoleId = matchedJob.targetRoleId;
+                if (!targetRoleName && matchedJob.targetRole) targetRoleName = matchedJob.targetRole;
+            }
+        }
+
+        for (const guild of targetGuilds) {
             try {
                 const member = await guild.members.fetch(application.applicantId).catch(() => null);
                 if (member) {
-                    let supportRole = guild.roles.cache.find(r => 
-                        r.name === '🎫 AeroGuard Support-Team' || 
-                        r.name.toLowerCase().includes('support-team') ||
-                        r.name.toLowerCase().includes('supporter')
-                    );
+                    let supportRole = null;
+                    if (targetRoleId) {
+                        supportRole = guild.roles.cache.get(targetRoleId);
+                    }
+                    if (!supportRole && targetRoleName) {
+                        supportRole = guild.roles.cache.find(r => r.name.toLowerCase() === targetRoleName.toLowerCase());
+                    }
+                    if (!supportRole) {
+                        supportRole = guild.roles.cache.find(r => 
+                            r.name === '🎫 AeroGuard Support-Team' || 
+                            r.name.toLowerCase().includes('support-team') ||
+                            r.name.toLowerCase().includes('supporter')
+                        );
+                    }
                     if (!supportRole) {
                         supportRole = await guild.roles.create({
-                            name: '🎫 AeroGuard Support-Team',
+                            name: targetRoleName || '🎫 AeroGuard Support-Team',
                             color: 0x00f3ff,
                             hoist: true,
                             reason: 'AeroGuard Automatisches Bewerbungssystem'
@@ -11215,8 +11234,9 @@ app.post('/api/applications/:id/accept', async (req, res) => {
                             notifiedOwner: false
                         };
 
-                        let announceCh = gSettings.teamChannelId ? guild.channels.cache.get(gSettings.teamChannelId) : null;
-                        if (!announceCh) announceCh = guild.channels.cache.find(c => c.isTextBased() && (c.name.includes('team') || c.name.includes('intern') || c.name.includes('mod')));
+                        let announceCh = gSettings.recruitmentChannelId ? guild.channels.cache.get(gSettings.recruitmentChannelId) : null;
+                        if (!announceCh && gSettings.teamChannelId) announceCh = guild.channels.cache.get(gSettings.teamChannelId);
+                        if (!announceCh) announceCh = guild.channels.cache.find(c => c.isTextBased() && (c.name.includes('team') || c.name.includes('intern') || c.name.includes('mod') || c.name.includes('bewerbung')));
                         if (announceCh && announceCh.permissionsFor(guild.members.me)?.has(PermissionFlagsBits.SendMessages)) {
                             const announceEmbed = new EmbedBuilder()
                                 .setTitle('🎉 Neues Teammitglied (Bewerbung angenommen)!')

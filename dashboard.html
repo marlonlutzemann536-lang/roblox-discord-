@@ -304,8 +304,8 @@
             <div class="header-left">
                 <div class="logo-box">🛡️</div>
                                 <div>
-                    <div class="logo-title">AeroGuard Core <span style="font-size:0.68rem; background:linear-gradient(135deg, #00f3ff, #bf5af2); color:#000; font-weight:800; padding:2px 8px; border-radius:12px; vertical-align:middle; margin-left:8px; box-shadow:0 0 10px rgba(0,243,255,0.4);">v4.5</span></div>
-                    <div class="logo-subtitle">Enterprise Multi-Guild & Owner Suite v4.5</div>
+                    <div class="logo-title">AeroGuard Core <span style="font-size:0.68rem; background:linear-gradient(135deg, #00f3ff, #bf5af2); color:#000; font-weight:800; padding:2px 8px; border-radius:12px; vertical-align:middle; margin-left:8px; box-shadow:0 0 10px rgba(0,243,255,0.4);">v5.0</span></div>
+                    <div class="logo-subtitle">Enterprise Multi-Guild & Owner Suite v5.0</div>
                 </div>
 
             </div>
@@ -434,7 +434,7 @@
             </div>
 
             <!-- ============================================================= -->
-            <!-- 🚀 V4.0 FEATURE-SPOTLIGHT & ENTERPRISE UPGRADE -->
+            <!-- 🚀 v5.0 FEATURE-SPOTLIGHT & ENTERPRISE UPGRADE -->
             <!-- ============================================================= -->
             <div style="background: linear-gradient(135deg, rgba(13, 20, 38, 0.95), rgba(20, 26, 48, 0.95)); border: 1px solid rgba(0, 243, 255, 0.35); border-radius: 18px; padding: 26px 28px; margin-bottom: 28px; box-shadow: 0 0 35px rgba(0, 243, 255, 0.12); position: relative; overflow: hidden;">
                 <div style="position: absolute; top: -30px; right: -30px; width: 140px; height: 140px; background: radial-gradient(circle, rgba(0,243,255,0.18), transparent 70%); border-radius: 50%; pointer-events: none;"></div>
@@ -461,7 +461,7 @@
                 </div>
 
                 <p style="color: #94a3b8; font-size: 0.95rem; line-height: 1.6; margin-bottom: 22px; max-width: 950px;">
-                    Willkommen im zentralen Steuerungs-Hub von <strong>AeroGuard Core v4.0 Enterprise</strong>! Dein Bot wurde mit drei mächtigen neuen Systemen aufgerüstet: Der flexible 3-Modus Roblox-Gatekeeper (ohne Ticket-Blockaden), der Multi-Plattform Social Alerts Hub (Twitch, YouTube, TikTok) und das unbarmherzige Honeypot Anti-Raid Schutzschild.
+                    Willkommen im zentralen Steuerungs-Hub von <strong>AeroGuard Core v5.0 Enterprise</strong>! Dein Bot wurde mit drei mächtigen neuen Systemen aufgerüstet: Der flexible 3-Modus Roblox-Gatekeeper (ohne Ticket-Blockaden), der Multi-Plattform Social Alerts Hub (Twitch, YouTube, TikTok) und das unbarmherzige Honeypot Anti-Raid Schutzschild.
                 </p>
 
                 <!-- 3 HIGHLIGHT FEATURE CARDS -->
@@ -701,6 +701,20 @@
                     </div>
                 </div>
 
+                <!-- MODULE 14: RECRUITING & BEWERBUNGSSYSTEM -->
+                <div class="feature-card" onclick="openModuleModal('recruitment')">
+                    <div class="feature-card-header">
+                        <div class="feature-icon-wrapper" style="color:var(--cyan);">📝</div>
+                        <span id="badge-mod-recruitment" class="feature-badge-active badge-on">● Aktiv</span>
+                    </div>
+                    <div class="feature-title">Bewerbungssystem & Recruiting Matrix</div>
+                    <div class="feature-desc">Vollautomatisches Multi-Server Bewerbungsportal. Jeder Server besitzt seine eigene Bewerbungsseite, Job-Ausschreibungen, Discord-Rollenvergabe & automatische Team-Probezeit.</div>
+                    <div class="feature-card-footer">
+                        <span class="feature-subtext">Eigener Bewerbungslink & Rollen</span>
+                        <button type="button" class="btn-configure">⚙️ Konfigurieren</button>
+                    </div>
+                </div>
+
         </div>
 
         <!-- TAB 2: LIVE-TICKETS -->
@@ -792,7 +806,25 @@
                     </div>
                 </div>
 
-                <div id="applications-cards-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:18px; margin-top:20px;">
+                <!-- SERVER SHARE BANNER APPS -->
+                <div id="applications-share-banner" style="background: linear-gradient(135deg, rgba(0, 243, 255, 0.08), rgba(157, 78, 221, 0.12)); border: 1px solid rgba(0, 243, 255, 0.35); border-radius: 14px; padding: 14px 18px; margin-top: 14px; margin-bottom: 10px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px;">
+                    <div>
+                        <div style="font-size: 0.84rem; font-weight: 800; color: var(--cyan); text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 8px;">
+                            <span>🔗</span> Öffentlicher Bewerbungslink dieses Servers
+                        </div>
+                        <div style="font-size: 0.78rem; color: #cbd5e1; margin-top: 2px;">
+                            Alle über diesen Link eingehenden Bewerbungen landen direkt in dieser Verwaltung.
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                        <input type="text" readonly id="recruitment-direct-url-apps" value="" style="background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.15); color: #fff; padding: 6px 10px; border-radius: 8px; font-family: monospace; font-size: 0.8rem; min-width: 280px; outline: none;">
+                        <button type="button" onclick="copyDirectRecruitmentLink()" class="btn btn-secondary" style="font-size: 0.78rem; padding: 6px 12px; white-space: nowrap;">
+                            📋 Link kopieren
+                        </button>
+                    </div>
+                </div>
+
+                <div id="applications-cards-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:18px; margin-top:14px;">
                     <!-- Dynamically populated cards -->
                 </div>
             </div>
@@ -815,6 +847,27 @@
                         <button type="button" onclick="openJobPostingModal()" style="background: linear-gradient(135deg, #f59e0b, #d97706) !important; color: #000 !important; font-weight: 800; font-size: 0.95rem; padding: 12px 24px; border-radius: 12px; border: none; cursor: pointer; box-shadow: 0 0 25px rgba(245,158,11,0.5); display: inline-flex; align-items: center; gap: 10px; transition: all 0.25s ease;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 0 35px rgba(245,158,11,0.7)';" onmouseout="this.style.transform='none'; this.style.boxShadow='0 0 25px rgba(245,158,11,0.5)';">
                             <span style="font-size:1.1rem;">➕</span> Neue Stelle ausschreiben
                         </button>
+                    </div>
+                </div>
+
+                <!-- SERVER SHARE BANNER -->
+                <div id="jobpostings-share-banner" style="background: linear-gradient(135deg, rgba(0, 243, 255, 0.08), rgba(157, 78, 221, 0.12)); border: 1px solid rgba(0, 243, 255, 0.35); border-radius: 14px; padding: 16px 20px; margin-top: 18px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 14px;">
+                    <div>
+                        <div style="font-size: 0.88rem; font-weight: 800; color: var(--cyan); text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 8px;">
+                            <span>🔗</span> Dein exklusiver Server-Bewerbungslink
+                        </div>
+                        <div style="font-size: 0.82rem; color: #cbd5e1; margin-top: 4px;">
+                            Teile diesen Link auf Discord, Roblox oder YouTube. Bewerber sehen nur die Ausschreibungen dieses Servers!
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                        <input type="text" readonly id="recruitment-direct-url" value="" style="background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.15); color: #fff; padding: 8px 12px; border-radius: 8px; font-family: monospace; font-size: 0.82rem; min-width: 310px; outline: none;">
+                        <button type="button" onclick="copyDirectRecruitmentLink()" class="btn btn-secondary" style="font-size: 0.82rem; padding: 8px 14px; white-space: nowrap;">
+                            📋 Link kopieren
+                        </button>
+                        <a id="recruitment-direct-preview-btn" href="/apply" target="_blank" class="btn btn-secondary" style="font-size: 0.82rem; padding: 8px 14px; text-decoration: none; white-space: nowrap;">
+                            👁️ Seite ansehen
+                        </a>
                     </div>
                 </div>
 
@@ -989,7 +1042,7 @@
                             🔄 Bot neu starten
                         </button>
                         <button type="button" class="btn-primary" onclick="triggerUpdateAnnouncement()" style="background:linear-gradient(135deg, #00f3ff, #0284c7); color:#000; font-weight:800;">
-                            📢 v4.5 Update ankündigen
+                            📢 v5.0 Update ankündigen
                         </button>
                     </div>
                 </div>
@@ -1225,9 +1278,18 @@
                     </div>
 
                     <div style="margin-bottom:14px;">
-                        <label class="form-label" style="display:block; font-size:0.82rem; font-weight:700; margin-bottom:6px;">Ziel-Rolle bei Annahme (Discord)</label>
-                        <input type="text" id="job-target-role" class="search-box" style="width:100%; margin:0;" value="🎫 AeroGuard Support-Team">
-                        <div style="font-size:0.72rem; color:var(--text-dim); margin-top:4px;">Diese Rolle wird dem Bewerber automatisch auf Discord zugewiesen, wenn du die Bewerbung annimmst.</div>
+                        <label class="form-label" style="display:block; font-size:0.82rem; font-weight:700; margin-bottom:6px;">🎯 Discord-Zielrolle bei Annahme</label>
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                            <div>
+                                <select id="job-target-roleid" class="server-dropdown-picker" style="width:100%; margin:0;" onchange="syncSelectedRoleName(this)">
+                                    <option value="">-- Discord-Rolle auswählen --</option>
+                                </select>
+                            </div>
+                            <div>
+                                <input type="text" id="job-target-role" class="search-box" style="width:100%; margin:0;" placeholder="Rollenname" value="🎫 AeroGuard Support-Team">
+                            </div>
+                        </div>
+                        <div style="font-size:0.72rem; color:var(--text-dim); margin-top:4px;">Diese Discord-Rolle wird dem Bewerber automatisch zugewiesen, sobald du die Bewerbung annimmst.</div>
                     </div>
 
                     <div style="margin-bottom:14px;">
@@ -1382,6 +1444,9 @@
             }
 
                         updateModuleBadges();
+            updateRecruitmentLinkBanner();
+            refreshApplicationsFromServer();
+            refreshJobPostingsFromServer();
             renderLiveTickets();
             renderWebTranscripts();
             loadTeamCount();
@@ -1403,6 +1468,7 @@
             setModuleBadge('badge-mod-levels', m.levelSystem !== false);
             setModuleBadge('badge-mod-security', m.lockdown === true, true);
             setModuleBadge('badge-mod-logging', m.logging !== false);
+            setModuleBadge('badge-mod-recruitment', m.recruitment !== false);
             setModuleBadge('badge-mod-social', (settings.socialAlerts && settings.socialAlerts.enabled !== false));
             setModuleBadge('badge-mod-suggestions', (gSettings.suggestions ? gSettings.suggestions.enabled !== false : true));
             setModuleBadge('badge-mod-giveaways', true);
@@ -1547,6 +1613,12 @@
                 subtitleEl.innerText = 'Automatische Online- und Vorher-Shutdown-Broadcasts in deinen Discord-Kanal';
                 toggleEl.checked = (guild.settings.statusUpdates ? guild.settings.statusUpdates.enabled !== false : true);
                 bodyEl.innerHTML = buildStatusMonitorModalHtml(guild);
+            } else if (moduleId === 'recruitment') {
+                iconEl.innerText = '📝';
+                titleEl.innerText = 'Bewerbungssystem & Recruiting Matrix';
+                subtitleEl.innerText = 'Server-spezifisches Bewerbungsportal, Discord-Rollenvergabe & Team-Probezeit';
+                toggleEl.checked = modules.recruitment !== false;
+                bodyEl.innerHTML = buildRecruitmentModalHtml(guild);
             }
         }
 
@@ -2487,6 +2559,12 @@ function deleteCategoryItem(index) {
                     autoRoleId: autoRole,
                     message: welcomeMsg
                 };
+            } else if (currentOpenModule === 'recruitment') {
+                payload.modules.recruitment = isModuleActive;
+                const recCh = document.getElementById('cfg-recruitment-channel');
+                if (recCh) {
+                    payload.recruitmentChannelId = recCh.value || null;
+                }
             }
 
             try {
@@ -3248,6 +3326,83 @@ function buildTemplatesModalHtml(guild) {
             }
         }
 
+        function syncSelectedRoleName(selectEl) {
+            if (!selectEl || !selectEl.value) return;
+            const opt = selectEl.options[selectEl.selectedIndex];
+            if (opt && opt.text && document.getElementById('job-target-role')) {
+                document.getElementById('job-target-role').value = opt.text.replace(/^@/, '');
+            }
+        }
+
+        function updateRecruitmentLinkBanner() {
+            if (!activeGuildId) return;
+            const shareUrl = 'https://roblox-discord-g44u.onrender.com/apply?server=' + encodeURIComponent(activeGuildId);
+            const inputEl = document.getElementById('recruitment-direct-url');
+            if (inputEl) inputEl.value = shareUrl;
+            const previewBtn = document.getElementById('recruitment-direct-preview-btn');
+            if (previewBtn) previewBtn.href = shareUrl;
+            const inputEl2 = document.getElementById('recruitment-direct-url-apps');
+            if (inputEl2) inputEl2.value = shareUrl;
+        }
+
+        function copyDirectRecruitmentLink() {
+            if (!activeGuildId) return;
+            const shareUrl = 'https://roblox-discord-g44u.onrender.com/apply?server=' + encodeURIComponent(activeGuildId);
+            navigator.clipboard.writeText(shareUrl).then(() => {
+                showToast('📋 Server-Bewerbungslink in Zwischenablage kopiert!');
+            }).catch(() => {
+                showToast('✅ Link: ' + shareUrl);
+            });
+        }
+
+        function copyRecruitmentLink(url) {
+            navigator.clipboard.writeText(url).then(() => {
+                showToast('📋 Server-Bewerbungslink kopiert!');
+            }).catch(() => {
+                showToast('✅ Link: ' + url);
+            });
+        }
+
+        function buildRecruitmentModalHtml(guild) {
+            const s = guild.settings || {};
+            const textChs = guild.textChannels || [];
+            const recChId = s.recruitmentChannelId || s.teamChannelId || '';
+            const shareUrl = 'https://roblox-discord-g44u.onrender.com/apply?server=' + encodeURIComponent(guild.id);
+
+            return '<div style="background: linear-gradient(135deg, rgba(0, 243, 255, 0.1), rgba(157, 78, 221, 0.15)); border: 1px solid rgba(0, 243, 255, 0.35); border-radius: 14px; padding: 18px; margin-bottom: 20px;">' +
+                '<div style="font-size: 0.85rem; font-weight: 800; color: var(--cyan); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;">' +
+                    '🔗 Dein exklusiver Server-Bewerbungslink' +
+                '</div>' +
+                '<div style="font-size: 0.82rem; color: #cbd5e1; margin-bottom: 12px; line-height: 1.5;">' +
+                    'Teile diesen Link auf Discord, Roblox oder YouTube. Bewerber sehen ausschließlich die Ausschreibungen und das Branding von <strong>' + escapeHtml(guild.name) + '</strong>!' +
+                '</div>' +
+                '<div style="display: flex; gap: 8px; align-items: center; background: rgba(0, 0, 0, 0.4); padding: 8px 12px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.1);">' +
+                    '<input type="text" readonly value="' + shareUrl + '" style="flex: 1; background: transparent; border: none; color: #fff; font-family: monospace; font-size: 0.82rem; outline: none;">' +
+                    '<button type="button" class="btn btn-secondary" onclick="copyRecruitmentLink(\'' + shareUrl + '\')" style="padding: 6px 12px; font-size: 0.8rem; white-space: nowrap;">📋 Link kopieren</button>' +
+                    '<a href="' + shareUrl + '" target="_blank" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem; text-decoration: none; white-space: nowrap;">👁️ Vorschau</a>' +
+                '</div>' +
+            '</div>' +
+            '<div class="form-group" style="margin-bottom: 16px;">' +
+                '<label style="display:block; font-size:0.85rem; font-weight:700; margin-bottom:6px;">📢 Benachrichtigungskanal für neue Bewerbungen</label>' +
+                '<select id="cfg-recruitment-channel" class="form-control" style="width: 100%;">' +
+                    '<option value="">Kein Benachrichtigungskanal (Nur im Dashboard)</option>' +
+                    textChs.map(ch => '<option value="' + ch.id + '" ' + (recChId === ch.id ? 'selected' : '') + '>#' + escapeHtml(ch.name) + '</option>').join('') +
+                '</select>' +
+                '<div style="font-size: 0.75rem; color: var(--text-dim); margin-top: 4px;">In diesem Kanal meldet der Bot neue Bewerbungen mit Direktlink zur Überprüfung.</div>' +
+            '</div>' +
+            '<div style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px; padding: 14px; margin-top: 16px;">' +
+                '<div style="font-size: 0.82rem; font-weight: 700; color: #fff; margin-bottom: 6px;">⚡ Direkte Links</div>' +
+                '<div style="display: flex; gap: 10px; flex-wrap: wrap;">' +
+                    '<button type="button" class="btn btn-secondary" onclick="closeModuleModal(); switchTab(\'tab-jobpostings\');" style="font-size: 0.8rem;">' +
+                        '📢 Stellenausschreibungen verwalten' +
+                    '</button>' +
+                    '<button type="button" class="btn btn-secondary" onclick="closeModuleModal(); switchTab(\'tab-applications\');" style="font-size: 0.8rem;">' +
+                        '📝 Bewerbungen prüfen' +
+                    '</button>' +
+                '</div>' +
+            '</div>';
+        }
+
         function buildStatusMonitorModalHtml(guild) {
             const isBotOwner = Boolean(currentUser && currentUser.isOwner);
             const textChs = guild.textChannels || [];
@@ -3847,7 +4002,7 @@ function buildGiveawaysModalHtml(guild) {
 
         async function triggerDiscordUpdateAnnouncement() {
             const btn = document.getElementById('btn-broadcast-update-dash');
-                        if (!confirm('🚀 Möchtest du die offizielle AeroGuard Core v4.5 Enterprise Update-Ankündigung (Multi-Guild & Owner Suite) jetzt an die #updates- bzw. #version-changelogs Kanäle auf dem Server senden?')) return;
+                        if (!confirm('🚀 Möchtest du die offizielle AeroGuard Core v5.0 Enterprise Update-Ankündigung (Multi-Guild & Owner Suite) jetzt an die #updates- bzw. #version-changelogs Kanäle auf dem Server senden?')) return;
 
             
             if (btn) {
@@ -3890,7 +4045,8 @@ function buildGiveawaysModalHtml(guild) {
         // =========================================================================
         async function refreshApplicationsFromServer() {
             try {
-                const res = await fetch('/api/applications');
+                const url = activeGuildId ? '/api/applications?guildId=' + encodeURIComponent(activeGuildId) : '/api/applications';
+                const res = await fetch(url);
                 const data = await res.json();
                 if (data && data.success && Array.isArray(data.applications)) {
                     allApplications = data.applications;
@@ -3903,7 +4059,8 @@ function buildGiveawaysModalHtml(guild) {
 
         async function refreshJobPostingsFromServer() {
             try {
-                const res = await fetch('/api/job-postings');
+                const url = activeGuildId ? '/api/job-postings?guildId=' + encodeURIComponent(activeGuildId) : '/api/job-postings';
+                const res = await fetch(url);
                 const data = await res.json();
                 if (data && data.success && Array.isArray(data.jobPostings)) {
                     allJobPostings = data.jobPostings;
@@ -3933,7 +4090,12 @@ function buildGiveawaysModalHtml(guild) {
             const grid = document.getElementById('applications-cards-grid');
             if (!grid) return;
 
-            const apps = Array.isArray(allApplications) ? allApplications : [];
+            const apps = (Array.isArray(allApplications) ? allApplications : []).filter(a => {
+                if (!a) return false;
+                if (activeGuildId && a.guildId) return a.guildId === activeGuildId;
+                if (!a.guildId && currentUser && currentUser.isOwner) return true;
+                return !activeGuildId;
+            });
 
             // Update counters
             const cntAll = apps.length;
@@ -4269,7 +4431,12 @@ function buildGiveawaysModalHtml(guild) {
             const grid = document.getElementById('jobpostings-cards-grid');
             if (!grid) return;
 
-            const jobs = Array.isArray(allJobPostings) ? allJobPostings : [];
+            const jobs = (Array.isArray(allJobPostings) ? allJobPostings : []).filter(j => {
+                if (!j) return false;
+                if (activeGuildId && j.guildId) return j.guildId === activeGuildId;
+                if (!j.guildId && currentUser && currentUser.isOwner) return true;
+                return !activeGuildId;
+            });
             const activeCount = jobs.filter(j => j.active !== false).length;
             if (document.getElementById('count-jobpostings')) {
                 document.getElementById('count-jobpostings').innerText = activeCount;
@@ -4348,6 +4515,16 @@ function buildGiveawaysModalHtml(guild) {
             document.getElementById('job-title').value = '';
             document.getElementById('job-category').value = 'Support';
             const targetRoleEl = document.getElementById('job-target-role'); if (targetRoleEl) targetRoleEl.value = '🎫 AeroGuard Support-Team';
+
+            const roleSel = document.getElementById('job-target-roleid');
+            if (roleSel) {
+                const guild = guilds.find(g => g.id === activeGuildId);
+                const roles = (guild && Array.isArray(guild.roles)) ? guild.roles : [];
+                roleSel.innerHTML = '<option value="">-- Discord-Rolle auswählen --</option>' +
+                    roles.filter(r => r.name !== '@everyone').map(r => '<option value="' + r.id + '">' + escapeHtml(r.name) + '</option>').join('');
+                roleSel.value = '';
+            }
+
             document.getElementById('job-description').value = '';
             document.getElementById('job-requirements').value = '';
             document.getElementById('job-tasks').value = '';
@@ -4371,6 +4548,15 @@ function buildGiveawaysModalHtml(guild) {
             document.getElementById('job-category').value = job.category || 'Support';
             const targetRoleEl = document.getElementById('job-target-role'); 
             if (targetRoleEl) targetRoleEl.value = job.targetRole || '🎫 AeroGuard Support-Team';
+
+            const roleSel = document.getElementById('job-target-roleid');
+            if (roleSel) {
+                const guild = guilds.find(g => g.id === activeGuildId);
+                const roles = (guild && Array.isArray(guild.roles)) ? guild.roles : [];
+                roleSel.innerHTML = '<option value="">-- Discord-Rolle auswählen --</option>' +
+                    roles.filter(r => r.name !== '@everyone').map(r => '<option value="' + r.id + '" ' + (job.targetRoleId === r.id ? 'selected' : '') + '>' + escapeHtml(r.name) + '</option>').join('');
+                if (job.targetRoleId) roleSel.value = job.targetRoleId;
+            }
             document.getElementById('job-description').value = job.description || '';
             document.getElementById('job-requirements').value = job.requirements || '';
             document.getElementById('job-tasks').value = job.tasks || '';
@@ -4434,7 +4620,12 @@ function buildGiveawaysModalHtml(guild) {
             btn.disabled = true;
             btn.innerHTML = '<span>⏳</span> Wird gespeichert...';
 
+            const roleSel = document.getElementById('job-target-roleid');
+            const targetRoleId = (roleSel && roleSel.value) ? roleSel.value : null;
+
             const payload = {
+                guildId: activeGuildId,
+                targetRoleId: targetRoleId,
                 title: document.getElementById('job-title').value.trim(),
                 category: document.getElementById('job-category').value,
                 targetRole: document.getElementById('job-target-role').value.trim(),

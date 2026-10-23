@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AeroGuard Core — Team-Bewerbung | Offizielles Supporter-Portal</title>
+    <title>AeroGuard Core v5.0 Enterprise — Team-Bewerbungsportal</title>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -695,9 +695,16 @@
 
         <!-- HERO SECTION -->
         <div class="hero">
-            <div class="badge-pill">✨ OFFIZIELLER STAFF-RECRUITMENT HUB</div>
-            <h1>Bewerbung als <span>AeroGuard Supporter</span></h1>
-            <p>Hilf anderen Serverbesitzern und Roblox-Spielern, betreue Support-Tickets und werde Teil des offiziellen AeroGuard Teams!</p>
+            <div class="badge-pill" id="hero-badge">✨ OFFIZIELLER STAFF-RECRUITMENT HUB</div>
+            <div id="hero-server-badge-wrap" style="display:none; align-items:center; justify-content:center; gap:12px; margin-bottom:14px;">
+                <div id="portal-guild-icon" style="width:46px; height:46px; border-radius:50%; background:linear-gradient(135deg, var(--cyan), var(--purple)); display:flex; align-items:center; justify-content:center; font-weight:800; font-size:1.15rem; overflow:hidden; border:2px solid rgba(0,243,255,0.4); box-shadow:0 0 15px rgba(0,243,255,0.25);">AG</div>
+                <div style="text-align:left;">
+                    <div style="font-size:0.75rem; text-transform:uppercase; letter-spacing:0.06em; color:var(--cyan); font-weight:800;">Bewerbungsportal für Discord-Server</div>
+                    <div id="portal-guild-name" style="font-size:1.2rem; font-weight:800; color:#fff;">AeroGuard Server</div>
+                </div>
+            </div>
+            <h1 id="hero-title">Bewerbung für <span id="hero-title-role">AeroGuard Team</span></h1>
+            <p id="hero-desc">Werde Teil unseres Teams! Deine Bewerbung wird direkt im Server-Dashboard der Leitung vorgelegt.</p>
         </div>
 
         <!-- 🤖 BOT GUIDANCE ASSISTANT CARD -->
@@ -737,6 +744,20 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- SERVER PICKER VIEW (IF MULTIPLE RECRUITING SERVERS AND NO ?server= PARAM) -->
+        <div id="server-picker-section" class="glass-card" style="display:none; margin-bottom:24px; padding:32px 28px;">
+            <div style="text-align:center; margin-bottom:24px;">
+                <div class="badge-pill">🌐 MULTI-SERVER RECRUITING MATRIX</div>
+                <h2 style="font-size:1.8rem; font-weight:800; color:#fff; margin-bottom:8px;">Wähle deinen Discord-Server</h2>
+                <p style="color:var(--text-dim); font-size:0.95rem; max-width:550px; margin:0 auto;">
+                    Jeder Server verwaltet eigene Stellenausschreibungen und Teams. Klicke auf den Server, bei dem du dich bewerben möchtest:
+                </p>
+            </div>
+            <div id="server-picker-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:18px;">
+                <!-- Dynamically populated servers -->
             </div>
         </div>
 
@@ -959,6 +980,149 @@
         }
 
         let availableJobs = [];
+        let currentGuildId = null;
+        let currentGuildName = null;
+
+        async function initPortal() {
+            const params = new URLSearchParams(window.location.search);
+            const serverParam = params.get('server') || params.get('guildId');
+
+            if (serverParam) {
+                await loadServerApplyPortal(serverParam);
+            } else {
+                await loadPublicRecruitingGuilds();
+            }
+        }
+
+        async function loadServerApplyPortal(guildId) {
+            currentGuildId = guildId;
+            const formView = document.getElementById('form-view');
+            const noJobsView = document.getElementById('no-jobs-view');
+            const pickerEl = document.getElementById('server-picker-section');
+            if (pickerEl) pickerEl.style.display = 'none';
+
+            try {
+                const res = await fetch('/api/guild/' + encodeURIComponent(guildId) + '/apply-info');
+                const data = await res.json();
+
+                if (!res.ok || !data.success) {
+                    showToast('⚠️ Server konnte nicht geladen werden.');
+                    await loadPublicRecruitingGuilds();
+                    return;
+                }
+
+                currentGuildName = data.guild ? data.guild.name : 'Discord Server';
+
+                // Update UI elements with Server branding
+                const badgeWrap = document.getElementById('hero-server-badge-wrap');
+                const badgeIcon = document.getElementById('portal-guild-icon');
+                const badgeName = document.getElementById('portal-guild-name');
+                const heroBadge = document.getElementById('hero-badge');
+                const heroTitle = document.getElementById('hero-title');
+                const heroDesc = document.getElementById('hero-desc');
+
+                if (badgeWrap) badgeWrap.style.display = 'inline-flex';
+                if (badgeName) badgeName.innerText = currentGuildName;
+                if (badgeIcon) {
+                    if (data.guild && data.guild.icon) {
+                        badgeIcon.innerHTML = '<img src="' + data.guild.icon + '" style="width:100%; height:100%; object-fit:cover; border-radius:50%;" alt="">';
+                    } else {
+                        badgeIcon.innerText = (currentGuildName || 'AG').slice(0, 2).toUpperCase();
+                    }
+                }
+                if (heroBadge) heroBadge.innerText = '✨ BEWERBUNG FÜR ' + (currentGuildName.toUpperCase());
+                if (heroTitle) heroTitle.innerHTML = 'Bewerbung bei <span>' + escapeHtml(currentGuildName) + '</span>';
+                if (heroDesc) heroDesc.innerText = 'Werde Teil des Teams von ' + currentGuildName + '! Deine Bewerbung wird direkt im Server-Dashboard geprüft.';
+                document.title = 'Bewerbung bei ' + currentGuildName + ' — AeroGuard Core v5.0 Enterprise';
+
+                if (data.recruitmentActive === false) {
+                    if (formView) formView.style.display = 'none';
+                    if (noJobsView) {
+                        noJobsView.style.display = 'block';
+                        noJobsView.innerHTML = '<div style="font-size:3rem; margin-bottom:14px;">⏸️</div>' +
+                            '<h2 style="font-size:1.8rem; font-weight:800; color:#fff; margin-bottom:10px;">Bewerbungsphase pausiert</h2>' +
+                            '<p style="color:var(--text-dim); font-size:0.92rem; max-width:480px; margin:0 auto 18px auto;">' +
+                                'Das Team von <strong>' + escapeHtml(currentGuildName) + '</strong> nimmt aktuell keine Bewerbungen entgegen.' +
+                            '</p>';
+                    }
+                    return;
+                }
+
+                availableJobs = Array.isArray(data.jobPostings) ? data.jobPostings : [];
+                if (availableJobs.length === 0) {
+                    if (formView) formView.style.display = 'none';
+                    if (noJobsView) {
+                        noJobsView.style.display = 'block';
+                        noJobsView.innerHTML = '<div style="font-size:3rem; margin-bottom:14px;">📢</div>' +
+                            '<h2 style="font-size:1.8rem; font-weight:800; color:#fff; margin-bottom:10px;">Keine offenen Ausschreibungen</h2>' +
+                            '<p style="color:var(--text-dim); font-size:0.92rem; max-width:480px; margin:0 auto 18px auto;">' +
+                                'Auf <strong>' + escapeHtml(currentGuildName) + '</strong> sind aktuell keine spezifischen Positionen ausgeschrieben. Schau bald wieder vorbei!' +
+                            '</p>';
+                    }
+                    return;
+                }
+
+                if (formView) formView.style.display = 'block';
+                if (noJobsView) noJobsView.style.display = 'none';
+
+                const sel = document.getElementById('select-position');
+                if (sel && availableJobs.length > 0) {
+                    sel.innerHTML = availableJobs.map(j => '<option value="' + escapeHtml(j.title) + '">' + escapeHtml(j.title) + ' (' + escapeHtml(j.category || 'Allgemein') + ')</option>').join('');
+                    onPositionSelect(availableJobs[0].title);
+                }
+            } catch(e) {
+                console.error('Error loading server portal:', e);
+            }
+        }
+
+        async function loadPublicRecruitingGuilds() {
+            try {
+                const res = await fetch('/api/public/guilds-recruiting');
+                const data = await res.json();
+                const formView = document.getElementById('form-view');
+                const noJobsView = document.getElementById('no-jobs-view');
+                const pickerEl = document.getElementById('server-picker-section');
+
+                if (data.success && Array.isArray(data.guilds) && data.guilds.length > 0) {
+                    if (data.guilds.length === 1) {
+                        await loadServerApplyPortal(data.guilds[0].id);
+                        return;
+                    }
+
+                    if (formView) formView.style.display = 'none';
+                    if (noJobsView) noJobsView.style.display = 'none';
+
+                    if (pickerEl) {
+                        pickerEl.style.display = 'block';
+                        const gridEl = document.getElementById('server-picker-grid');
+                        if (gridEl) {
+                            gridEl.innerHTML = data.guilds.map(g => '<div onclick="selectServerFromPicker(\'' + g.id + '\')" style="background: rgba(14, 18, 36, 0.85); border: 1px solid rgba(0, 243, 255, 0.25); border-radius: 16px; padding: 22px; text-align: center; cursor: pointer; transition: all 0.25s ease;" onmouseover="this.style.transform=\'translateY(-3px)\'; this.style.borderColor=\'var(--cyan)\';" onmouseout="this.style.transform=\'none\'; this.style.borderColor=\'rgba(0, 243, 255, 0.25)\';">' +
+                                '<div style="width: 64px; height: 64px; border-radius: 50%; margin: 0 auto 12px auto; background: linear-gradient(135deg, var(--cyan), var(--purple)); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1.4rem; overflow: hidden; border: 2px solid rgba(0, 243, 255, 0.4);">' +
+                                    (g.icon ? '<img src="' + g.icon + '" style="width:100%; height:100%; object-fit:cover;" alt="">' : (g.name || 'AG').slice(0, 2).toUpperCase()) +
+                                '</div>' +
+                                '<div style="font-weight: 800; font-size: 1.15rem; color: #fff; margin-bottom: 4px;">' + escapeHtml(g.name) + '</div>' +
+                                '<div style="font-size: 0.8rem; color: var(--text-dim); margin-bottom: 12px;">👥 ' + (g.memberCount || 0) + ' Mitglieder • 📢 ' + (g.jobCount || 0) + ' offene Stellen</div>' +
+                                '<button type="button" class="btn btn-primary" style="width: 100%; font-size: 0.85rem; padding: 8px 14px;">' +
+                                    'Hier bewerben →' +
+                                '</button>' +
+                            '</div>').join('');
+                        }
+                    }
+                } else {
+                    loadJobPostings();
+                }
+            } catch(e) {
+                console.error('Error loading public recruiting guilds:', e);
+                loadJobPostings();
+            }
+        }
+
+        function selectServerFromPicker(guildId) {
+            const url = new URL(window.location.href);
+            url.searchParams.set('server', guildId);
+            window.history.pushState({}, '', url.toString());
+            loadServerApplyPortal(guildId);
+        }
 
         async function loadJobPostings() {
             try {
@@ -971,19 +1135,17 @@
                     availableJobs = data.jobPostings.filter(j => j.active !== false);
 
                     if (availableJobs.length === 0) {
-                        // Alle Ausschreibungen sind deaktiviert oder gelöscht!
                         if (formView) formView.style.display = 'none';
                         if (noJobsView) noJobsView.style.display = 'block';
                         return;
                     }
 
-                    // Mindestens eine Stelle ist aktiv
                     if (formView) formView.style.display = 'block';
                     if (noJobsView) noJobsView.style.display = 'none';
 
                     const sel = document.getElementById('select-position');
                     if (sel && availableJobs.length > 0) {
-                        sel.innerHTML = availableJobs.map(j => `<option value="${escapeHtml(j.title)}">${escapeHtml(j.title)} (${escapeHtml(j.category || 'Allgemein')})</option>`).join('');
+                        sel.innerHTML = availableJobs.map(j => '<option value="' + escapeHtml(j.title) + '">' + escapeHtml(j.title) + ' (' + escapeHtml(j.category || 'Allgemein') + ')</option>').join('');
                         onPositionSelect(availableJobs[0].title);
                     }
                 } else {
@@ -1008,7 +1170,7 @@
 
         // Initialize from URL query parameters (e.g. ?id=APP-xxx&token=yyy)
         window.addEventListener('DOMContentLoaded', () => {
-            loadJobPostings();
+            initPortal();
             const params = new URLSearchParams(window.location.search);
             const id = params.get('id');
             const token = params.get('token');
@@ -1031,8 +1193,16 @@
             btn.disabled = true;
             btn.innerHTML = '<span>⏳</span> Wird an Leitung übermittelt...';
 
+            const selectedJobTitle = (document.getElementById('select-position')?.value || '🎫 AeroGuard Support-Team').trim();
+            const matchedJob = availableJobs.find(j => j.title === selectedJobTitle);
+
             const payload = {
-                position: (document.getElementById('select-position')?.value || '🎫 AeroGuard Support-Team').trim(),
+                guildId: currentGuildId || null,
+                guildName: currentGuildName || null,
+                jobId: matchedJob ? matchedJob.id : null,
+                targetRoleId: matchedJob ? matchedJob.targetRoleId : null,
+                targetRole: matchedJob ? matchedJob.targetRole : null,
+                position: selectedJobTitle,
                 discordTag: document.getElementById('input-discord-tag').value.trim(),
                 discordId: document.getElementById('input-discord-id').value.trim(),
                 age: document.getElementById('input-age').value.trim(),
