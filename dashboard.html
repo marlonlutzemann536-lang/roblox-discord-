@@ -1304,6 +1304,16 @@
 
     <!-- CLIENT SCRIPT -->
     <script>
+        function escapeHtml(str) {
+            if (str === null || str === undefined) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
         const currentUser = {{CURRENT_USER_JSON}};
         // Check owner rights to show owner-exclusive tabs
         if (currentUser && currentUser.isOwner) {
@@ -1330,8 +1340,10 @@
             }
             if (activeGuildId) selectGuild(activeGuildId);
             // Immediately render applications and job postings so cards are visible instantly!
-            renderApplications();
-            renderJobPostings();
+            try { renderApplications(); } catch(e) { console.error('Error rendering applications:', e); }
+            try { renderJobPostings(); } catch(e) { console.error('Error rendering job postings:', e); }
+            refreshApplicationsFromServer();
+            refreshJobPostingsFromServer();
         };
 
         function initGuildSelector() {

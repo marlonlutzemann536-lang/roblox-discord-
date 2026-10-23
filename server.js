@@ -171,7 +171,7 @@ app.use(session({
 app.use((req, res, next) => {
     res.setHeader(
         'Content-Security-Policy',
-        "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; script-src * 'unsafe-inline' 'unsafe-eval' data: blob:; script-src-elem * 'unsafe-inline' 'unsafe-eval' data: blob:; style-src * 'unsafe-inline' data: blob: https:; style-src-elem * 'unsafe-inline' data: blob: https:; connect-src * 'unsafe-inline' data: blob:; img-src * data: blob: https:; font-src * data: https:;"
+        "default-src 'self' 'unsafe-inline' 'unsafe-eval' * data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' * data: blob:; script-src-elem 'self' 'unsafe-inline' 'unsafe-eval' * data: blob:; script-src-attr 'self' 'unsafe-inline' 'unsafe-eval' *; style-src 'self' 'unsafe-inline' * data: blob: https:; style-src-elem 'self' 'unsafe-inline' * data: blob: https:; connect-src * 'unsafe-inline' data: blob:; img-src * data: blob: https:; font-src * data: https:;"
     );
     next();
 });
@@ -326,11 +326,8 @@ async function isUserAuthorizedStaffOrOwner(userId, guildId = null) {
         if (perm && perm.authorized) return true;
     }
     for (const guild of client.guilds.cache.values()) {
-        if (guild.ownerId === userId) return true;
-        const member = guild.members.cache.get(userId);
-        if (member && (member.permissions.has(PermissionFlagsBits.Administrator) || isSupporterOrAdmin(member, guild))) {
-            return true;
-        }
+        const perm = await getUserGuildPermission(userId, guild.id);
+        if (perm && perm.authorized) return true;
     }
     return false;
 }
