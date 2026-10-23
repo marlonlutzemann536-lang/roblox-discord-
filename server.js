@@ -166,6 +166,15 @@ app.use(session({
     saveUninitialized: false,
     cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 }
 }));
+
+// Content Security Policy: Erlaube unsafe-eval, unsafe-inline, WebSocket & CDNs
+app.use((req, res, next) => {
+    res.setHeader(
+        'Content-Security-Policy',
+        "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; script-src * 'unsafe-inline' 'unsafe-eval' data: blob:; script-src-elem * 'unsafe-inline' 'unsafe-eval' data: blob:; style-src * 'unsafe-inline' data: blob: https:; style-src-elem * 'unsafe-inline' data: blob: https:; connect-src * 'unsafe-inline' data: blob:; img-src * data: blob: https:; font-src * data: https:;"
+    );
+    next();
+});
 const port = process.env.PORT || 3000;
 
 // =========================================================================
@@ -8032,43 +8041,46 @@ client.on('channelDelete', channel => {
     }
 });
 client.once('ready', async () => {
+    console.log(`[READY] AeroGuard Cloud Engine Online als: ${client.user.tag}`);
     addLog('info', 'AeroGuard Cloud Engine Online als: ' + client.user.tag);
-    await syncActiveTicketsFromDiscord();
-    
-    // Auto-Sync: 1. Global deployen (für alle Server und DMs)
-    await deployGlobalCommands().catch(() => {});
 
-    // 2. Direktes Guild-Deploy für alle aktiven Server im Cache
-    for (const guild of client.guilds.cache.values()) {
+    // 1. Sofortiger Online-Broadcast (damit Channels & User sofort sehen, dass der Bot online ist!)
+    setTimeout(async () => {
         try {
-            await deployExtendedCommands(guild.id);
-            addLog('info', 'Slash Commands für Server ' + guild.name + ' (' + guild.id + ') synchronisiert.');
-            await new Promise(r => setTimeout(r, 200));
+            await broadcastBotStatus('online');
+            console.log('[LIFECYCLE] Online-Status erfolgreich übertragen.');
         } catch(e) {
-            addLog('error', 'Fehler beim Sync für ' + guild.id + ': ' + e.message);
+            console.error('[LIFECYCLE] Fehler beim Online-Broadcast:', e);
         }
-    }
+    }, 1500);
 
-    if (process.env.GUILD_ID) {
-        await deployExtendedCommands(process.env.GUILD_ID).catch(() => {});
-    }
-        // Sofortiger Start des Social-Alerts Checkers & Probezeit-Checkers
+    // 2. Ticket-Synchronisation im Hintergrund
+    syncActiveTicketsFromDiscord().catch(e => console.error('[TICKETS] Fehler beim Sync:', e));
+
+    // 3. Slash-Command Synchronisation im Hintergrund (vollständig Non-Blocking!)
+    (async () => {
+        try {
+            await deployGlobalCommands().catch(() => {});
+            for (const guild of client.guilds.cache.values()) {
+                await deployExtendedCommands(guild.id).catch(() => {});
+                await new Promise(r => setTimeout(r, 100));
+            }
+            if (process.env.GUILD_ID) {
+                await deployExtendedCommands(process.env.GUILD_ID).catch(() => {});
+            }
+        } catch(err) {
+            console.error('[SLASH-SYNC ERROR]', err);
+        }
+    })();
+
+    // 4. Background-Dienste (Social Alerts & Probezeit-Checks)
     setTimeout(() => {
         checkSocialAlertsEngine().catch(() => {});
         checkTeamProbations().catch(() => {});
     }, 5000);
     setInterval(checkTeamProbations, 60000);
 
-    // Auto-Broadcast: Bot ist ONLINE gegangen
-    setTimeout(async () => {
-        try {
-            await broadcastBotStatus('online');
-        } catch(e) {
-            console.error('[LIFECYCLE] Fehler beim Online-Broadcast:', e);
-        }
-    }, 2500);
-
-    // Auto-Broadcast: v4.0 Update Ankündigung (unter #updates / #version-changelogs)
+    // 5. Auto-Broadcast: Update-Ankündigung (unter #updates / #version-changelogs)
     setTimeout(async () => {
         try {
             if (!cloudStorage.systemSettings) cloudStorage.systemSettings = {};
@@ -8077,13 +8089,13 @@ client.once('ready', async () => {
                 if (res && res.sentCount > 0) {
                     cloudStorage.systemSettings.lastBroadcastUpdateVersion = '4.5.0';
                     saveCloudVaultToDisk();
-                    console.log(`[UPDATE-BROADCAST] v4.0 Update automatisch an ${res.sentCount} Server gesendet.`);
+                    console.log(`[UPDATE-BROADCAST] v4.5 Enterprise Update automatisch an ${res.sentCount} Server gesendet.`);
                 }
             }
         } catch(e) {
             console.error('[UPDATE-BROADCAST] Fehler beim Auto-Broadcast:', e);
         }
-    }, 4500);
+    }, 6000);
 });
 
 // =========================================================================
@@ -11399,8 +11411,20 @@ app.post('/update-status', async (req, res) => {
     if (restartRequested) restartRequested = false;
 });
 
-client.login(process.env.DISCORD_TOKEN);
-app.listen(port, () => addLog('info', `Enterprise Cloud-Webserver erfolgreich gestartet.`));
+if (process.env.DISCORD_TOKEN) {
+    client.login(process.env.DISCORD_TOKEN).catch(err => {
+        console.error('[DISCORD LOGIN ERROR]', err);
+        addLog('error', 'Discord Login Fehler: ' + err.message);
+    });
+} else {
+    console.error('[CONFIG ERROR] Kein DISCORD_TOKEN im Environment gesetzt!');
+    addLog('error', 'Kein DISCORD_TOKEN im Environment gesetzt!');
+}
+
+app.listen(port, '0.0.0.0', () => {
+    console.log(`[HTTP] Enterprise Cloud-Webserver erfolgreich auf Port ${port} gestartet.`);
+    addLog('info', `Enterprise Cloud-Webserver erfolgreich auf Port ${port} gestartet.`);
+});
 
 // =========================================================================
 // CMD / TERMINAL KONSOLE BEFEHLE (Shutdown, Stop, Status via CLI)
