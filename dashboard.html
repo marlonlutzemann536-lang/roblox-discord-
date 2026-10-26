@@ -40,6 +40,8 @@
         
         /* HEADER */
         header {
+            position: relative;
+            z-index: 50000;
             display: flex; justify-content: space-between; align-items: center;
             background: var(--surface); border: 1px solid var(--border-glow);
             border-radius: 18px; padding: 14px 24px; margin-bottom: 24px;
@@ -93,6 +95,8 @@
 
         /* SERVER HERO BAR */
         .server-hero {
+            position: relative;
+            z-index: 1;
             background: var(--surface); border: 1px solid var(--border); border-radius: 18px;
             padding: 20px 24px; margin-bottom: 24px; display: flex; justify-content: space-between;
             align-items: center; flex-wrap: wrap; gap: 16px; backdrop-filter: blur(14px);
@@ -220,7 +224,7 @@
             position: fixed; top: 0; left: 0; right: 0; bottom: 0;
             background: rgba(4, 6, 12, 0.82); backdrop-filter: blur(12px);
             display: none; align-items: center; justify-content: center;
-            z-index: 1000; padding: 20px;
+            z-index: 90000; padding: 20px;
         }
         .modal-overlay.active { display: flex; animation: fadeIn 0.2s ease-out; }
         .modal-card {
@@ -300,6 +304,7 @@
         .lang-selector-container {
             position: relative;
             display: inline-block;
+            z-index: 50001;
         }
         .lang-selector-btn {
             background: rgba(255, 255, 255, 0.04);
@@ -318,6 +323,8 @@
             backdrop-filter: blur(12px);
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25);
             user-select: none;
+            position: relative;
+            z-index: 50002;
         }
         .lang-selector-btn:hover {
             background: rgba(0, 243, 255, 0.1);
@@ -329,18 +336,25 @@
             position: absolute;
             top: calc(100% + 8px);
             right: 0;
-            width: 220px;
-            background: rgba(13, 17, 33, 0.96);
-            border: 1px solid var(--border-glow);
+            width: 230px;
+            background: #0d1121;
+            border: 1px solid var(--cyan);
             border-radius: 14px;
             padding: 8px;
-            backdrop-filter: blur(20px);
-            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.65), 0 0 20px rgba(0, 243, 255, 0.15);
+            backdrop-filter: blur(24px);
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.95), 0 0 30px rgba(0, 243, 255, 0.35);
             display: none;
             flex-direction: column;
             gap: 4px;
-            z-index: 10000;
+            z-index: 50003;
+            pointer-events: auto;
             animation: langMenuAnim 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .lang-dropdown-item {
+            position: relative;
+            z-index: 50004;
+            pointer-events: auto;
+            cursor: pointer;
         }
         @keyframes langMenuAnim {
             from { opacity: 0; transform: translateY(-6px) scale(0.98); }
@@ -461,53 +475,56 @@
 
             </div>
 
-            <!-- DISCORD USER PROFILE PILL WITH REAL DISCORD AVATAR -->
-            <a href="https://discord.gg/JvnhWC5Gnu" target="_blank" class="btn-secondary" style="display:inline-flex; align-items:center; gap:6px; text-decoration:none; font-size:0.84rem; padding:8px 14px; border-color:rgba(0,243,255,0.4); color:var(--cyan); border-radius:10px; margin-right:12px;">
-                <span style="font-size:1rem;">🎧</span> <span data-i18n="nav_support">Support-Server</span>
-            </a>
-            
-            <!-- CYBERPUNK MULTI-LANGUAGE SELECTOR -->
-            <div class="lang-selector-container" id="lang-selector-container">
-                <button type="button" class="lang-selector-btn" id="lang-selector-btn" onclick="toggleLanguageDropdown(event)">
-                    <span id="current-lang-flag">🇩🇪</span>
-                    <span id="current-lang-name">Deutsch</span>
-                    <span style="font-size:0.65rem; opacity:0.7; margin-left:3px;">▼</span>
-                </button>
-                <div class="lang-dropdown-menu" id="lang-dropdown-menu">
-                    <div class="lang-dropdown-header" data-i18n="lang_select_title">🌐 Sprache wählen</div>
-                    <button type="button" class="lang-dropdown-item active" data-lang="de" onclick="setAppLanguage('de')">
-                        <span class="lang-flag">🇩🇪</span>
-                        <div class="lang-info"><span class="lang-label">Deutsch</span><span class="lang-sub">Standard</span></div>
-                        <span class="lang-check">✓</span>
+            <div class="header-right-group" style="display:flex; align-items:center; gap:12px; position:relative; z-index:50001; flex-wrap:wrap;">
+                <!-- DISCORD USER PROFILE PILL WITH REAL DISCORD AVATAR -->
+                <a href="https://discord.gg/JvnhWC5Gnu" target="_blank" class="btn-secondary" style="display:inline-flex; align-items:center; gap:6px; text-decoration:none; font-size:0.84rem; padding:8px 14px; border-color:rgba(0,243,255,0.4); color:var(--cyan); border-radius:10px;">
+                    <span style="font-size:1rem;">🎧</span> <span data-i18n="nav_support">Support-Server</span>
+                </a>
+                
+                <!-- CYBERPUNK MULTI-LANGUAGE SELECTOR -->
+                <div class="lang-selector-container" id="lang-selector-container">
+                    <button type="button" class="lang-selector-btn" id="lang-selector-btn" onclick="toggleLanguageDropdown(event)">
+                        <span id="current-lang-flag">🇩🇪</span>
+                        <span id="current-lang-name">Deutsch</span>
+                        <span style="font-size:0.65rem; opacity:0.7; margin-left:3px;">▼</span>
                     </button>
-                    <button type="button" class="lang-dropdown-item" data-lang="en" onclick="setAppLanguage('en')">
-                        <span class="lang-flag">🇬🇧</span>
-                        <div class="lang-info"><span class="lang-label">English</span><span class="lang-sub">International</span></div>
-                        <span class="lang-check">✓</span>
-                    </button>
-                    <button type="button" class="lang-dropdown-item" data-lang="fr" onclick="setAppLanguage('fr')">
-                        <span class="lang-flag">🇫🇷</span>
-                        <div class="lang-info"><span class="lang-label">Français</span><span class="lang-sub">Français</span></div>
-                        <span class="lang-check">✓</span>
-                    </button>
-                    <button type="button" class="lang-dropdown-item" data-lang="es" onclick="setAppLanguage('es')">
-                        <span class="lang-flag">🇪🇸</span>
-                        <div class="lang-info"><span class="lang-label">Español</span><span class="lang-sub">Español</span></div>
-                        <span class="lang-check">✓</span>
-                    </button>
+                    <div class="lang-dropdown-menu" id="lang-dropdown-menu">
+                        <div class="lang-dropdown-header" data-i18n="lang_select_title">🌐 Sprache wählen</div>
+                        <button type="button" class="lang-dropdown-item active" data-lang="de" onclick="setAppLanguage('de')">
+                            <span class="lang-flag">🇩🇪</span>
+                            <div class="lang-info"><span class="lang-label">Deutsch</span><span class="lang-sub">Standard</span></div>
+                            <span class="lang-check">✓</span>
+                        </button>
+                        <button type="button" class="lang-dropdown-item" data-lang="en" onclick="setAppLanguage('en')">
+                            <span class="lang-flag">🇬🇧</span>
+                            <div class="lang-info"><span class="lang-label">English</span><span class="lang-sub">International</span></div>
+                            <span class="lang-check">✓</span>
+                        </button>
+                        <button type="button" class="lang-dropdown-item" data-lang="fr" onclick="setAppLanguage('fr')">
+                            <span class="lang-flag">🇫🇷</span>
+                            <div class="lang-info"><span class="lang-label">Français</span><span class="lang-sub">Français</span></div>
+                            <span class="lang-check">✓</span>
+                        </button>
+                        <button type="button" class="lang-dropdown-item" data-lang="es" onclick="setAppLanguage('es')">
+                            <span class="lang-flag">🇪🇸</span>
+                            <div class="lang-info"><span class="lang-label">Español</span><span class="lang-sub">Español</span></div>
+                            <span class="lang-check">✓</span>
+                        </button>
+                    </div>
                 </div>
-            </div>
-<div class="user-profile-header">
-                <div class="avatar-container">
-                    <img src="{{USER_AVATAR_URL}}" alt="{{USER_NAME}}" class="user-avatar-image">
-                    <div class="status-dot"></div>
+
+                <div class="user-profile-header">
+                    <div class="avatar-container">
+                        <img src="{{USER_AVATAR_URL}}" alt="{{USER_NAME}}" class="user-avatar-image">
+                        <div class="status-dot"></div>
+                    </div>
+                    <div class="user-details">
+                        <div class="user-name-tag">{{USER_TAG}}</div>
+                        <div class="user-role-badge" id="header-user-role">{{USER_ROLE_LABEL}}</div>
+                    </div>
+                    <button type="button" onclick="openCookieSettings()" style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); color:#cbd5e1; font-size:1.05rem; cursor:pointer; padding:6px 10px; border-radius:8px; display:flex; align-items:center; justify-content:center; transition:all 0.2s;" onmouseover="this.style.borderColor='var(--cyan)'; this.style.color='var(--cyan)';" onmouseout="this.style.borderColor='rgba(255,255,255,0.12)'; this.style.color='#cbd5e1';" title="Cookie- & Datenschutzeinstellungen">🍪</button>
+                    <a href="/logout" class="logout-link" title="Abmelden" data-i18n-title="nav_logout">🚪</a>
                 </div>
-                <div class="user-details">
-                    <div class="user-name-tag">{{USER_TAG}}</div>
-                    <div class="user-role-badge" id="header-user-role">{{USER_ROLE_LABEL}}</div>
-                </div>
-                <button type="button" onclick="openCookieSettings()" style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); color:#cbd5e1; font-size:1.05rem; cursor:pointer; padding:6px 10px; border-radius:8px; display:flex; align-items:center; justify-content:center; transition:all 0.2s;" onmouseover="this.style.borderColor='var(--cyan)'; this.style.color='var(--cyan)';" onmouseout="this.style.borderColor='rgba(255,255,255,0.12)'; this.style.color='#cbd5e1';" title="Cookie- & Datenschutzeinstellungen">🍪</button>
-                <a href="/logout" class="logout-link" title="Abmelden" data-i18n-title="nav_logout">🚪</a>
             </div>
         </header>
 

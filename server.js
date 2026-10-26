@@ -9032,7 +9032,7 @@ app.get('/', (req, res) => {
             display: flex; justify-content: space-between; align-items: center;
             padding: 22px 0; border-bottom: 1px solid var(--border);
             position: sticky; top: 0; background: rgba(7, 8, 15, 0.85); backdrop-filter: blur(16px);
-            z-index: 1000;
+            z-index: 50000;
         }
         .brand { display: flex; align-items: center; gap: 14px; text-decoration: none; color: #fff; }
         .brand-icon {
@@ -9066,7 +9066,7 @@ app.get('/', (req, res) => {
         }
 
         .hero {
-            padding: 80px 0 60px 0; text-align: center; position: relative;
+            padding: 80px 0 60px 0; text-align: center; position: relative; z-index: 1;
         }
         .hero-badge {
             display: inline-flex; align-items: center; gap: 8px;
@@ -9217,6 +9217,120 @@ app.get('/', (req, res) => {
             margin-bottom: 20px; font-size: 1rem;
         }
         .footer-badge span { color: var(--cyan); }
+
+        /* CYBERPUNK MULTI-LANGUAGE SELECTOR (LANDING PAGE - PRE-LOGIN) */
+        .lang-selector-container {
+            position: relative;
+            display: inline-block;
+            z-index: 50001;
+        }
+        .lang-selector-btn {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border-glow);
+            color: #f1f5f9;
+            padding: 8px 14px;
+            border-radius: 10px;
+            font-family: inherit;
+            font-size: 0.88rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            backdrop-filter: blur(12px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25);
+            user-select: none;
+            position: relative;
+            z-index: 50002;
+        }
+        .lang-selector-btn:hover {
+            background: rgba(0, 243, 255, 0.1);
+            border-color: var(--cyan);
+            box-shadow: 0 0 16px var(--cyan-glow);
+            transform: translateY(-1px);
+        }
+        .lang-dropdown-menu {
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            width: 230px;
+            background: #0d1121;
+            border: 1px solid var(--cyan);
+            border-radius: 14px;
+            padding: 8px;
+            backdrop-filter: blur(24px);
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.95), 0 0 30px rgba(0, 243, 255, 0.35);
+            display: none;
+            flex-direction: column;
+            gap: 4px;
+            z-index: 50003;
+            pointer-events: auto;
+            animation: langMenuAnim 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        @keyframes langMenuAnim {
+            from { opacity: 0; transform: translateY(-6px) scale(0.98); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .lang-dropdown-menu.show {
+            display: flex;
+        }
+        .lang-dropdown-header {
+            font-size: 0.72rem;
+            color: var(--cyan);
+            text-transform: uppercase;
+            font-weight: 800;
+            letter-spacing: 0.05em;
+            padding: 6px 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            margin-bottom: 4px;
+        }
+        .lang-dropdown-item {
+            background: transparent;
+            border: 1px solid transparent;
+            color: #cbd5e1;
+            padding: 8px 12px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.15s ease;
+            position: relative;
+            z-index: 50004;
+            pointer-events: auto;
+            width: 100%;
+            text-align: left;
+        }
+        .lang-dropdown-item:hover {
+            background: rgba(0, 243, 255, 0.08);
+            border-color: rgba(0, 243, 255, 0.3);
+            color: #fff;
+            transform: translateX(2px);
+        }
+        .lang-dropdown-item.active {
+            background: rgba(0, 243, 255, 0.15);
+            border-color: var(--cyan);
+            color: #fff;
+            font-weight: 700;
+            box-shadow: 0 0 12px rgba(0, 243, 255, 0.25);
+        }
+        .lang-dropdown-item .lang-flag { font-size: 1.15rem; margin-right: 8px; }
+        .lang-dropdown-item .lang-info { display: flex; flex-direction: column; flex: 1; }
+        .lang-dropdown-item .lang-label { font-size: 0.85rem; font-weight: 600; color: #f1f5f9; }
+        .lang-dropdown-item.active .lang-label { color: var(--cyan); }
+        .lang-dropdown-item .lang-sub { font-size: 0.7rem; color: var(--text-dim); }
+        .lang-dropdown-item.active .lang-sub { color: rgba(0, 243, 255, 0.8); }
+        .lang-dropdown-item .lang-check {
+            font-size: 0.9rem;
+            color: var(--cyan);
+            font-weight: 800;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .lang-dropdown-item.active .lang-check { opacity: 1; }
+
     </style>
 </head>
 <body>
@@ -9233,14 +9347,47 @@ app.get('/', (req, res) => {
             </a>
             
             <div class="nav-links">
-                <a href="#v4-update" class="nav-link nav-link-highlight">🚀 v5.0 Neuheiten</a>
-                <a href="#features" class="nav-link">Features</a>
-                <a href="#telemetry" class="nav-link">Status</a>
-                <a href="/apply" class="nav-link" style="color:var(--green);font-weight:700;">📝 Jetzt Bewerben</a>
+                <a href="#v4-update" class="nav-link nav-link-highlight" data-i18n="nav_highlights">🚀 v5.0 Neuheiten</a>
+                <a href="#features" class="nav-link" data-i18n="nav_features">Features</a>
+                <a href="#telemetry" class="nav-link" data-i18n="nav_status">Status</a>
+                <a href="/apply" class="nav-link" style="color:var(--green);font-weight:700;" data-i18n="nav_apply">📝 Jetzt Bewerben</a>
+                
+                <!-- CYBERPUNK MULTI-LANGUAGE SELECTOR (BEFORE LOGIN) -->
+                <div class="lang-selector-container" id="lang-selector-container">
+                    <button type="button" class="lang-selector-btn" id="lang-selector-btn" onclick="toggleLanguageDropdown(event)">
+                        <span id="current-lang-flag">🇩🇪</span>
+                        <span id="current-lang-name">Deutsch</span>
+                        <span style="font-size:0.65rem; opacity:0.7; margin-left:3px;">▼</span>
+                    </button>
+                    <div class="lang-dropdown-menu" id="lang-dropdown-menu">
+                        <div class="lang-dropdown-header" data-i18n="lang_select_title">🌐 Sprache wählen</div>
+                        <button type="button" class="lang-dropdown-item active" data-lang="de" onclick="setAppLanguage('de')">
+                            <span class="lang-flag">🇩🇪</span>
+                            <div class="lang-info"><span class="lang-label">Deutsch</span><span class="lang-sub">Standard</span></div>
+                            <span class="lang-check">✓</span>
+                        </button>
+                        <button type="button" class="lang-dropdown-item" data-lang="en" onclick="setAppLanguage('en')">
+                            <span class="lang-flag">🇬🇧</span>
+                            <div class="lang-info"><span class="lang-label">English</span><span class="lang-sub">International</span></div>
+                            <span class="lang-check">✓</span>
+                        </button>
+                        <button type="button" class="lang-dropdown-item" data-lang="fr" onclick="setAppLanguage('fr')">
+                            <span class="lang-flag">🇫🇷</span>
+                            <div class="lang-info"><span class="lang-label">Français</span><span class="lang-sub">Français</span></div>
+                            <span class="lang-check">✓</span>
+                        </button>
+                        <button type="button" class="lang-dropdown-item" data-lang="es" onclick="setAppLanguage('es')">
+                            <span class="lang-flag">🇪🇸</span>
+                            <div class="lang-info"><span class="lang-label">Español</span><span class="lang-sub">Español</span></div>
+                            <span class="lang-check">✓</span>
+                        </button>
+                    </div>
+                </div>
+
                 ${user ? `
-                <a href="/dashboard" class="btn-nav btn-nav-owner">👑 Dashboard (${user.username})</a>
+                <a href="/dashboard" class="btn-nav btn-nav-owner" data-i18n="nav_dashboard">👑 Dashboard (${user.username})</a>
                 ` : `
-                <a href="/login" class="btn-nav">🔑 Anmelden mit Discord</a>
+                <a href="/login" class="btn-nav" data-i18n="nav_login">🔑 Anmelden mit Discord</a>
                 `}
             </div>
         </nav>
@@ -9248,23 +9395,23 @@ app.get('/', (req, res) => {
         <section class="hero">
             <div class="hero-badge">
                 <div class="pulse-dot"></div>
-                <span>🚀 JETZT LIVE: AEROGUARD CORE v5.0 ENTERPRISE SUITE</span>
+                <span data-i18n="hero_badge">🚀 JETZT LIVE: AEROGUARD CORE v5.0 ENTERPRISE SUITE</span>
             </div>
             <h1 class="hero-title">
-                Sicherer Support, Creator-Hub & Anti-Raid Schutz für <span>deine Community</span>.
+                <span data-i18n="hero_title_p1">Sicherer Support, Creator-Hub & Anti-Raid Schutz für </span><span data-i18n="hero_title_p2">deine Community</span>.
             </h1>
-            <p class="hero-desc">
+            <p class="hero-desc" data-i18n="hero_desc">
                 AeroGuard Core v5.0 Enterprise vereint flexibles Roblox-Gatekeeping ohne Ticket-Blockaden, einen brandneuen Multi-Plattform Streamer-Hub (Twitch, YouTube, TikTok), ein unbarmherziges Honeypot-Schutzschild gegen Raid-Bots und professionelle 24/7 Enterprise-Automation.
             </p>
             <div class="hero-actions">
                 <a href="${inviteUrl}" target="_blank" class="btn-cta-primary">
-                    🤖 Bot zu Discord einladen
+                    <span data-i18n="cta_invite">🤖 Bot zu Discord einladen</span>
                 </a>
                 <a href="/dashboard" class="btn-cta-secondary">
-                    📊 Web-Dashboard öffnen
+                    <span data-i18n="cta_dashboard">📊 Web-Dashboard öffnen</span>
                 </a>
                 <a href="#v4-update" class="btn-cta-highlight">
-                    ✨ Was ist neu in v5.0?
+                    <span data-i18n="cta_what_new">✨ Was ist neu in v5.0?</span>
                 </a>
             </div>
         </section>
@@ -9272,25 +9419,25 @@ app.get('/', (req, res) => {
         <!-- TELEMETRY BAR -->
         <div class="telemetry-bar" id="telemetry">
             <div class="telemetry-item">
-                <div class="tel-label">Online Status</div>
+                <div class="tel-label" data-i18n="tel_online">Online Status</div>
                 <div class="tel-val" style="color:var(--green); display:flex; align-items:center; justify-content:center; gap:8px;">
                     <div class="pulse-dot"></div> ONLINE
                 </div>
             </div>
             <div class="telemetry-item">
-                <div class="tel-label">Verbundene Server</div>
+                <div class="tel-label" data-i18n="tel_servers">Verbundene Server</div>
                 <div class="tel-val">${guildsCount}</div>
             </div>
             <div class="telemetry-item">
-                <div class="tel-label">Tickets Bearbeitet</div>
+                <div class="tel-label" data-i18n="tel_tickets">Tickets Bearbeitet</div>
                 <div class="tel-val">${ticketsDone}</div>
             </div>
             <div class="telemetry-item">
-                <div class="tel-label">Latenz (Ping)</div>
+                <div class="tel-label" data-i18n="tel_latency">Latenz (Ping)</div>
                 <div class="tel-val">${ping} <span style="font-size:1rem;color:var(--text-dim)">ms</span></div>
             </div>
             <div class="telemetry-item">
-                <div class="tel-label">Core Version</div>
+                <div class="tel-label" data-i18n="tel_version">Core Version</div>
                 <div class="tel-val" style="color:var(--cyan); font-size:1.6rem;">v5.0 <span style="font-size:0.85rem;color:var(--purple);font-weight:700;">PRO</span></div>
             </div>
         </div>
@@ -9303,7 +9450,7 @@ app.get('/', (req, res) => {
                 <div class="hero-badge" style="margin-bottom:12px;">
                     <span>🌟 MAJOR UPDATE HIGHLIGHTS</span>
                 </div>
-                <h2>🚀 Was ist neu in AeroGuard Core v5.0 Enterprise?</h2>
+                <h2 data-i18n="v4_headline">🚀 Was ist neu in AeroGuard Core v5.0 Enterprise?</h2>
                 <p>
                     Vier bahnbrechende Kern-Features für maximale Flexibilität, Creator-Reichweite und kompromisslose Server-Sicherheit.
                 </p>
@@ -9317,7 +9464,7 @@ app.get('/', (req, res) => {
                             <span class="v4-icon">🎮</span>
                             <span class="v4-pill v4-pill-green">TICKET-BEFREIUNG</span>
                         </div>
-                        <h3 class="v4-title">1. Roblox-Verifizierung flexibel & optional einstellbar</h3>
+                        <h3 class="v4-title" data-i18n="card1_title">1. Roblox-Verifizierung flexibel & optional einstellbar</h3>
                         <p class="v4-desc">
                             Keine frustrierenden Ticket-Blockaden mehr! Im Web-Dashboard (<code>dashboard.html</code>) kannst du nun frei zwischen <strong>3 Betriebsmodi</strong> wählen. Du entscheidest, wie streng die Verknüpfung gehandhabt wird:
                         </p>
@@ -9360,7 +9507,7 @@ app.get('/', (req, res) => {
                             <span class="v4-icon">📡</span>
                             <span class="v4-pill v4-pill-purple">MULTI-PLATTFORM HUB</span>
                         </div>
-                        <h3 class="v4-title">2. Streamer & Creator Social Hub</h3>
+                        <h3 class="v4-title" data-i18n="card2_title">2. Streamer & Creator Social Hub</h3>
                         <p class="v4-desc">
                             Ein brandneues Modul in der Modul-Zentrale des Web-Dashboards. Halte deine Community automatisch auf dem Laufenden, wenn Content Creator live gehen oder Uploads veröffentlichen!
                         </p>
@@ -9398,7 +9545,7 @@ app.get('/', (req, res) => {
                             <span class="v4-icon">🍯</span>
                             <span class="v4-pill v4-pill-gold">ANTI-RAID SCHUTZ</span>
                         </div>
-                        <h3 class="v4-title">3. Honeypot Anti-Raid & Bot-Trap Schutzschild</h3>
+                        <h3 class="v4-title" data-i18n="card3_title">3. Honeypot Anti-Raid & Bot-Trap Schutzschild</h3>
                         <p class="v4-desc">
                             Die unsichtbare Falle für Spambots, Selfbots und bösartige Raids. Der Bot richtet einen Sperrkanal ein (z. B. <code>#🍯・bot-falle</code>), der echten Nutzern als Verbot deklariert ist.
                         </p>
@@ -9437,7 +9584,7 @@ app.get('/', (req, res) => {
                             <span class="v4-icon">🏷️</span>
                             <span class="v4-pill v4-pill-cyan">ENTERPRISE CORE</span>
                         </div>
-                        <h3 class="v4-title">4. Versions-Upgrade auf v5.0 Enterprise</h3>
+                        <h3 class="v4-title" data-i18n="card4_title">4. Versions-Upgrade auf v5.0 Enterprise</h3>
                         <p class="v4-desc">
                             Das gesamte Fundament von AeroGuard Core läuft nun auf der hochmodernen <strong>v5.0 Enterprise Engine</strong>. Maximale Uptime, blitzschnelle Latenzen und Render.com Cloud-Integration.
                         </p>
@@ -10002,6 +10149,202 @@ app.get('/', (req, res) => {
             initCookieConsent();
         }
     </script>
+
+
+    <!-- CYBERPUNK I18N ENGINE FOR LANDING PAGE (BEFORE LOGIN) -->
+    <script>
+        const LANDING_I18N = {
+            "de": {
+                "flag": "🇩🇪",
+                "name": "Deutsch",
+                "translations": {
+                    "lang_select_title": "🌐 Sprache wählen",
+                    "nav_highlights": "🚀 v5.0 Neuheiten",
+                    "nav_features": "Features",
+                    "nav_status": "Status",
+                    "nav_apply": "📝 Jetzt Bewerben",
+                    "nav_login": "🔑 Anmelden mit Discord",
+                    "nav_dashboard": "👑 Dashboard",
+                    "hero_badge": "🚀 JETZT LIVE: AEROGUARD CORE v5.0 ENTERPRISE SUITE",
+                    "hero_title_p1": "Sicherer Support, Creator-Hub & Anti-Raid Schutz für ",
+                    "hero_title_p2": "deine Community",
+                    "hero_desc": "AeroGuard Core v5.0 Enterprise vereint flexibles Roblox-Gatekeeping ohne Ticket-Blockaden, einen brandneuen Multi-Plattform Streamer-Hub (Twitch, YouTube, TikTok), ein unbarmherziges Honeypot-Schutzschild gegen Raid-Bots und professionelle 24/7 Enterprise-Automation.",
+                    "cta_invite": "🤖 Bot zu Discord einladen",
+                    "cta_dashboard": "📊 Web-Dashboard öffnen",
+                    "cta_what_new": "✨ Was ist neu in v5.0?",
+                    "tel_online": "Online Status",
+                    "tel_servers": "Verbundene Server",
+                    "tel_tickets": "Tickets Bearbeitet",
+                    "tel_latency": "Latenz (Ping)",
+                    "tel_version": "Core Version",
+                    "v4_headline": "🚀 Was ist neu in AeroGuard Core v5.0 Enterprise?",
+                    "card1_title": "1. Roblox-Verifizierung flexibel & optional einstellbar",
+                    "card2_title": "2. Streamer & Creator Social Hub",
+                    "card3_title": "3. Honeypot Anti-Raid & Bot-Trap Schutzschild",
+                    "card4_title": "4. Versions-Upgrade auf v5.0 Enterprise"
+                }
+            },
+            "en": {
+                "flag": "🇬🇧",
+                "name": "English",
+                "translations": {
+                    "lang_select_title": "🌐 Choose Language",
+                    "nav_highlights": "🚀 v5.0 Highlights",
+                    "nav_features": "Features",
+                    "nav_status": "Status",
+                    "nav_apply": "📝 Apply Now",
+                    "nav_login": "🔑 Login with Discord",
+                    "nav_dashboard": "👑 Dashboard",
+                    "hero_badge": "🚀 NOW LIVE: AEROGUARD CORE v5.0 ENTERPRISE SUITE",
+                    "hero_title_p1": "Secure support, creator hub & anti-raid defense for ",
+                    "hero_title_p2": "your community",
+                    "hero_desc": "AeroGuard Core v5.0 Enterprise combines flexible Roblox gatekeeping without ticket lockouts, an all-new multi-platform creator hub (Twitch, YouTube, TikTok), a ruthless honeypot shield against raid bots, and professional 24/7 enterprise automation.",
+                    "cta_invite": "🤖 Invite Bot to Discord",
+                    "cta_dashboard": "📊 Open Web Dashboard",
+                    "cta_what_new": "✨ What's new in v5.0?",
+                    "tel_online": "Online Status",
+                    "tel_servers": "Connected Servers",
+                    "tel_tickets": "Tickets Handled",
+                    "tel_latency": "Latency (Ping)",
+                    "tel_version": "Core Version",
+                    "v4_headline": "🚀 What's new in AeroGuard Core v5.0 Enterprise?",
+                    "card1_title": "1. Flexible & Optional Roblox Verification",
+                    "card2_title": "2. Streamer & Creator Social Hub",
+                    "card3_title": "3. Honeypot Anti-Raid & Bot-Trap Shield",
+                    "card4_title": "4. Version Upgrade to v5.0 Enterprise"
+                }
+            },
+            "fr": {
+                "flag": "🇫🇷",
+                "name": "Français",
+                "translations": {
+                    "lang_select_title": "🌐 Choisir la langue",
+                    "nav_highlights": "🚀 Nouveautés v5.0",
+                    "nav_features": "Fonctionnalités",
+                    "nav_status": "Statut",
+                    "nav_apply": "📝 Postuler maintenant",
+                    "nav_login": "🔑 Se connecter avec Discord",
+                    "nav_dashboard": "👑 Tableau de bord",
+                    "hero_badge": "🚀 MAINTENANT DISPONIBLE : AEROGUARD CORE v5.0 ENTERPRISE SUITE",
+                    "hero_title_p1": "Support sécurisé, hub créateurs et protection anti-raid pour ",
+                    "hero_title_p2": "votre communauté",
+                    "hero_desc": "AeroGuard Core v5.0 Enterprise combine un contrôle Roblox flexible sans blocage de tickets, un tout nouveau hub créateur multiplateforme (Twitch, YouTube, TikTok), un bouclier honeypot redoutable contre les raids de bots et une automatisation d'entreprise 24/7.",
+                    "cta_invite": "🤖 Inviter le bot sur Discord",
+                    "cta_dashboard": "📊 Ouvrir le tableau de bord",
+                    "cta_what_new": "✨ Nouveautés v5.0 ?",
+                    "tel_online": "Statut en ligne",
+                    "tel_servers": "Serveurs connectés",
+                    "tel_tickets": "Tickets traités",
+                    "tel_latency": "Latence (Ping)",
+                    "tel_version": "Version du Core",
+                    "v4_headline": "🚀 Quelles nouveautés dans AeroGuard Core v5.0 Enterprise ?",
+                    "card1_title": "1. Vérification Roblox Flexible & Optionnelle",
+                    "card2_title": "2. Hub Social Créateurs & Streamers",
+                    "card3_title": "3. Bouclier Anti-Raid Honeypot & Piège à Bots",
+                    "card4_title": "4. Mise à niveau vers v5.0 Enterprise"
+                }
+            },
+            "es": {
+                "flag": "🇪🇸",
+                "name": "Español",
+                "translations": {
+                    "lang_select_title": "🌐 Seleccionar idioma",
+                    "nav_highlights": "🚀 Novedades v5.0",
+                    "nav_features": "Características",
+                    "nav_status": "Estado",
+                    "nav_apply": "📝 Postularse ahora",
+                    "nav_login": "🔑 Iniciar sesión con Discord",
+                    "nav_dashboard": "👑 Panel de Control",
+                    "hero_badge": "🚀 DISPONIBLE AHORA: AEROGUARD CORE v5.0 ENTERPRISE SUITE",
+                    "hero_title_p1": "Soporte seguro, hub de creadores y defensa anti-raid para ",
+                    "hero_title_p2": "tu comunidad",
+                    "hero_desc": "AeroGuard Core v5.0 Enterprise combina verificación de Roblox flexible sin bloqueos de tickets, un nuevo hub social para creadores (Twitch, YouTube, TikTok), un escudo honeypot implacable contra ataques de bots y automatización empresarial 24/7.",
+                    "cta_invite": "🤖 Invitar Bot a Discord",
+                    "cta_dashboard": "📊 Abrir Panel de Control",
+                    "cta_what_new": "✨ ¿Qué hay de nuevo en v5.0?",
+                    "tel_online": "Estado en línea",
+                    "tel_servers": "Servidores Conectados",
+                    "tel_tickets": "Tickets Procesados",
+                    "tel_latency": "Latencia (Ping)",
+                    "tel_version": "Versión del Core",
+                    "v4_headline": "🚀 ¿Qué hay de nuevo en AeroGuard Core v5.0 Enterprise?",
+                    "card1_title": "1. Verificación de Roblox Flexible y Opcional",
+                    "card2_title": "2. Hub Social de Streamers y Creadores",
+                    "card3_title": "3. Escudo Anti-Raid y Trampa de Bots Honeypot",
+                    "card4_title": "4. Actualización a v5.0 Enterprise"
+                }
+            }
+        };
+
+        function getAppLanguage() {
+            try {
+                const stored = localStorage.getItem('aeroguard_lang');
+                if (stored && LANDING_I18N[stored]) return stored;
+                const m = document.cookie.match(/aeroguard_lang=([a-z]{2})/);
+                if (m && LANDING_I18N[m[1]]) return m[1];
+                const browserLang = (navigator.language || navigator.userLanguage || 'de').substring(0, 2).toLowerCase();
+                if (LANDING_I18N[browserLang]) return browserLang;
+            } catch(e) {}
+            return 'de';
+        }
+
+        function setAppLanguage(lang) {
+            if (!LANDING_I18N[lang]) lang = 'de';
+            try {
+                localStorage.setItem('aeroguard_lang', lang);
+                document.cookie = "aeroguard_lang=" + lang + "; path=/; max-age=31536000; SameSite=Lax";
+            } catch(e) {}
+
+            const langObj = LANDING_I18N[lang];
+            const flagEl = document.getElementById('current-lang-flag');
+            const nameEl = document.getElementById('current-lang-name');
+            if (flagEl) flagEl.innerText = langObj.flag;
+            if (nameEl) nameEl.innerText = langObj.name;
+
+            document.querySelectorAll('.lang-dropdown-item').forEach(btn => {
+                if (btn.getAttribute('data-lang') === lang) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (langObj.translations && langObj.translations[key]) {
+                    el.innerText = langObj.translations[key];
+                }
+            });
+
+            const menu = document.getElementById('lang-dropdown-menu');
+            if (menu) menu.classList.remove('show');
+        }
+
+        function toggleLanguageDropdown(e) {
+            if (e) {
+                e.stopPropagation();
+                e.preventDefault();
+            }
+            const menu = document.getElementById('lang-dropdown-menu');
+            if (menu) menu.classList.toggle('show');
+        }
+
+        document.addEventListener('click', (e) => {
+            const container = document.getElementById('lang-selector-container');
+            const menu = document.getElementById('lang-dropdown-menu');
+            if (menu && container && !container.contains(e.target)) {
+                menu.classList.remove('show');
+            }
+        });
+
+        // Initialize language immediately
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => setAppLanguage(getAppLanguage()));
+        } else {
+            setAppLanguage(getAppLanguage());
+        }
+    </script>
+
 
     </div>
 </body>

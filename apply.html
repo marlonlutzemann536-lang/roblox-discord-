@@ -46,6 +46,8 @@
 
         /* HEADER NAV */
         nav {
+            position: relative;
+            z-index: 50000;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -676,6 +678,7 @@
         .lang-selector-container {
             position: relative;
             display: inline-block;
+            z-index: 50001;
         }
         .lang-selector-btn {
             background: rgba(255, 255, 255, 0.04);
@@ -705,18 +708,25 @@
             position: absolute;
             top: calc(100% + 8px);
             right: 0;
-            width: 220px;
-            background: rgba(13, 17, 33, 0.96);
-            border: 1px solid var(--border-glow);
+            width: 230px;
+            background: #0d1121;
+            border: 1px solid var(--cyan);
             border-radius: 14px;
             padding: 8px;
-            backdrop-filter: blur(20px);
-            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.65), 0 0 20px rgba(0, 243, 255, 0.15);
+            backdrop-filter: blur(24px);
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.95), 0 0 30px rgba(0, 243, 255, 0.35);
             display: none;
             flex-direction: column;
             gap: 4px;
-            z-index: 10000;
+            z-index: 50003;
+            pointer-events: auto;
             animation: langMenuAnim 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .lang-dropdown-item {
+            position: relative;
+            z-index: 50004;
+            pointer-events: auto;
+            cursor: pointer;
         }
         @keyframes langMenuAnim {
             from { opacity: 0; transform: translateY(-6px) scale(0.98); }
