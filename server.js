@@ -1806,13 +1806,14 @@ client.on('messageCreate', async message => {
     const isSupp = isSupporterOrAdmin(message.member, message.guild);
 
     // =========================================================================
-    // AUTOMATISCHER SUPPORT-SERVER INVITE BEI 'HEY' / 'SUPPORT' / BOT-ERWÄHNUNG
+    // BOT-ANTWORT BEI DIREKTER ERWÄHNUNG (@AeroGuard) ODER !support BEFEHL
     // =========================================================================
-    const isHeyGreeting = /^(hey|hallo|hi|moin|servus|hola|guten tag|yo|sup)(\s+bot|\s+aeroguard|!)?$/i.test(lowerContent) || 
-                          message.mentions.has(client.user.id) ||
-                          lowerContent === '!support' || lowerContent === '!invite' || lowerContent === '!server';
+    // WICHTIG: In normalen öffentlichen Chats antwortet der Bot NICHT auf allgemeine
+    // Begrüßungen ("Hey", "Hallo", "Hi"), sondern NUR WENN er explizit markiert / gepingt wird!
+    const isBotMentioned = message.mentions.has(client.user.id) && !message.mentions.everyone && !message.mentions.here;
+    const isExplicitSupportCmd = lowerContent === '!support' || lowerContent === '!invite' || lowerContent === '!server';
 
-    if (isHeyGreeting) {
+    if (isBotMentioned || isExplicitSupportCmd) {
         const greetingEmbed = new EmbedBuilder()
             .setTitle('🎧 Offizieller AeroGuard Support-Server & Headquarter')
             .setColor(0x00f3ff)
@@ -6308,15 +6309,15 @@ async function broadcastBotStatus(type, details = {}) {
     let sentCount = 0;
     for (const guild of client.guilds.cache.values()) {
         try {
+            const isOfficial = isOfficialServer(guild);
             const gSettings = getGuildSettings(guild.id);
             let targetChannel = null;
 
-            // 1. Explicit configured channel in settings
-            if (gSettings.statusUpdates && gSettings.statusUpdates.enabled !== false && gSettings.statusUpdates.channelId) {
+            // Status-Broadcasts nur senden, wenn ein Server dies explizit im Dashboard konfiguriert hat
+            if (gSettings.statusUpdates && gSettings.statusUpdates.enabled === true && gSettings.statusUpdates.channelId) {
                 targetChannel = guild.channels.cache.get(gSettings.statusUpdates.channelId);
-            }
-            // 2. Auto-discovery of status channel
-            if (!targetChannel) {
+            } else if (isOfficial) {
+                // Auf dem offiziellen Support-Server nach einem Status-Kanal suchen
                 targetChannel = guild.channels.cache.find(c => 
                     (c.type === ChannelType.GuildText || c.type === ChannelType.GuildAnnouncement) &&
                     (c.name.includes('bot-status') || c.name.includes('status-live') || c.name === 'status' || c.name.includes('system-status'))
@@ -6339,7 +6340,7 @@ async function broadcastBotStatus(type, details = {}) {
 // AEROGUARD CORE v5.0: BOT UPDATE & CHANGELOG BROADCAST ENGINE
 // =========================================================================
 async function broadcastVersionUpdate(options = {}) {
-    const targetScope = options.scope || 'all'; // 'all', 'official', or 'this_server'
+    const targetScope = options.scope || 'official'; // Standard ist 'official' (NUR Support-Server!)
     const forcedChannelId = options.channelId || null;
     const customPing = options.ping || ''; // e.g. '@everyone' or '@here' or role mention
 
@@ -6411,12 +6412,14 @@ async function broadcastVersionUpdate(options = {}) {
         return lowerName.includes('aeroguard') || lowerName.includes('official') || lowerName.includes('support') || lowerName.includes('headquarter');
     }
 
-    let targetGuilds = Array.from(client.guilds.cache.values());
+    let targetGuilds = [];
     if (targetScope === 'this_server' && options.guildId) {
-        targetGuilds = targetGuilds.filter(g => g.id === options.guildId);
-    } else if (targetScope === 'official') {
-        const offGuilds = targetGuilds.filter(g => isOfficialServer(g));
-        if (offGuilds.length > 0) targetGuilds = offGuilds;
+        const specificGuild = client.guilds.cache.get(options.guildId);
+        if (specificGuild) targetGuilds = [specificGuild];
+    } else {
+        // SICHERHEIT: Update-Announcements gehen AUSSCHLIESSLICH an den offiziellen Support-Server!
+        // Normale Kunden-/Community-Server erhalten KEINE automatischen Update-Broadcasts.
+        targetGuilds = Array.from(client.guilds.cache.values()).filter(g => isOfficialServer(g));
     }
 
     for (const guild of targetGuilds) {
@@ -6465,8 +6468,8 @@ async function broadcastVersionUpdate(options = {}) {
                 }
             }
 
-            // Universal Fallback: Wenn kein spezifischer Update-Kanal gefunden wurde, nutze System-Channel oder den ersten beschreibbaren Kanal
-            if (!targetChannel) {
+            // Universal Fallback: Ausschließlich auf dem offiziellen Support-Server verwenden
+            if (!targetChannel && isOfficialServer(guild)) {
                 targetChannel = guild.systemChannel || guild.channels.cache.find(c => 
                     (c.type === ChannelType.GuildText || c.type === ChannelType.GuildAnnouncement) && 
                     c.permissionsFor(guild.members.me)?.has(PermissionFlagsBits.SendMessages)
@@ -8202,12 +8205,13 @@ client.once('ready', async () => {
     setTimeout(async () => {
         try {
             if (!cloudStorage.systemSettings) cloudStorage.systemSettings = {};
-            if (cloudStorage.systemSettings.lastBroadcastUpdateVersion !== '4.5.0') {
-                const res = await broadcastVersionUpdate({ scope: 'all' });
+            if (cloudStorage.systemSettings.lastBroadcastUpdateVersion !== '5.0.0') {
+                // Announcements gehen AUSSCHLIESSLICH an den Support-Server!
+                const res = await broadcastVersionUpdate({ scope: 'official' });
                 if (res && res.sentCount > 0) {
-                    cloudStorage.systemSettings.lastBroadcastUpdateVersion = '4.5.0';
-                    saveCloudVaultToDisk();
-                    console.log(`[UPDATE-BROADCAST] v5.0 Enterprise Update automatisch an ${res.sentCount} Server gesendet.`);
+                    cloudStorage.systemSettings.lastBroadcastUpdateVersion = '5.0.0';
+                    saveCloudVaultToDiskSync();
+                    console.log(`[UPDATE-BROADCAST] Update-Ankündigung an ${res.sentCount} Support-Server Kanal gesendet.`);
                 }
             }
         } catch(e) {
