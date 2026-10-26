@@ -671,7 +671,131 @@
             .hero h1 { font-size: 2.2rem; }
             .bot-guide-card { flex-direction: column; }
         }
-    </style>
+    
+        /* CYBERPUNK MULTI-LANGUAGE SELECTOR */
+        .lang-selector-container {
+            position: relative;
+            display: inline-block;
+        }
+        .lang-selector-btn {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border-glow);
+            color: #f1f5f9;
+            padding: 7px 14px;
+            border-radius: 12px;
+            font-family: inherit;
+            font-size: 0.86rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            backdrop-filter: blur(12px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25);
+            user-select: none;
+        }
+        .lang-selector-btn:hover {
+            background: rgba(0, 243, 255, 0.1);
+            border-color: var(--cyan);
+            box-shadow: 0 0 16px var(--cyan-glow);
+            transform: translateY(-1px);
+        }
+        .lang-dropdown-menu {
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            width: 220px;
+            background: rgba(13, 17, 33, 0.96);
+            border: 1px solid var(--border-glow);
+            border-radius: 14px;
+            padding: 8px;
+            backdrop-filter: blur(20px);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.65), 0 0 20px rgba(0, 243, 255, 0.15);
+            display: none;
+            flex-direction: column;
+            gap: 4px;
+            z-index: 10000;
+            animation: langMenuAnim 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        @keyframes langMenuAnim {
+            from { opacity: 0; transform: translateY(-6px) scale(0.98); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .lang-dropdown-menu.show {
+            display: flex;
+        }
+        .lang-dropdown-header {
+            font-size: 0.72rem;
+            color: var(--cyan);
+            text-transform: uppercase;
+            font-weight: 800;
+            letter-spacing: 0.05em;
+            padding: 6px 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            margin-bottom: 4px;
+        }
+        .lang-dropdown-item {
+            background: transparent;
+            border: 1px solid transparent;
+            color: var(--text-dim);
+            padding: 8px 10px;
+            border-radius: 10px;
+            font-family: inherit;
+            font-size: 0.88rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-align: left;
+            transition: all 0.15s ease;
+            width: 100%;
+        }
+        .lang-dropdown-item:hover {
+            background: rgba(0, 243, 255, 0.1);
+            color: #fff;
+            border-color: rgba(0, 243, 255, 0.25);
+        }
+        .lang-dropdown-item.active {
+            background: linear-gradient(135deg, rgba(0, 243, 255, 0.18), rgba(157, 78, 221, 0.18));
+            color: var(--cyan);
+            border-color: var(--cyan);
+            font-weight: 700;
+        }
+        .lang-dropdown-item .lang-flag {
+            font-size: 1.25rem;
+        }
+        .lang-dropdown-item .lang-info {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        .lang-dropdown-item .lang-label {
+            line-height: 1.2;
+            color: #fff;
+        }
+        .lang-dropdown-item.active .lang-label {
+            color: var(--cyan);
+        }
+        .lang-dropdown-item .lang-sub {
+            font-size: 0.68rem;
+            color: var(--text-dim);
+            font-weight: 400;
+        }
+        .lang-dropdown-item.active .lang-sub {
+            color: rgba(0, 243, 255, 0.7);
+        }
+        .lang-dropdown-item .lang-check {
+            opacity: 0;
+            font-size: 0.9rem;
+            color: var(--cyan);
+            font-weight: 800;
+        }
+        .lang-dropdown-item.active .lang-check {
+            opacity: 1;
+        }
+</style>
 </head>
 <body>
     <div class="container">
@@ -685,6 +809,38 @@
             </a>
 
             <div class="nav-actions">
+                <!-- CYBERPUNK MULTI-LANGUAGE SELECTOR -->
+                <div class="lang-selector-container" id="lang-selector-container">
+                    <button type="button" class="lang-selector-btn" id="lang-selector-btn" onclick="toggleLanguageDropdown(event)">
+                        <span id="current-lang-flag">🇩🇪</span>
+                        <span id="current-lang-name">Deutsch</span>
+                        <span style="font-size:0.65rem; opacity:0.7; margin-left:3px;">▼</span>
+                    </button>
+                    <div class="lang-dropdown-menu" id="lang-dropdown-menu">
+                        <div class="lang-dropdown-header" data-i18n="lang_select_title">🌐 Sprache wählen</div>
+                        <button type="button" class="lang-dropdown-item active" data-lang="de" onclick="setAppLanguage('de')">
+                            <span class="lang-flag">🇩🇪</span>
+                            <div class="lang-info"><span class="lang-label">Deutsch</span><span class="lang-sub">Standard</span></div>
+                            <span class="lang-check">✓</span>
+                        </button>
+                        <button type="button" class="lang-dropdown-item" data-lang="en" onclick="setAppLanguage('en')">
+                            <span class="lang-flag">🇬🇧</span>
+                            <div class="lang-info"><span class="lang-label">English</span><span class="lang-sub">International</span></div>
+                            <span class="lang-check">✓</span>
+                        </button>
+                        <button type="button" class="lang-dropdown-item" data-lang="fr" onclick="setAppLanguage('fr')">
+                            <span class="lang-flag">🇫🇷</span>
+                            <div class="lang-info"><span class="lang-label">Français</span><span class="lang-sub">Français</span></div>
+                            <span class="lang-check">✓</span>
+                        </button>
+                        <button type="button" class="lang-dropdown-item" data-lang="es" onclick="setAppLanguage('es')">
+                            <span class="lang-flag">🇪🇸</span>
+                            <div class="lang-info"><span class="lang-label">Español</span><span class="lang-sub">Español</span></div>
+                            <span class="lang-check">✓</span>
+                        </button>
+                    </div>
+                </div>
+
                 <a href="/" class="btn-nav-link">🏠 Startseite</a>
                 <a href="https://discord.gg/JvnhWC5Gnu" target="_blank" class="btn-support-head">
                     <span>🎧</span> Support-Server
@@ -968,6 +1124,219 @@
     <div id="toast"></div>
 
     <script>
+        // =========================================================================
+        // AEROGUARD APPLY PORTAL MULTI-LANGUAGE (i18n) ENGINE
+        // =========================================================================
+        const APPLY_I18N = {
+            de: {
+                flag: "🇩🇪",
+                name: "Deutsch",
+                translations: {
+                    lang_select_title: "🌐 Sprache wählen",
+                    nav_home: "🏠 Startseite",
+                    nav_support: "Support-Server",
+                    nav_login: "🔐 Login",
+                    hero_badge: "✨ OFFIZIELLER STAFF-RECRUITMENT HUB",
+                    hero_title: "AeroGuard Supporter-Bewerbungsportal",
+                    hero_desc: "Werde Teil unseres offiziellen Support-Teams! Betreue Server, beantworte Tickets und sorge für Sicherheit in unserer wachsenden Community.",
+                    guidelines_title: "🎯 AeroGuard Team-Leitfaden & Voraussetzungen",
+                    guide_age_title: "Mindestalter 14+ Jahre",
+                    guide_age_desc: "Geistige Reife, Zuverlässigkeit und ein respektvoller Umgangston sind Grundvoraussetzung.",
+                    guide_mic_title: "Headset & Mikrofon",
+                    guide_mic_desc: "Für Absprachen im Leitstellen-Warteraum und Live-Support-Gespräche zwingend erforderlich.",
+                    guide_exp_title: "Support- & Chat-Erfahrung",
+                    guide_exp_desc: "Grundkenntnisse im Umgang mit Ticket-Systemen und Discord-Moderationswerkzeugen.",
+                    guide_roblox_title: "Roblox- & AeroGuard-Kenntnisse",
+                    guide_roblox_desc: "Vertrautheit mit Discord-Bot-Funktionen und AeroGuard-Sicherheitsmodulen.",
+                    form_title: "📝 Bewerbungsformular einreichen",
+                    form_subtitle: "Fülle alle Felder sorgfältig und wahrheitsgemäß aus.",
+                    lbl_discord_tag: "Discord-Tag (Benutzername)",
+                    lbl_discord_id: "Discord User-ID",
+                    lbl_age: "Dein Alter",
+                    lbl_roblox: "Roblox-Benutzername",
+                    lbl_mic: "Verfügst du über ein funktionierendes Headset / Mikrofon?",
+                    opt_yes: "Ja, Headset vorhanden & einsatzbereit",
+                    opt_no: "Nein, aktuell kein Mikrofon",
+                    lbl_availability: "Wöchentliche Verfügbarkeit & Online-Zeiten",
+                    lbl_experience: "Bisherige Erfahrungen im Support & Moderation",
+                    lbl_motivation: "Warum möchtest du Teil des AeroGuard-Teams werden?",
+                    lbl_strengths: "Deine besonderen Stärken",
+                    btn_submit: "🚀 Bewerbung jetzt absenden",
+                    toast_success: "✅ Deine Bewerbung wurde erfolgreich an die Leitung weitergeleitet!"
+                }
+            },
+            en: {
+                flag: "🇬🇧",
+                name: "English",
+                translations: {
+                    lang_select_title: "🌐 Select Language",
+                    nav_home: "🏠 Home",
+                    nav_support: "Support Server",
+                    nav_login: "🔐 Login",
+                    hero_badge: "✨ OFFICIAL STAFF RECRUITMENT HUB",
+                    hero_title: "AeroGuard Supporter Application Portal",
+                    hero_desc: "Join our official support team! Assist servers, respond to tickets and ensure security across our fast-growing community.",
+                    guidelines_title: "🎯 AeroGuard Team Guidelines & Requirements",
+                    guide_age_title: "Minimum Age 14+ Years",
+                    guide_age_desc: "Maturity, reliability and respectful communication are mandatory requirements.",
+                    guide_mic_title: "Headset & Microphone",
+                    guide_mic_desc: "Required for team coordination in voice dispatch and real-time support talks.",
+                    guide_exp_title: "Support & Chat Experience",
+                    guide_exp_desc: "Basic experience with ticket systems and Discord moderation tooling.",
+                    guide_roblox_title: "Roblox & AeroGuard Knowledge",
+                    guide_roblox_desc: "Familiarity with Discord bot features and AeroGuard security modules.",
+                    form_title: "📝 Submit Your Application",
+                    form_subtitle: "Please complete all fields carefully and truthfully.",
+                    lbl_discord_tag: "Discord Tag (Username)",
+                    lbl_discord_id: "Discord User ID",
+                    lbl_age: "Your Age",
+                    lbl_roblox: "Roblox Username",
+                    lbl_mic: "Do you have a working headset / microphone?",
+                    opt_yes: "Yes, working headset available",
+                    opt_no: "No, currently no microphone",
+                    lbl_availability: "Weekly Availability & Active Hours",
+                    lbl_experience: "Previous Support & Moderation Experience",
+                    lbl_motivation: "Why do you want to join the AeroGuard Team?",
+                    lbl_strengths: "Your Key Personal Strengths",
+                    btn_submit: "🚀 Submit Application Now",
+                    toast_success: "✅ Your application was successfully forwarded to team leadership!"
+                }
+            },
+            fr: {
+                flag: "🇫🇷",
+                name: "Français",
+                translations: {
+                    lang_select_title: "🌐 Choisir la langue",
+                    nav_home: "🏠 Accueil",
+                    nav_support: "Serveur Support",
+                    nav_login: "🔐 Connexion",
+                    hero_badge: "✨ PORTAIL OFFICIEL DE RECRUTEMENT",
+                    hero_title: "Portail de Candidature Support AeroGuard",
+                    hero_desc: "Rejoignez notre équipe officielle de support ! Assistez les serveurs, traitez les tickets et veillez à la sécurité de notre communauté.",
+                    guidelines_title: "🎯 Guide de l'équipe AeroGuard & Prérequis",
+                    guide_age_title: "Âge minimum : 14+ ans",
+                    guide_age_desc: "Maturité, fiabilité et communication respectueuse indispensables.",
+                    guide_mic_title: "Casque & Microphone",
+                    guide_mic_desc: "Indispensable pour la coordination vocale et l'assistance en direct.",
+                    guide_exp_title: "Expérience en support & chat",
+                    guide_exp_desc: "Connaissance de base des systèmes de tickets et des outils de modération Discord.",
+                    guide_roblox_title: "Connaissances Roblox & AeroGuard",
+                    guide_roblox_desc: "Familiarité avec les fonctionnalités du bot et les modules de sécurité.",
+                    form_title: "📝 Soumettre votre candidature",
+                    form_subtitle: "Veuillez remplir tous les champs avec soin et sincérité.",
+                    lbl_discord_tag: "Tag Discord (Nom d'utilisateur)",
+                    lbl_discord_id: "ID utilisateur Discord",
+                    lbl_age: "Votre âge",
+                    lbl_roblox: "Nom d'utilisateur Roblox",
+                    lbl_mic: "Avez-vous un casque / micro fonctionnel ?",
+                    opt_yes: "Oui, casque et micro prêts à l'emploi",
+                    opt_no: "Non, pas de microphone actuellement",
+                    lbl_availability: "Disponibilité hebdomadaire & heures en ligne",
+                    lbl_experience: "Expérience préalable en support & modération",
+                    lbl_motivation: "Pourquoi voulez-vous rejoindre l'équipe AeroGuard ?",
+                    lbl_strengths: "Vos points forts principaux",
+                    btn_submit: "🚀 Envoyer la candidature",
+                    toast_success: "✅ Votre candidature a été transmise avec succès à l'équipe de direction !"
+                }
+            },
+            es: {
+                flag: "🇪🇸",
+                name: "Español",
+                translations: {
+                    lang_select_title: "🌐 Seleccionar idioma",
+                    nav_home: "🏠 Inicio",
+                    nav_support: "Servidor de Soporte",
+                    nav_login: "🔐 Iniciar sesión",
+                    hero_badge: "✨ CENTRO OFICIAL DE RECLUTAMIENTO",
+                    hero_title: "Portal de Postulaciones al Equipo AeroGuard",
+                    hero_desc: "¡Únete a nuestro equipo oficial de soporte! Asiste a servidores, responde tickets y mantén la seguridad de nuestra comunidad.",
+                    guidelines_title: "🎯 Guía del Equipo AeroGuard y Requisitos",
+                    guide_age_title: "Edad mínima: 14+ años",
+                    guide_age_desc: "Madurez, responsabilidad y trato respetuoso son obligatorios.",
+                    guide_mic_title: "Auriculares y Micrófono",
+                    guide_mic_desc: "Requerido para la coordinación del equipo y soporte de voz en vivo.",
+                    guide_exp_title: "Experiencia en soporte y chat",
+                    guide_exp_desc: "Conocimientos básicos en gestión de tickets y moderación en Discord.",
+                    guide_roblox_title: "Conocimientos de Roblox y AeroGuard",
+                    guide_roblox_desc: "Familiaridad con las funciones del bot y módulos de seguridad.",
+                    form_title: "📝 Enviar tu postulación",
+                    form_subtitle: "Por favor, completa todos los campos con sinceridad.",
+                    lbl_discord_tag: "Tag de Discord (Nombre de usuario)",
+                    lbl_discord_id: "ID de usuario de Discord",
+                    lbl_age: "Tu edad",
+                    lbl_roblox: "Nombre de usuario de Roblox",
+                    lbl_mic: "¿Dispones de auriculares con micrófono funcional?",
+                    opt_yes: "Sí, micrófono disponible y listo",
+                    opt_no: "No, actualmente sin micrófono",
+                    lbl_availability: "Disponibilidad semanal y horarios activos",
+                    lbl_experience: "Experiencia previa en soporte y moderación",
+                    lbl_motivation: "¿Por qué deseas unirte al equipo de AeroGuard?",
+                    lbl_strengths: "Tus principales fortalezas personales",
+                    btn_submit: "🚀 Enviar postulación ahora",
+                    toast_success: "✅ ¡Tu postulación fue enviada con éxito al equipo de liderazgo!"
+                }
+            }
+        };
+
+        function getAppLanguage() {
+            return localStorage.getItem('aeroguard_lang') || 'de';
+        }
+
+        function setAppLanguage(lang) {
+            if (!APPLY_I18N[lang]) lang = 'de';
+            localStorage.setItem('aeroguard_lang', lang);
+            try {
+                document.cookie = 'aeroguard_lang=' + lang + '; path=/; max-age=31536000';
+            } catch(e) {}
+            document.documentElement.lang = lang;
+
+            const langObj = APPLY_I18N[lang];
+            const flagEl = document.getElementById('current-lang-flag');
+            const nameEl = document.getElementById('current-lang-name');
+            if (flagEl) flagEl.textContent = langObj.flag;
+            if (nameEl) nameEl.textContent = langObj.name;
+
+            document.querySelectorAll('.lang-dropdown-item').forEach(btn => {
+                if (btn.getAttribute('data-lang') === lang) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (langObj.translations && langObj.translations[key]) {
+                    el.innerHTML = langObj.translations[key];
+                }
+            });
+
+            const menu = document.getElementById('lang-dropdown-menu');
+            if (menu) menu.classList.remove('show');
+        }
+
+        function toggleLanguageDropdown(e) {
+            if (e) {
+                e.stopPropagation();
+                e.preventDefault();
+            }
+            const menu = document.getElementById('lang-dropdown-menu');
+            if (menu) menu.classList.toggle('show');
+        }
+
+        document.addEventListener('click', (e) => {
+            const container = document.getElementById('lang-selector-container');
+            const menu = document.getElementById('lang-dropdown-menu');
+            if (menu && container && !container.contains(e.target)) {
+                menu.classList.remove('show');
+            }
+        });
+
+        // Initialize language
+        document.addEventListener('DOMContentLoaded', () => {
+            setAppLanguage(getAppLanguage());
+        });
+
         let currentAppId = null;
         let currentAppToken = null;
         let pollInterval = null;

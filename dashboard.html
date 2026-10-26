@@ -295,7 +295,131 @@
         #toast.show { transform: translateY(0); opacity: 1; }
 
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-    </style>
+    
+        /* CYBERPUNK MULTI-LANGUAGE SELECTOR */
+        .lang-selector-container {
+            position: relative;
+            display: inline-block;
+        }
+        .lang-selector-btn {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border-glow);
+            color: var(--text-main);
+            padding: 7px 14px;
+            border-radius: 12px;
+            font-family: inherit;
+            font-size: 0.86rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            backdrop-filter: blur(12px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25);
+            user-select: none;
+        }
+        .lang-selector-btn:hover {
+            background: rgba(0, 243, 255, 0.1);
+            border-color: var(--cyan);
+            box-shadow: 0 0 16px var(--cyan-glow);
+            transform: translateY(-1px);
+        }
+        .lang-dropdown-menu {
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            width: 220px;
+            background: rgba(13, 17, 33, 0.96);
+            border: 1px solid var(--border-glow);
+            border-radius: 14px;
+            padding: 8px;
+            backdrop-filter: blur(20px);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.65), 0 0 20px rgba(0, 243, 255, 0.15);
+            display: none;
+            flex-direction: column;
+            gap: 4px;
+            z-index: 10000;
+            animation: langMenuAnim 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        @keyframes langMenuAnim {
+            from { opacity: 0; transform: translateY(-6px) scale(0.98); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .lang-dropdown-menu.show {
+            display: flex;
+        }
+        .lang-dropdown-header {
+            font-size: 0.72rem;
+            color: var(--cyan);
+            text-transform: uppercase;
+            font-weight: 800;
+            letter-spacing: 0.05em;
+            padding: 6px 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            margin-bottom: 4px;
+        }
+        .lang-dropdown-item {
+            background: transparent;
+            border: 1px solid transparent;
+            color: var(--text-dim);
+            padding: 8px 10px;
+            border-radius: 10px;
+            font-family: inherit;
+            font-size: 0.88rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-align: left;
+            transition: all 0.15s ease;
+            width: 100%;
+        }
+        .lang-dropdown-item:hover {
+            background: rgba(0, 243, 255, 0.1);
+            color: #fff;
+            border-color: rgba(0, 243, 255, 0.25);
+        }
+        .lang-dropdown-item.active {
+            background: linear-gradient(135deg, rgba(0, 243, 255, 0.18), rgba(157, 78, 221, 0.18));
+            color: var(--cyan);
+            border-color: var(--cyan);
+            font-weight: 700;
+        }
+        .lang-dropdown-item .lang-flag {
+            font-size: 1.25rem;
+        }
+        .lang-dropdown-item .lang-info {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        .lang-dropdown-item .lang-label {
+            line-height: 1.2;
+            color: #fff;
+        }
+        .lang-dropdown-item.active .lang-label {
+            color: var(--cyan);
+        }
+        .lang-dropdown-item .lang-sub {
+            font-size: 0.68rem;
+            color: var(--text-dim);
+            font-weight: 400;
+        }
+        .lang-dropdown-item.active .lang-sub {
+            color: rgba(0, 243, 255, 0.7);
+        }
+        .lang-dropdown-item .lang-check {
+            opacity: 0;
+            font-size: 0.9rem;
+            color: var(--cyan);
+            font-weight: 800;
+        }
+        .lang-dropdown-item.active .lang-check {
+            opacity: 1;
+        }
+</style>
 </head>
 <body>
     <div class="container">
@@ -313,35 +437,67 @@
             <!-- TABS NAVIGATION -->
             <div class="nav-tabs">
                 <button class="tab-btn active" id="tabbtn-modules" onclick="showDashboardTab('modules', this)">
-                    🎛️ Modul-Zentrale
+                    <span data-i18n="nav_modules">🎛️ Modul-Zentrale</span>
                 </button>
                 <button class="tab-btn" id="tabbtn-tickets" onclick="showDashboardTab('tickets', this)">
-                    🎫 Live-Tickets (<span id="count-active-tickets">{{ACTIVE_TICKETS_COUNT}}</span>)
+                    <span data-i18n="nav_tickets">🎫 Live-Tickets</span> (<span id="count-active-tickets">{{ACTIVE_TICKETS_COUNT}}</span>)
                 </button>
                 <button class="tab-btn" id="tabbtn-transcripts" onclick="showDashboardTab('transcripts', this)">
-                    📜 Web-Transkripte (<span id="count-transcripts">{{TRANSCRIPTS_COUNT}}</span>)
+                    <span data-i18n="nav_transcripts">📜 Web-Transkripte</span> (<span id="count-transcripts">{{TRANSCRIPTS_COUNT}}</span>)
                 </button>
                 <!-- OWNER-EXKLUSIVE TABS (NUR FÜR BOT-BESITZER SICHTBAR) -->
                 <button class="tab-btn" id="tabbtn-applications" onclick="showDashboardTab('applications', this)" style="display:inline-flex; border-color:rgba(0,243,255,0.4); color:var(--cyan);">
-                    📝 Bewerbungen (<span id="count-applications">{{APPLICATIONS_PENDING_COUNT}}</span>)
+                    <span data-i18n="nav_applications">📝 Bewerbungen</span> (<span id="count-applications">{{APPLICATIONS_PENDING_COUNT}}</span>)
                 </button>
                                 <button class="tab-btn" id="tabbtn-jobpostings" onclick="showDashboardTab('jobpostings', this)" style="display:inline-flex; border-color:rgba(245,158,11,0.4); color:var(--amber);">
-                    📢 Ausschreibungen (<span id="count-jobpostings">{{JOB_POSTINGS_COUNT}}</span>)
+                    <span data-i18n="nav_jobpostings">📢 Ausschreibungen</span> (<span id="count-jobpostings">{{JOB_POSTINGS_COUNT}}</span>)
                 </button>
                 <button class="tab-btn" id="tabbtn-team" onclick="showDashboardTab('team', this)" style="display:inline-flex; border-color:rgba(16,185,129,0.4); color:var(--emerald);">
-                    🛡️ Team & Probezeit (<span id="count-team">0</span>)
+                    <span data-i18n="nav_team">🛡️ Team & Probezeit</span> (<span id="count-team">0</span>)
                 </button>
                 <button class="tab-btn owner-only-tab" id="tabbtn-owner" onclick="showDashboardTab('owner', this)" style="display:none; border-color:rgba(239,68,68,0.5); color:#ef4444; font-weight:700;">
-                    👑 Owner Suite
+                    <span data-i18n="nav_owner">👑 Owner Suite</span>
                 </button>
 
             </div>
 
             <!-- DISCORD USER PROFILE PILL WITH REAL DISCORD AVATAR -->
             <a href="https://discord.gg/JvnhWC5Gnu" target="_blank" class="btn-secondary" style="display:inline-flex; align-items:center; gap:6px; text-decoration:none; font-size:0.84rem; padding:8px 14px; border-color:rgba(0,243,255,0.4); color:var(--cyan); border-radius:10px; margin-right:12px;">
-                <span style="font-size:1rem;">🎧</span> Support-Server
+                <span style="font-size:1rem;">🎧</span> <span data-i18n="nav_support">Support-Server</span>
             </a>
-            <div class="user-profile-header">
+            
+            <!-- CYBERPUNK MULTI-LANGUAGE SELECTOR -->
+            <div class="lang-selector-container" id="lang-selector-container">
+                <button type="button" class="lang-selector-btn" id="lang-selector-btn" onclick="toggleLanguageDropdown(event)">
+                    <span id="current-lang-flag">🇩🇪</span>
+                    <span id="current-lang-name">Deutsch</span>
+                    <span style="font-size:0.65rem; opacity:0.7; margin-left:3px;">▼</span>
+                </button>
+                <div class="lang-dropdown-menu" id="lang-dropdown-menu">
+                    <div class="lang-dropdown-header" data-i18n="lang_select_title">🌐 Sprache wählen</div>
+                    <button type="button" class="lang-dropdown-item active" data-lang="de" onclick="setAppLanguage('de')">
+                        <span class="lang-flag">🇩🇪</span>
+                        <div class="lang-info"><span class="lang-label">Deutsch</span><span class="lang-sub">Standard</span></div>
+                        <span class="lang-check">✓</span>
+                    </button>
+                    <button type="button" class="lang-dropdown-item" data-lang="en" onclick="setAppLanguage('en')">
+                        <span class="lang-flag">🇬🇧</span>
+                        <div class="lang-info"><span class="lang-label">English</span><span class="lang-sub">International</span></div>
+                        <span class="lang-check">✓</span>
+                    </button>
+                    <button type="button" class="lang-dropdown-item" data-lang="fr" onclick="setAppLanguage('fr')">
+                        <span class="lang-flag">🇫🇷</span>
+                        <div class="lang-info"><span class="lang-label">Français</span><span class="lang-sub">Français</span></div>
+                        <span class="lang-check">✓</span>
+                    </button>
+                    <button type="button" class="lang-dropdown-item" data-lang="es" onclick="setAppLanguage('es')">
+                        <span class="lang-flag">🇪🇸</span>
+                        <div class="lang-info"><span class="lang-label">Español</span><span class="lang-sub">Español</span></div>
+                        <span class="lang-check">✓</span>
+                    </button>
+                </div>
+            </div>
+<div class="user-profile-header">
                 <div class="avatar-container">
                     <img src="{{USER_AVATAR_URL}}" alt="{{USER_NAME}}" class="user-avatar-image">
                     <div class="status-dot"></div>
@@ -351,7 +507,7 @@
                     <div class="user-role-badge" id="header-user-role">{{USER_ROLE_LABEL}}</div>
                 </div>
                 <button type="button" onclick="openCookieSettings()" style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); color:#cbd5e1; font-size:1.05rem; cursor:pointer; padding:6px 10px; border-radius:8px; display:flex; align-items:center; justify-content:center; transition:all 0.2s;" onmouseover="this.style.borderColor='var(--cyan)'; this.style.color='var(--cyan)';" onmouseout="this.style.borderColor='rgba(255,255,255,0.12)'; this.style.color='#cbd5e1';" title="Cookie- & Datenschutzeinstellungen">🍪</button>
-                <a href="/logout" class="logout-link" title="Abmelden">🚪</a>
+                <a href="/logout" class="logout-link" title="Abmelden" data-i18n-title="nav_logout">🚪</a>
             </div>
         </header>
 
@@ -378,20 +534,20 @@
 
                 <div style="display:flex; align-items:center; gap:8px;">
                     <button type="button" class="btn btn-secondary" onclick="triggerStyleChannels()" style="background:rgba(0,243,255,0.08);border:1px solid rgba(0,243,255,0.4);color:var(--cyan);font-weight:700;padding:8px 16px;border-radius:10px;cursor:pointer;display:inline-flex;align-items:center;gap:8px;font-size:0.88rem;transition:all 0.2s;" onmouseover="this.style.background='rgba(0,243,255,0.18)'" onmouseout="this.style.background='rgba(0,243,255,0.08)'">
-                        <span>🎨</span> Kanäle mit Emojis stylen
+                        <span>🎨</span> <span data-i18n="hero_btn_style_channels">Kanäle mit Emojis stylen</span>
                     </button>
                 </div>
                 <div class="telemetry-group">
                     <div class="stat-pill">
-                        <span>⚡ Ping:</span>
+                        <span data-i18n="hero_stat_ping">⚡ Ping:</span>
                         <span class="stat-val">{{PING}}ms</span>
                     </div>
                     <div class="stat-pill">
-                        <span>⏱️ Uptime:</span>
+                        <span data-i18n="hero_stat_uptime">⏱️ Uptime:</span>
                         <span class="stat-val">{{UPTIME}}</span>
                     </div>
                     <div class="stat-pill">
-                        <span>👥 User:</span>
+                        <span data-i18n="hero_stat_user">👥 User:</span>
                         <span class="stat-val" id="hero-stat-members">...</span>
                     </div>
                 </div>
@@ -727,21 +883,21 @@
                     <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
                         <input type="text" class="search-box" id="ticket-search-input" placeholder="🔍 Ticket #, User oder Roblox IGN..." oninput="filterLiveTickets()">
                         <div class="nav-tabs">
-                            <button class="tab-btn active" onclick="setTicketFilter('ALL', this)">Alle</button>
-                            <button class="tab-btn" onclick="setTicketFilter('OPEN', this)">Offen</button>
-                            <button class="tab-btn" onclick="setTicketFilter('CLAIMED', this)">In Bearbeitung</button>
+                            <button class="tab-btn active" onclick="setTicketFilter('ALL', this)" data-i18n="filter_all">Alle</button>
+                            <button class="tab-btn" onclick="setTicketFilter('OPEN', this)" data-i18n="filter_open">Offen</button>
+                            <button class="tab-btn" onclick="setTicketFilter('CLAIMED', this)" data-i18n="filter_claimed">In Bearbeitung</button>
                         </div>
                     </div>
                 </div>
                 <table>
                     <thead>
                         <tr>
-                            <th>Ticket #</th>
-                            <th>Ersteller</th>
-                            <th>Kategorie</th>
-                            <th>Roblox IGN</th>
-                            <th>Status</th>
-                            <th>Aktion</th>
+                            <th data-i18n="th_ticket_num">Ticket #</th>
+                            <th data-i18n="th_creator">Ersteller</th>
+                            <th data-i18n="th_category">Kategorie</th>
+                            <th data-i18n="th_roblox_ign">Roblox IGN</th>
+                            <th data-i18n="th_status">Status</th>
+                            <th data-i18n="th_action">Aktion</th>
                         </tr>
                     </thead>
                     <tbody id="live-tickets-tbody">
@@ -756,20 +912,20 @@
             <div class="content-panel">
                 <div class="panel-controls">
                     <div class="panel-title">
-                        <span>📜 Permanente Web-Transkripte auf der Webseite</span>
+                        <span data-i18n="transcripts_title">📜 Permanente Web-Transkripte auf der Webseite</span>
                     </div>
-                    <input type="text" class="search-box" id="transcript-search-input" placeholder="🔍 Transkript-ID, Ersteller oder Roblox..." oninput="filterWebTranscripts()">
+                    <input type="text" class="search-box" id="transcript-search-input" placeholder="🔍 Transkript-ID, Ersteller oder Roblox..." data-i18n-ph="search_transcripts_ph" oninput="filterWebTranscripts()">
                 </div>
                 <table>
                     <thead>
                         <tr>
-                            <th>Transkript-ID</th>
-                            <th>Ticket #</th>
-                            <th>Ersteller</th>
-                            <th>Roblox-Account</th>
-                            <th>Kategorie</th>
-                            <th>Geschlossen von</th>
-                            <th>Aktion</th>
+                            <th data-i18n="th_transcript_id">Transkript-ID</th>
+                            <th data-i18n="th_ticket_num">Ticket #</th>
+                            <th data-i18n="th_creator">Ersteller</th>
+                            <th data-i18n="th_roblox_acc">Roblox-Account</th>
+                            <th data-i18n="th_category">Kategorie</th>
+                            <th data-i18n="th_closed_by">Geschlossen von</th>
+                            <th data-i18n="th_action">Aktion</th>
                         </tr>
                     </thead>
                     <tbody id="web-transcripts-tbody">
@@ -785,10 +941,10 @@
                 <div class="panel-controls" style="flex-wrap:wrap; gap:16px;">
                     <div>
                         <div class="panel-title">
-                            <span>📝 AeroGuard Staff Recruitment & Bewerber-Zentrale</span>
+                            <span data-i18n="apps_title">📝 AeroGuard Staff Recruitment & Bewerber-Zentrale</span>
                         </div>
                         <div style="font-size:0.85rem; color:var(--text-dim); margin-top:4px;">
-                            Bewerbungen sichten, Bewerbungs-Chats führen & mit 1 Klick die Supporter-Rolle vergeben.
+                            <span data-i18n="apps_subtitle">Bewerbungen sichten, Bewerbungs-Chats führen & mit 1 Klick die Supporter-Rolle vergeben.</span>
                         </div>
                     </div>
 
@@ -981,10 +1137,10 @@
                 <div class="panel-controls" style="flex-wrap:wrap; gap:16px;">
                     <div>
                         <div class="panel-title">
-                            <span>🛡️ Team-Verwaltung & Probezeit-Lifecycle Engine</span>
+                            <span data-i18n="team_title">🛡️ Team-Verwaltung & Probezeit-Lifecycle Engine</span>
                         </div>
                         <div style="font-size:0.85rem; color:var(--text-dim); margin-top:4px;">
-                            Verwalte Teammitglieder auf diesem Server, verfolge automatische Probezeiten und entscheide über Festanstellungen oder Verlängerungen.
+                            <span data-i18n="team_subtitle">Verwalte Teammitglieder auf diesem Server, verfolge automatische Probezeiten und entscheide über Festanstellungen oder Verlängerungen.</span>
                         </div>
                     </div>
 
@@ -1366,6 +1522,513 @@
 
     <!-- CLIENT SCRIPT -->
     <script>
+        // =========================================================================
+        // AEROGUARD ENTERPRISE MULTI-LANGUAGE (i18n) ENGINE
+        // =========================================================================
+        const I18N_LANGUAGES = {
+        "de": {
+                "flag": "🇩🇪",
+                "name": "Deutsch",
+                "sub": "Standard",
+                "translations": {
+                        "lang_select_title": "🌐 Sprache wählen",
+                        "nav_modules": "🎛️ Modul-Zentrale",
+                        "nav_tickets": "🎫 Live-Tickets",
+                        "nav_transcripts": "📜 Web-Transkripte",
+                        "nav_applications": "📝 Bewerbungen",
+                        "nav_jobpostings": "📢 Ausschreibungen",
+                        "nav_team": "🛡️ Team & Probezeit",
+                        "nav_owner": "👑 Owner Suite",
+                        "nav_support": "🎧 Support-Server",
+                        "nav_logout": "Abmelden",
+                        "cookie_btn_title": "Cookie- & Datenschutzeinstellungen",
+                        "hero_server_title": "Ausgewählter Server",
+                        "hero_switch_server": "Server wechseln",
+                        "hero_stat_members": "Mitglieder",
+                        "hero_stat_role": "Deine Rolle",
+                        "hero_stat_latency": "Bot-Latenz",
+                        "hero_stat_uptime": "Uptime",
+                        "hero_status_online": "System Online & Betriebsbereit",
+                        "tab_modules_title": "🎛️ Modul-Zentrale",
+                        "tab_tickets_title": "🎫 Aktive Support-Tickets",
+                        "tab_transcripts_title": "📜 Permanente Web-Transkripte",
+                        "tab_applications_title": "📝 Bewerber-Zentrale & Staff-Recruiting",
+                        "tab_jobpostings_title": "📢 Offene Teamausschreibungen",
+                        "tab_team_title": "🛡️ Teammitglieder & Probezeiten",
+                        "tab_owner_title": "👑 AeroGuard Owner Suite",
+                        "mod_staff_title": "Supporter & Dashboard-Rechte",
+                        "mod_staff_desc": "Autorisiere Support- & Moderations-Rollen oder einzelne Discord-Nutzer für das Dashboard.",
+                        "mod_staff_btn": "⚙️ Verwalten",
+                        "mod_tickets_title": "Support-Tickets & Transkripte",
+                        "mod_tickets_desc": "Automatische Ticket-Erstellung, Kategorien-Builder, Claiming & HTML-Transkripte.",
+                        "mod_tickets_btn": "⚙️ Konfigurieren",
+                        "mod_automod_title": "Auto-Moderation & Chat-Schutz",
+                        "mod_automod_desc": "Echtzeit-Schutz vor Spam, unerlaubten Links, Beleidigungen & Massen-Pings.",
+                        "mod_automod_btn": "⚙️ Konfigurieren",
+                        "mod_antiraid_title": "Anti-Raid Shield & Botschutz",
+                        "mod_antiraid_desc": "Erkennt Massenbeitritte, sperrt verdächtige Accounts und schützt vor Token-Raids.",
+                        "mod_antiraid_btn": "⚙️ Konfigurieren",
+                        "mod_level_title": "Level- & Rang-System",
+                        "mod_level_desc": "Belohnt aktive Mitglieder mit XP, Rängen, Level-Aufstiegen & automatischen Rollen.",
+                        "mod_level_btn": "⚙️ Konfigurieren",
+                        "mod_roblox_title": "Roblox-Hub & Verifizierung",
+                        "mod_roblox_desc": "Roblox OAuth2 & Open Cloud Verifizierung, Gruppen-Rollen-Sync & Rangprüfung.",
+                        "mod_roblox_btn": "⚙️ Konfigurieren",
+                        "mod_lockdown_title": "Notfall-Lockdown",
+                        "mod_lockdown_desc": "Sperrt im Notfall sofort alle Text- und Sprachkanäle für normale Mitglieder.",
+                        "mod_lockdown_btn": "🔒 Steuern",
+                        "mod_logging_title": "Audit- & Sicherheits-Logs",
+                        "mod_logging_desc": "Protokolliert Ticket-Verläufe, Moderations-Fälle & Server-Änderungen persistent.",
+                        "mod_logging_btn": "⚙️ Einrichten",
+                        "mod_recruitment_title": "Bewerbungsportal & Recruiting",
+                        "mod_recruitment_desc": "Webbasiertes Bewerbungssystem, Bewerber-Chat im Dashboard & 1-Klick Annahme.",
+                        "mod_recruitment_btn": "📝 Öffnen",
+                        "badge_active": "● Aktiv",
+                        "badge_inactive": "○ Inaktiv",
+                        "filter_all": "Alle",
+                        "filter_open": "Offen",
+                        "filter_claimed": "In Bearbeitung",
+                        "filter_pending": "Ausstehend",
+                        "filter_review": "In Prüfung",
+                        "filter_accepted": "Angenommen",
+                        "filter_rejected": "Abgelehnt",
+                        "th_ticket_num": "Ticket #",
+                        "th_creator": "Ersteller",
+                        "th_category": "Kategorie",
+                        "th_roblox_ign": "Roblox IGN",
+                        "th_status": "Status",
+                        "th_action": "Aktion",
+                        "th_user": "Mitglied",
+                        "th_position": "Position",
+                        "th_added_by": "Hinzugefügt von",
+                        "th_probation": "Probezeit-Status",
+                        "btn_claim": "🙋‍♂️ Claimen",
+                        "btn_unclaim": "🔓 Freigeben",
+                        "btn_close": "🔒 Schließen",
+                        "btn_transcript": "📜 Transkript",
+                        "btn_save": "💾 Änderungen speichern",
+                        "btn_cancel": "Abbrechen",
+                        "btn_close_modal": "Schließen",
+                        "btn_view_online": "👁️ Online ansehen",
+                        "btn_download_html": "📥 HTML Download",
+                        "search_transcripts_ph": "Transkripte nach Nutzer, Ticket # oder Kategorie durchsuchen...",
+                        "no_transcripts": "Keine archivierten Transkripte gefunden.",
+                        "no_tickets": "Aktuell keine offenen Support-Tickets.",
+                        "no_applications": "Keine Bewerbungen in dieser Kategorie vorhanden.",
+                        "no_team": "Aktuell keine Teammitglieder mit aktiver Probezeit registriert.",
+                        "btn_accept_app": "✅ Bewerbung annehmen",
+                        "btn_reject_app": "❌ Ablehnen",
+                        "btn_open_chat": "💬 Chat öffnen",
+                        "btn_pass_probation": "🎓 Probezeit beenden",
+                        "btn_remove_member": "🗑️ Aus Team entfernen",
+                        "cookie_title": "Cookie- & Datenschutzeinstellungen",
+                        "cookie_subtitle": "AeroGuard Core verwendet Cookies, um dein Dashboard sicher, personalisiert und performant zu halten.",
+                        "cookie_accept_all": "Alle akzeptieren",
+                        "cookie_essential_only": "Nur essenzielle",
+                        "cookie_customize": "⚙️ Anpassen",
+                        "cookie_save": "Auswahl speichern"
+                }
+        },
+        "en": {
+                "flag": "🇬🇧",
+                "name": "English",
+                "sub": "International",
+                "translations": {
+                        "lang_select_title": "🌐 Select Language",
+                        "nav_modules": "🎛️ Module Hub",
+                        "nav_tickets": "🎫 Live Tickets",
+                        "nav_transcripts": "📜 Web Transcripts",
+                        "nav_applications": "📝 Applications",
+                        "nav_jobpostings": "📢 Job Postings",
+                        "nav_team": "🛡️ Team & Probation",
+                        "nav_owner": "👑 Owner Suite",
+                        "nav_support": "🎧 Support Server",
+                        "nav_logout": "Logout",
+                        "cookie_btn_title": "Cookie & Privacy Settings",
+                        "hero_server_title": "Selected Server",
+                        "hero_switch_server": "Switch Server",
+                        "hero_stat_members": "Members",
+                        "hero_stat_role": "Your Role",
+                        "hero_stat_latency": "Bot Latency",
+                        "hero_stat_uptime": "Uptime",
+                        "hero_status_online": "System Online & Operational",
+                        "tab_modules_title": "🎛️ Module Control Hub",
+                        "tab_tickets_title": "🎫 Active Support Tickets",
+                        "tab_transcripts_title": "📜 Permanent Web Transcripts",
+                        "tab_applications_title": "📝 Application Hub & Staff Recruitment",
+                        "tab_jobpostings_title": "📢 Open Team Positions",
+                        "tab_team_title": "🛡️ Team Members & Probation Periods",
+                        "tab_owner_title": "👑 AeroGuard Owner Suite",
+                        "mod_staff_title": "Staff & Dashboard Permissions",
+                        "mod_staff_desc": "Authorize support & moderator roles or individual Discord users for the dashboard.",
+                        "mod_staff_btn": "⚙️ Manage",
+                        "mod_tickets_title": "Support Tickets & Transcripts",
+                        "mod_tickets_desc": "Automated channel ticketing, categories builder, claiming & HTML transcripts.",
+                        "mod_tickets_btn": "⚙️ Configure",
+                        "mod_automod_title": "Auto-Moderation & Chat Defense",
+                        "mod_automod_desc": "Real-time protection against spam, unauthorized links, insults & mass mentions.",
+                        "mod_automod_btn": "⚙️ Configure",
+                        "mod_antiraid_title": "Anti-Raid Shield & Bot Defense",
+                        "mod_antiraid_desc": "Detects mass joins, blocks suspicious accounts and shields against token raids.",
+                        "mod_antiraid_btn": "⚙️ Configure",
+                        "mod_level_title": "Level & Ranking System",
+                        "mod_level_desc": "Rewards active community members with XP, ranks, level-ups & role rewards.",
+                        "mod_level_btn": "⚙️ Configure",
+                        "mod_roblox_title": "Roblox Hub & Verification",
+                        "mod_roblox_desc": "Roblox OAuth2 & Open Cloud verification, group role syncing & rank checks.",
+                        "mod_roblox_btn": "⚙️ Configure",
+                        "mod_lockdown_title": "Emergency Lockdown",
+                        "mod_lockdown_desc": "Instantly locks all public channels for standard members in emergencies.",
+                        "mod_lockdown_btn": "🔒 Control",
+                        "mod_logging_title": "Audit & Security Logs",
+                        "mod_logging_desc": "Persistently records ticket histories, moderation cases & server audits.",
+                        "mod_logging_btn": "⚙️ Setup",
+                        "mod_recruitment_title": "Application Portal & Recruiting",
+                        "mod_recruitment_desc": "Web-based application portal, applicant live chat in dashboard & 1-click role assignment.",
+                        "mod_recruitment_btn": "📝 Open",
+                        "badge_active": "● Active",
+                        "badge_inactive": "○ Inactive",
+                        "filter_all": "All",
+                        "filter_open": "Open",
+                        "filter_claimed": "In Progress",
+                        "filter_pending": "Pending",
+                        "filter_review": "Under Review",
+                        "filter_accepted": "Accepted",
+                        "filter_rejected": "Rejected",
+                        "th_ticket_num": "Ticket #",
+                        "th_creator": "Creator",
+                        "th_category": "Category",
+                        "th_roblox_ign": "Roblox IGN",
+                        "th_status": "Status",
+                        "th_action": "Action",
+                        "th_user": "Member",
+                        "th_position": "Position",
+                        "th_added_by": "Added By",
+                        "th_probation": "Probation Status",
+                        "btn_claim": "🙋‍♂️ Claim",
+                        "btn_unclaim": "🔓 Unclaim",
+                        "btn_close": "🔒 Close",
+                        "btn_transcript": "📜 Transcript",
+                        "btn_save": "💾 Save Changes",
+                        "btn_cancel": "Cancel",
+                        "btn_close_modal": "Close",
+                        "btn_view_online": "👁️ View Online",
+                        "btn_download_html": "📥 Download HTML",
+                        "search_transcripts_ph": "Search transcripts by user, ticket # or category...",
+                        "no_transcripts": "No archived transcripts found.",
+                        "no_tickets": "No open support tickets right now.",
+                        "no_applications": "No applications found in this category.",
+                        "no_team": "No team members with active probation registered.",
+                        "btn_accept_app": "✅ Accept Application",
+                        "btn_reject_app": "❌ Reject",
+                        "btn_open_chat": "💬 Open Chat",
+                        "btn_pass_probation": "🎓 Pass Probation",
+                        "btn_remove_member": "🗑️ Remove from Team",
+                        "cookie_title": "Cookie & Privacy Settings",
+                        "cookie_subtitle": "AeroGuard Core uses cookies to keep your dashboard secure, personalized and fast.",
+                        "cookie_accept_all": "Accept All",
+                        "cookie_essential_only": "Essential Only",
+                        "cookie_customize": "⚙️ Customize",
+                        "cookie_save": "Save Selection"
+                }
+        },
+        "fr": {
+                "flag": "🇫🇷",
+                "name": "Français",
+                "sub": "Français",
+                "translations": {
+                        "lang_select_title": "🌐 Choisir la langue",
+                        "nav_modules": "🎛️ Centre de modules",
+                        "nav_tickets": "🎫 Tickets en direct",
+                        "nav_transcripts": "📜 Transcriptions Web",
+                        "nav_applications": "📝 Candidatures",
+                        "nav_jobpostings": "📢 Offres d'équipe",
+                        "nav_team": "🛡️ Équipe & Stage",
+                        "nav_owner": "👑 Suite Propriétaire",
+                        "nav_support": "🎧 Serveur Support",
+                        "nav_logout": "Déconnexion",
+                        "cookie_btn_title": "Paramètres des cookies & confidentialité",
+                        "hero_server_title": "Serveur sélectionné",
+                        "hero_switch_server": "Changer de serveur",
+                        "hero_stat_members": "Membres",
+                        "hero_stat_role": "Votre rôle",
+                        "hero_stat_latency": "Latence du bot",
+                        "hero_stat_uptime": "Temps en ligne",
+                        "hero_status_online": "Système en ligne & Opérationnel",
+                        "tab_modules_title": "🎛️ Centre de contrôle multi-serveurs",
+                        "tab_tickets_title": "🎫 Tickets d'assistance actifs",
+                        "tab_transcripts_title": "📜 Transcriptions Web permanentes",
+                        "tab_applications_title": "📝 Recrutement & Candidatures",
+                        "tab_jobpostings_title": "📢 Postes d'équipe ouverts",
+                        "tab_team_title": "🛡️ Membres de l'équipe & périodes d'essai",
+                        "tab_owner_title": "👑 Suite Propriétaire AeroGuard",
+                        "mod_staff_title": "Permissions du staff & tableau de bord",
+                        "mod_staff_desc": "Autorisez les rôles de support et modération ou des utilisateurs Discord.",
+                        "mod_staff_btn": "⚙️ Gérer",
+                        "mod_tickets_title": "Tickets d'assistance & transcriptions",
+                        "mod_tickets_desc": "Système de tickets de canal automatisé, constructeur de catégories et HTML.",
+                        "mod_tickets_btn": "⚙️ Configurer",
+                        "mod_automod_title": "Auto-Modération & Sécurité du chat",
+                        "mod_automod_desc": "Protection en temps réel contre le spam, les liens et les insultes.",
+                        "mod_automod_btn": "⚙️ Configurer",
+                        "mod_antiraid_title": "Bouclier Anti-Raid & Protection bots",
+                        "mod_antiraid_desc": "Détecte les arrivées massives et protège contre les raids de jetons.",
+                        "mod_antiraid_btn": "⚙️ Configurer",
+                        "mod_level_title": "Système de niveaux & classement",
+                        "mod_level_desc": "Récompense les membres actifs avec de l'XP et des rôles automatiques.",
+                        "mod_level_btn": "⚙️ Configurer",
+                        "mod_roblox_title": "Hub Roblox & Vérification",
+                        "mod_roblox_desc": "Vérification OAuth2 & Open Cloud Roblox, synchronisation des rôles de groupe.",
+                        "mod_roblox_btn": "⚙️ Configurer",
+                        "mod_lockdown_title": "Verrouillage d'urgence",
+                        "mod_lockdown_desc": "Verrouille immédiatement tous les canaux publics pour les membres standards.",
+                        "mod_lockdown_btn": "🔒 Contrôler",
+                        "mod_logging_title": "Journaux d'audit & de sécurité",
+                        "mod_logging_desc": "Enregistre de manière persistante l'historique des tickets et des sanctions.",
+                        "mod_logging_btn": "⚙️ Configurer",
+                        "mod_recruitment_title": "Portail de recrutement & Staff",
+                        "mod_recruitment_desc": "Système de candidature web avec chat en direct et attribution de rôles.",
+                        "mod_recruitment_btn": "📝 Ouvrir",
+                        "badge_active": "● Actif",
+                        "badge_inactive": "○ Inactif",
+                        "filter_all": "Tous",
+                        "filter_open": "Ouverts",
+                        "filter_claimed": "En cours",
+                        "filter_pending": "En attente",
+                        "filter_review": "En examen",
+                        "filter_accepted": "Acceptées",
+                        "filter_rejected": "Rejetées",
+                        "th_ticket_num": "Ticket n°",
+                        "th_creator": "Créateur",
+                        "th_category": "Catégorie",
+                        "th_roblox_ign": "Roblox IGN",
+                        "th_status": "Statut",
+                        "th_action": "Action",
+                        "th_user": "Membre",
+                        "th_position": "Poste",
+                        "th_added_by": "Ajouté par",
+                        "th_probation": "Statut d'essai",
+                        "btn_claim": "🙋‍♂️ Prendre",
+                        "btn_unclaim": "🔓 Libérer",
+                        "btn_close": "🔒 Fermer",
+                        "btn_transcript": "📜 Transcription",
+                        "btn_save": "💾 Enregistrer",
+                        "btn_cancel": "Annuler",
+                        "btn_close_modal": "Fermer",
+                        "btn_view_online": "👁️ Voir en ligne",
+                        "btn_download_html": "📥 Télécharger HTML",
+                        "search_transcripts_ph": "Rechercher par utilisateur, n° de ticket ou catégorie...",
+                        "no_transcripts": "Aucune transcription archivée trouvée.",
+                        "no_tickets": "Aucun ticket de support ouvert actuellement.",
+                        "no_applications": "Aucune candidature dans cette catégorie.",
+                        "no_team": "Aucun membre d'équipe en période d'essai active.",
+                        "btn_accept_app": "✅ Accepter candidature",
+                        "btn_reject_app": "❌ Rejeter",
+                        "btn_open_chat": "💬 Ouvrir le chat",
+                        "btn_pass_probation": "🎓 Valider l'essai",
+                        "btn_remove_member": "🗑️ Retirer de l'équipe",
+                        "cookie_title": "Paramètres des cookies & confidentialité",
+                        "cookie_subtitle": "AeroGuard Core utilise des cookies pour sécuriser et personnaliser votre tableau de bord.",
+                        "cookie_accept_all": "Tout accepter",
+                        "cookie_essential_only": "Essentielles uniquement",
+                        "cookie_customize": "⚙️ Personnaliser",
+                        "cookie_save": "Enregistrer la sélection"
+                }
+        },
+        "es": {
+                "flag": "🇪🇸",
+                "name": "Español",
+                "sub": "Español",
+                "translations": {
+                        "lang_select_title": "🌐 Seleccionar idioma",
+                        "nav_modules": "🎛️ Centro de módulos",
+                        "nav_tickets": "🎫 Tickets en vivo",
+                        "nav_transcripts": "📜 Transcripciones Web",
+                        "nav_applications": "📝 Solicitudes",
+                        "nav_jobpostings": "📢 Convocatorias",
+                        "nav_team": "🛡️ Equipo y Pruebas",
+                        "nav_owner": "👑 Suite Propietario",
+                        "nav_support": "🎧 Servidor de Soporte",
+                        "nav_logout": "Cerrar sesión",
+                        "cookie_btn_title": "Configuración de cookies y privacidad",
+                        "hero_server_title": "Servidor seleccionado",
+                        "hero_switch_server": "Cambiar de servidor",
+                        "hero_stat_members": "Miembros",
+                        "hero_stat_role": "Tu rol",
+                        "hero_stat_latency": "Latencia del bot",
+                        "hero_stat_uptime": "Tiempo activo",
+                        "hero_status_online": "Sistema en línea y operativo",
+                        "tab_modules_title": "🎛️ Centro de control multi-servidor",
+                        "tab_tickets_title": "🎫 Tickets de soporte activos",
+                        "tab_transcripts_title": "📜 Transcripciones Web permanentes",
+                        "tab_applications_title": "📝 Centro de reclutamiento y solicitudes",
+                        "tab_jobpostings_title": "📢 Puestos de equipo abiertos",
+                        "tab_team_title": "🛡️ Miembros del equipo y períodos de prueba",
+                        "tab_owner_title": "👑 Suite Propietario AeroGuard",
+                        "mod_staff_title": "Permisos del personal y panel",
+                        "mod_staff_desc": "Autoriza roles de soporte y moderación o usuarios de Discord en el panel.",
+                        "mod_staff_btn": "⚙️ Gestionar",
+                        "mod_tickets_title": "Tickets de soporte y transcripciones",
+                        "mod_tickets_desc": "Sistema automatizado de tickets de canal, categorías y transcripciones HTML.",
+                        "mod_tickets_btn": "⚙️ Configurar",
+                        "mod_automod_title": "Moderación automática y Chat seguro",
+                        "mod_automod_desc": "Protección en tiempo real contra spam, enlaces no autorizados e insultos.",
+                        "mod_automod_btn": "⚙️ Configurar",
+                        "mod_antiraid_title": "Escudo Anti-Raid y Defensa de bots",
+                        "mod_antiraid_desc": "Detecta entradas masivas y protege contra ataques de cuentas falsas.",
+                        "mod_antiraid_btn": "⚙️ Configurar",
+                        "mod_level_title": "Sistema de niveles y rangos",
+                        "mod_level_desc": "Premia a los miembros activos con XP, rangos y recompensas de roles.",
+                        "mod_level_btn": "⚙️ Configurar",
+                        "mod_roblox_title": "Hub de Roblox y Verificación",
+                        "mod_roblox_desc": "Verificación OAuth2 y Open Cloud de Roblox, sincronización de roles de grupo.",
+                        "mod_roblox_btn": "⚙️ Configurar",
+                        "mod_lockdown_title": "Cierre de emergencia",
+                        "mod_lockdown_desc": "Bloquea de inmediato todos los canales públicos en caso de emergencia.",
+                        "mod_lockdown_btn": "🔒 Controlar",
+                        "mod_logging_title": "Registros de auditoría y seguridad",
+                        "mod_logging_desc": "Registra de forma persistente el historial de tickets y casos de moderación.",
+                        "mod_logging_btn": "⚙️ Configurar",
+                        "mod_recruitment_title": "Portal de solicitudes y Staff",
+                        "mod_recruitment_desc": "Portal web de postulaciones con chat en vivo y asignación de roles con un clic.",
+                        "mod_recruitment_btn": "📝 Abrir",
+                        "badge_active": "● Activo",
+                        "badge_inactive": "○ Inactivo",
+                        "filter_all": "Todos",
+                        "filter_open": "Abiertos",
+                        "filter_claimed": "En progreso",
+                        "filter_pending": "Pendientes",
+                        "filter_review": "En revisión",
+                        "filter_accepted": "Aceptadas",
+                        "filter_rejected": "Rechazadas",
+                        "th_ticket_num": "Ticket N.º",
+                        "th_creator": "Creador",
+                        "th_category": "Categoría",
+                        "th_roblox_ign": "Roblox IGN",
+                        "th_status": "Estado",
+                        "th_action": "Acción",
+                        "th_user": "Miembro",
+                        "th_position": "Puesto",
+                        "th_added_by": "Agregado por",
+                        "th_probation": "Estado de prueba",
+                        "btn_claim": "🙋‍♂️ Tomar ticket",
+                        "btn_unclaim": "🔓 Liberar",
+                        "btn_close": "🔒 Cerrar",
+                        "btn_transcript": "📜 Transcripción",
+                        "btn_save": "💾 Guardar cambios",
+                        "btn_cancel": "Cancelar",
+                        "btn_close_modal": "Cerrar",
+                        "btn_view_online": "👁️ Ver en línea",
+                        "btn_download_html": "📥 Descargar HTML",
+                        "search_transcripts_ph": "Buscar transcripciones por usuario, N.º o categoría...",
+                        "no_transcripts": "No se encontraron transcripciones archivadas.",
+                        "no_tickets": "No hay tickets de soporte abiertos actualmente.",
+                        "no_applications": "No hay solicitudes en esta categoría.",
+                        "no_team": "No hay miembros del equipo con período de prueba activo.",
+                        "btn_accept_app": "✅ Aceptar solicitud",
+                        "btn_reject_app": "❌ Rechazar",
+                        "btn_open_chat": "💬 Abrir chat",
+                        "btn_pass_probation": "🎓 Aprobar prueba",
+                        "btn_remove_member": "🗑️ Eliminar del equipo",
+                        "cookie_title": "Configuración de cookies y privacidad",
+                        "cookie_subtitle": "AeroGuard Core utiliza cookies para mantener su panel seguro, personalizado y rápido.",
+                        "cookie_accept_all": "Aceptar todo",
+                        "cookie_essential_only": "Solo esenciales",
+                        "cookie_customize": "⚙️ Personalizar",
+                        "cookie_save": "Guardar selección"
+                }
+        }
+};
+
+        function getAppLanguage() {
+            return localStorage.getItem('aeroguard_lang') || 'de';
+        }
+
+        function setAppLanguage(lang) {
+            if (!I18N_LANGUAGES[lang]) lang = 'de';
+            localStorage.setItem('aeroguard_lang', lang);
+            try {
+                document.cookie = 'aeroguard_lang=' + lang + '; path=/; max-age=31536000';
+            } catch(e) {}
+            document.documentElement.lang = lang;
+
+            const langObj = I18N_LANGUAGES[lang];
+            const flagEl = document.getElementById('current-lang-flag');
+            const nameEl = document.getElementById('current-lang-name');
+            if (flagEl) flagEl.textContent = langObj.flag;
+            if (nameEl) nameEl.textContent = langObj.name;
+
+            // Highlight active in dropdown
+            document.querySelectorAll('.lang-dropdown-item').forEach(btn => {
+                if (btn.getAttribute('data-lang') === lang) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+
+            // Translate all elements with data-i18n
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (langObj.translations && langObj.translations[key]) {
+                    el.innerHTML = langObj.translations[key];
+                }
+            });
+
+            // Translate placeholders with data-i18n-ph
+            document.querySelectorAll('[data-i18n-ph]').forEach(el => {
+                const key = el.getAttribute('data-i18n-ph');
+                if (langObj.translations && langObj.translations[key]) {
+                    el.setAttribute('placeholder', langObj.translations[key]);
+                }
+            });
+
+            // Translate titles with data-i18n-title
+            document.querySelectorAll('[data-i18n-title]').forEach(el => {
+                const key = el.getAttribute('data-i18n-title');
+                if (langObj.translations && langObj.translations[key]) {
+                    el.setAttribute('title', langObj.translations[key]);
+                }
+            });
+
+            // Close dropdown menu
+            const menu = document.getElementById('lang-dropdown-menu');
+            if (menu) menu.classList.remove('show');
+
+            // Refresh dynamic views if functions exist
+            try { if (typeof renderLiveTickets === 'function') renderLiveTickets(); } catch(e) {}
+            try { if (typeof renderApplications === 'function') renderApplications(); } catch(e) {}
+            try { if (typeof renderJobPostings === 'function') renderJobPostings(); } catch(e) {}
+            try { if (typeof renderTeamMembers === 'function') renderTeamMembers(); } catch(e) {}
+        }
+
+        function t(key, fallback = '') {
+            const curLang = getAppLanguage();
+            const dict = I18N_LANGUAGES[curLang] || I18N_LANGUAGES.de;
+            if (dict.translations && dict.translations[key]) {
+                return dict.translations[key];
+            }
+            return fallback || key;
+        }
+
+        function toggleLanguageDropdown(e) {
+            if (e) {
+                e.stopPropagation();
+                e.preventDefault();
+            }
+            const menu = document.getElementById('lang-dropdown-menu');
+            if (menu) menu.classList.toggle('show');
+        }
+
+        // Auto-close on click outside
+        document.addEventListener('click', (e) => {
+            const container = document.getElementById('lang-selector-container');
+            const menu = document.getElementById('lang-dropdown-menu');
+            if (menu && container && !container.contains(e.target)) {
+                menu.classList.remove('show');
+            }
+        });
+
         function escapeHtml(str) {
             if (str === null || str === undefined) return '';
             return String(str)
@@ -1395,6 +2058,7 @@
 
         // INIT
         window.onload = () => {
+            setAppLanguage(getAppLanguage());
             initGuildSelector();
             if (currentUser && currentUser.isOwner) {
                 const b = document.getElementById('owner-support-setup-banner');
@@ -2626,20 +3290,20 @@ function deleteCategoryItem(index) {
             });
 
             if (filtered.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:30px; color:#64748b;">✨ Keine offenen Tickets vorhanden. Alles erledigt!</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:30px; color:#64748b;">✨ ' + t('no_tickets', 'Keine offenen Tickets vorhanden. Alles erledigt!') + '</td></tr>';
                 return;
             }
 
             tbody.innerHTML = filtered.map(t => {
                 const statusColor = t.status === 'CLAIMED' ? '#fbbf24' : '#00f3ff';
-                const statusLabel = t.status === 'CLAIMED' ? 'In Bearbeitung' : 'Offen';
+                const statusLabel = t.status === 'CLAIMED' ? t('status_claimed', 'In Bearbeitung') : t('status_open', 'Offen');
                 return '<tr>' +
                     '<td><span class="badge-id">#' + String(t.ticketNum).padStart(4, '0') + '</span></td>' +
                     '<td><strong>' + (t.username || 'Unbekannt') + '</strong></td>' +
                     '<td><span class="badge-cat">' + (t.category || 'Support') + '</span></td>' +
                     '<td><code>' + (t.ign || 'N/A') + '</code></td>' +
                     '<td><span style="color:' + statusColor + ';font-weight:700;">● ' + statusLabel + '</span></td>' +
-                    '<td><a href="/transcript/' + (t.channelId || '') + '" target="_blank" class="action-link">Transkript</a></td>' +
+                    '<td><a href="/transcript/' + (t.channelId || '') + '" target="_blank" class="action-link">📜 ' + t('btn_transcript', 'Transkript') + '</a></td>' +
                 '</tr>';
             }).join('');
         }
@@ -2669,7 +3333,7 @@ function deleteCategoryItem(index) {
             });
 
             if (filtered.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:30px; color:#64748b;">Keine archivierten Transkripte für diesen Server gefunden.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:30px; color:#64748b;">' + t('no_transcripts', 'Keine archivierten Transkripte für diesen Server gefunden.') + '</td></tr>';
                 return;
             }
 
@@ -2688,7 +3352,7 @@ function deleteCategoryItem(index) {
                     '</td>' +
                     '<td><span class="badge-cat">' + (t.category || 'Support') + '</span></td>' +
                     '<td><span style="color:#94a3b8; font-size:0.85rem;">' + (t.closedBy || 'System') + '</span></td>' +
-                    '<td><a href="/transcript/' + t.id + '" target="_blank" class="action-link">🌐 Transkript aufrufen</a></td>' +
+                    '<td><a href="/transcript/' + t.id + '" target="_blank" class="action-link">🌐 ' + t('btn_view_online', 'Transkript aufrufen') + '</a></td>' +
                 '</tr>';
             }).join('');
         }

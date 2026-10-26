@@ -643,11 +643,12 @@ async function getOrRestoreTicket(channelId, channelObj) {
     if (!channel || channel.type !== ChannelType.GuildText || !channel.guild) return null;
 
     const gSettings = getGuildSettings(channel.guild.id);
-    const isTicketName = channel.name.startsWith('ticket-') || channel.name.startsWith('support-');
-    const isTicketTopic = channel.topic && channel.topic.includes('AeroGuard Ticket');
+    const isTicketName = channel.name.toLowerCase().includes('ticket') || channel.name.toLowerCase().includes('support') || channel.name.startsWith('ticket-') || channel.name.startsWith('support-');
+    const isTicketTopic = channel.topic && (channel.topic.includes('AeroGuard Ticket') || channel.topic.includes('Ersteller:') || channel.topic.includes('Ticket #'));
     const isTicketCategory = gSettings.ticketCategoryId && channel.parentId === gSettings.ticketCategoryId;
+    const isKnownChannel = cloudStorage.activeTickets && !!cloudStorage.activeTickets[channel.id];
 
-    if (!isTicketName && !isTicketTopic && !isTicketCategory) {
+    if (!isTicketName && !isTicketTopic && !isTicketCategory && !isKnownChannel) {
         return null;
     }
 
@@ -1975,17 +1976,40 @@ client.on('messageCreate', async message => {
 
         // IN-TICKET COMMAND: !add @user
         if (lowerContent.startsWith('!add ') || lowerContent.startsWith('/ticket add ')) {
-            if (!isSupp) return message.reply('❌ **Zugriff verweigert:** Nur Supporter oder Admins können weitere Nutzer zum Ticket hinzufügen.');
-            const targetUser = message.mentions.users.first();
-            if (!targetUser) return message.reply('ℹ️ Bitte erwähne den Nutzer, den du hinzufügen möchtest: `!add @Nutzer`');
+            const isCreator = (ticket.userId && String(message.author.id) === String(ticket.userId));
+            if (!isSupp && !isCreator) {
+                return message.reply('⛔ **Zugriff verweigert:** Nur Supporter oder der Ticket-Ersteller können weitere Nutzer zum Ticket hinzufügen.');
+            }
+            let targetUser = message.mentions.users.first();
+            if (!targetUser) {
+                const words = message.content.trim().split(/\s+/);
+                const targetArg = words[1] === 'add' ? words[2] : words[1];
+                if (targetArg) {
+                    const cleanId = targetArg.replace(/[^0-9]/g, '');
+                    if (cleanId) {
+                        targetUser = await client.users.fetch(cleanId).catch(() => null);
+                    }
+                }
+            }
+            if (!targetUser) return message.reply('ℹ️ Bitte erwähne den Nutzer oder gib die ID an: `!add @Nutzer` oder `!add <UserID>`');
+            if (targetUser.id === client.user.id) return message.reply('🤖 Ich bin bereits im Ticket aktiv.');
             try {
-                await message.channel.permissionOverwrites.edit(targetUser.id, {
+                const targetMember = await message.guild.members.fetch(targetUser.id).catch(() => null);
+                await message.channel.permissionOverwrites.edit(targetMember || targetUser, {
                     ViewChannel: true,
                     SendMessages: true,
                     AttachFiles: true,
-                    ReadMessageHistory: true
+                    ReadMessageHistory: true,
+                    EmbedLinks: true,
+                    AddReactions: true
                 });
-                return message.channel.send(`✅ ${targetUser} wurde erfolgreich von ${message.author} zum Ticket-Kanal hinzugefügt.`);
+                if (!ticket.addedUsers) ticket.addedUsers = [];
+                if (!ticket.addedUsers.includes(targetUser.id)) {
+                    ticket.addedUsers.push(targetUser.id);
+                    saveCloudVaultToDisk();
+                }
+                logTicketMessage(message.channel.id, 'System', (targetUser.tag || targetUser.username) + ' wurde von ' + (message.author.tag || message.author.username) + ' zum Ticket hinzugefügt.', true);
+                return message.channel.send('✅ ' + targetUser.toString() + ' wurde erfolgreich von ' + message.author.toString() + ' zum Ticket-Kanal hinzugefügt.');
             } catch(e) {
                 return message.reply('❌ Fehler beim Hinzufügen des Nutzers: ' + e.message);
             }
@@ -1993,13 +2017,31 @@ client.on('messageCreate', async message => {
 
         // IN-TICKET COMMAND: !remove @user
         if (lowerContent.startsWith('!remove ') || lowerContent.startsWith('/ticket remove ')) {
-            if (!isSupp) return message.reply('❌ **Zugriff verweigert:** Nur Supporter oder Admins können Nutzer aus dem Ticket entfernen.');
-            const targetUser = message.mentions.users.first();
-            if (!targetUser) return message.reply('ℹ️ Bitte erwähne den Nutzer, den du entfernen möchtest: `!remove @Nutzer`');
-            if (targetUser.id === ticket.userId) return message.reply('⚠️ Der Ticket-Ersteller kann nicht aus seinem eigenen Ticket entfernt werden.');
+            const isCreator = (ticket.userId && String(message.author.id) === String(ticket.userId));
+            if (!isSupp && !isCreator) {
+                return message.reply('⛔ **Zugriff verweigert:** Nur Supporter oder der Ticket-Ersteller können Nutzer aus dem Ticket entfernen.');
+            }
+            let targetUser = message.mentions.users.first();
+            if (!targetUser) {
+                const words = message.content.trim().split(/\s+/);
+                const targetArg = words[1] === 'remove' ? words[2] : words[1];
+                if (targetArg) {
+                    const cleanId = targetArg.replace(/[^0-9]/g, '');
+                    if (cleanId) {
+                        targetUser = await client.users.fetch(cleanId).catch(() => null);
+                    }
+                }
+            }
+            if (!targetUser) return message.reply('ℹ️ Bitte erwähne den Nutzer oder gib die ID an: `!remove @Nutzer` oder `!remove <UserID>`');
+            if (ticket.userId && String(targetUser.id) === String(ticket.userId)) return message.reply('⚠️ Der Ticket-Ersteller kann nicht aus seinem eigenen Ticket entfernt werden.');
             try {
-                await message.channel.permissionOverwrites.delete(targetUser.id);
-                return message.channel.send(`👋 ${targetUser} wurde aus dem Ticket-Kanal entfernt.`);
+                await message.channel.permissionOverwrites.delete(targetUser.id, 'Nutzer entfernt von ' + message.author.tag);
+                if (ticket.addedUsers) {
+                    ticket.addedUsers = ticket.addedUsers.filter(id => id !== targetUser.id);
+                    saveCloudVaultToDisk();
+                }
+                logTicketMessage(message.channel.id, 'System', (targetUser.tag || targetUser.username) + ' wurde von ' + (message.author.tag || message.author.username) + ' aus dem Ticket entfernt.', true);
+                return message.channel.send('👋 ' + targetUser.toString() + ' wurde aus dem Ticket-Kanal entfernt.');
             } catch(e) {
                 return message.reply('❌ Fehler beim Entfernen des Nutzers: ' + e.message);
             }
@@ -2022,6 +2064,30 @@ client.on('messageCreate', async message => {
             ticket.status = 'CLAIMED';
             saveCloudVaultToDisk();
             return message.reply('👤 ' + message.author.toString() + ' hat dieses Ticket übernommen!');
+        }
+
+        if (lowerContent === '!unclaim' || lowerContent === '/unclaim' || lowerContent === '!ticket unclaim' || lowerContent === '/ticket unclaim') {
+            if (!isSupp) return message.reply('⛔ Nur Supporter können Tickets freigeben.');
+            ticket.claimedBy = null;
+            ticket.status = 'OPEN';
+            saveCloudVaultToDisk();
+            return message.reply('🔓 Das Ticket wurde wieder für das gesamte Team freigegeben.');
+        }
+
+        // IN-TICKET COMMAND: !rename <neuer-name>
+        if (lowerContent.startsWith('!rename ') || lowerContent.startsWith('/ticket rename ')) {
+            if (!isSupp) return message.reply('⛔ **Zugriff verweigert:** Nur Supporter oder Admins können das Ticket umbenennen.');
+            const parts = message.content.trim().split(/\s+/);
+            const rawName = parts.length > 1 ? parts.slice(1).join('-') : '';
+            const neuerName = rawName.toLowerCase().replace(/[^a-z0-9-_]/g, '');
+            if (!neuerName) return message.reply('⚠️ Bitte gib einen gültigen Namen an: `!rename mein-neuer-kanalname`');
+            try {
+                await message.channel.setName(neuerName);
+                logTicketMessage(message.channel.id, 'System', 'Ticket-Kanal umbenannt in ' + neuerName + ' von ' + message.author.tag, true);
+                return message.channel.send('✏️ Ticket-Kanal umbenannt in: `' + neuerName + '`');
+            } catch(e) {
+                return message.reply('❌ Fehler beim Umbenennen: ' + e.message);
+            }
         }
 
         if (lowerContent === '!transcript' || lowerContent === '/transcript' || lowerContent === '!ticket transcript' || lowerContent === '/ticket transcript') {
@@ -3663,11 +3729,202 @@ client.on('interactionCreate', async interaction => {
                 return interaction.reply('🔓 Das Ticket wurde wieder für das gesamte Team freigegeben.');
             }
 
-            if (sub === 'add') {
+                        if (sub === 'add') {
+                const nutzer = interaction.options.getUser('nutzer') || 
+                               interaction.options.getUser('user') || 
+                               interaction.options.getMember('nutzer')?.user ||
+                               interaction.options.getMember('user')?.user;
+
+                if (!nutzer) {
+                    return interaction.reply({ content: '❌ **Ungültiger Nutzer:** Bitte wähle einen gültigen Nutzer über das Auswahlmenü aus.', ephemeral: true });
+                }
+
+                if (nutzer.id === client.user.id) {
+                    return interaction.reply({ content: '🤖 Ich bin als System-Bot bereits in diesem Ticket aktiv.', ephemeral: true });
+                }
+
+                const isStaff = isSupporterOrAdmin(interaction.member, guild);
+                const isCreator = (ticket.userId && String(interaction.user.id) === String(ticket.userId));
+                if (!isStaff && !isCreator) {
+                    return interaction.reply({ content: '⛔ **Zugriff verweigert:** Nur Supporter oder der Ticket-Ersteller können Nutzer zum Ticket hinzufügen.', ephemeral: true });
+                }
+
+                await interaction.deferReply({ ephemeral: false });
+
+                try {
+                    // Resolve GuildMember to avoid Discord.js v14 uncached overwrite type resolution error
+                    const targetMember = await guild.members.fetch(nutzer.id).catch(() => null);
+                    const overwriteTarget = targetMember || nutzer;
+
+                    await interaction.channel.permissionOverwrites.edit(overwriteTarget, {
+                        ViewChannel: true,
+                        SendMessages: true,
+                        AttachFiles: true,
+                        ReadMessageHistory: true,
+                        EmbedLinks: true,
+                        AddReactions: true
+                    });
+
+                    if (!ticket.addedUsers) ticket.addedUsers = [];
+                    if (!ticket.addedUsers.includes(nutzer.id)) {
+                        ticket.addedUsers.push(nutzer.id);
+                        saveCloudVaultToDisk();
+                    }
+
+                    logTicketMessage(chId, 'System', (nutzer.tag || nutzer.username) + ' wurde von ' + (interaction.user.tag || interaction.user.username) + ' zum Ticket hinzugefügt.', true);
+
+                    const addEmbed = new EmbedBuilder()
+                        .setTitle('➕ Mitglied zum Ticket hinzugefügt')
+                        .setDescription('**' + nutzer.toString() + '** (' + (nutzer.tag || nutzer.username) + ') wurde erfolgreich zum Ticket-Kanal hinzugefügt und kann nun mitlesen & schreiben.')
+                        .setColor(0x10b981)
+                        .addFields(
+                            { name: '👤 Hinzugefügter Nutzer', value: nutzer.toString(), inline: true },
+                            { name: '🛡️ Autorisiert durch', value: interaction.user.toString(), inline: true }
+                        )
+                        .setFooter({ text: 'AeroGuard Core • Ticket Management Engine' })
+                        .setTimestamp();
+
+                    await interaction.editReply({ embeds: [addEmbed] });
+                    await interaction.channel.send({ content: '👋 Willkommen im Ticket, ' + nutzer.toString() + '! Du wurdest von ' + interaction.user.toString() + ' hinzugefügt.' }).catch(() => {});
+                } catch(e) {
+                    console.error('Fehler bei /ticket add:', e);
+                    return interaction.editReply({ content: '❌ **Fehler beim Hinzufügen des Nutzers:** ' + e.message });
+                }
+            }
+
+            if (sub === 'remove') {
+                const nutzer = interaction.options.getUser('nutzer') || 
+                               interaction.options.getUser('user') || 
+                               interaction.options.getMember('nutzer')?.user ||
+                               interaction.options.getMember('user')?.user;
+
+                if (!nutzer) {
+                    return interaction.reply({ content: '❌ **Ungültiger Nutzer:** Bitte wähle einen Nutzer aus, der entfernt werden soll.', ephemeral: true });
+                }
+
+                const isStaff = isSupporterOrAdmin(interaction.member, guild);
+                const isCreator = (ticket.userId && String(interaction.user.id) === String(ticket.userId));
+                if (!isStaff && !isCreator) {
+                    return interaction.reply({ content: '⛔ **Zugriff verweigert:** Nur Supporter oder der Ticket-Ersteller können Nutzer aus dem Ticket entfernen.', ephemeral: true });
+                }
+
+                if (ticket.userId && String(nutzer.id) === String(ticket.userId)) {
+                    return interaction.reply({ content: '❌ Der Ersteller des Tickets kann nicht aus seinem eigenen Ticket entfernt werden.', ephemeral: true });
+                }
+
+                await interaction.deferReply({ ephemeral: false });
+
+                try {
+                    await interaction.channel.permissionOverwrites.delete(nutzer.id, 'Nutzer aus Ticket entfernt von ' + (interaction.user.tag || interaction.user.username));
+
+                    if (ticket.addedUsers) {
+                        ticket.addedUsers = ticket.addedUsers.filter(id => id !== nutzer.id);
+                        saveCloudVaultToDisk();
+                    }
+
+                    logTicketMessage(chId, 'System', (nutzer.tag || nutzer.username) + ' wurde von ' + (interaction.user.tag || interaction.user.username) + ' aus dem Ticket entfernt.', true);
+
+                    const remEmbed = new EmbedBuilder()
+                        .setTitle('➖ Mitglied aus Ticket entfernt')
+                        .setDescription('**' + nutzer.toString() + '** wurde erfolgreich aus dem Ticket-Kanal entfernt.')
+                        .setColor(0xef4444)
+                        .addFields(
+                            { name: '👤 Entfernter Nutzer', value: nutzer.toString() + ' (' + (nutzer.tag || nutzer.username) + ')', inline: true },
+                            { name: '🛡️ Durchgeführt von', value: interaction.user.toString(), inline: true }
+                        )
+                        .setFooter({ text: 'AeroGuard Core • Ticket Management Engine' })
+                        .setTimestamp();
+
+                    return interaction.editReply({ embeds: [remEmbed] });
+                } catch(e) {
+                    console.error('Fehler bei /ticket remove:', e);
+                    return interaction.editReply({ content: '❌ **Fehler beim Entfernen des Nutzers:** ' + e.message });
+                }
+            }
+
+            if (sub === 'rename') {
+                if (!isSupporterOrAdmin(interaction.member, guild)) {
+                    return interaction.reply({ content: '⛔ Nur Supporter können den Ticket-Kanal umbenennen.', ephemeral: true });
+                }
+                const rawName = interaction.options.getString('name');
+                const neuerName = rawName ? rawName.toLowerCase().replace(/[^a-z0-9-_]/g, '') : '';
+                if (!neuerName) {
+                    return interaction.reply({ content: '❌ Bitte gib einen gültigen Kanalnamen an (nur Kleinbuchstaben, Zahlen und Bindestriche).', ephemeral: true });
+                }
+                try {
+                    await interaction.channel.setName(neuerName);
+                    logTicketMessage(chId, 'System', 'Ticket-Kanal umbenannt in ' + neuerName + ' von ' + interaction.user.tag, true);
+                    return interaction.reply('✏️ Ticket-Kanal umbenannt in: `' + neuerName + '`');
+                } catch(e) {
+                    return interaction.reply({ content: '❌ Fehler beim Umbenennen: ' + e.message, ephemeral: true });
+                }
+            }
+
+            if (sub === 'transcript') {
+                const htmlContent = generateHtmlTranscript(chId, ticket);
+                const buffer = Buffer.from(htmlContent, 'utf-8');
                 return interaction.reply({
-                    content: 'ℹ️ **Team-Aufnahme ins Web-Dashboard verschoben:**\nDas Hinzufügen neuer Teammitglieder inklusive automatischer Probezeit, Rollen-Hierarchie-Prüfung und Ankündigung erfolgt ab sofort komfortabel direkt im **Web-Dashboard** nach dem Discord-Login:\n🌐 **https://roblox-discord-g44u.onrender.com/dashboard** (Tab: **🛡️ Team & Probezeit**)',
+                    content: '📜 **AeroGuard HTML-Sitzungstranskript (#' + (ticket.ticketNum || 'Archiv') + '):**',
+                    files: [{ attachment: buffer, name: 'transcript_ticket_' + (ticket.ticketNum || 'export') + '.html' }],
                     ephemeral: true
                 });
+            }
+        }
+
+        if (commandName === 'setup-autorole') {
+            let sub = null;
+            try { sub = interaction.options.getSubcommand(); } catch(e) {}
+            const gSettings = getGuildSettings(guild.id);
+
+            if (sub === 'sync') {
+                await interaction.deferReply();
+                const targetRole = interaction.options.getRole('rolle') || 
+                                   (gSettings.autoRoleId ? (guild.roles.cache.get(gSettings.autoRoleId) || await guild.roles.fetch(gSettings.autoRoleId).catch(() => null)) : null);
+
+                if (!targetRole) {
+                    return interaction.editReply('❌ Keine Rolle ausgewählt und keine Autorole auf diesem Server konfiguriert.');
+                }
+
+                const onlyOnline = interaction.options.getBoolean('nur_online') ?? true;
+                const allMembers = await guild.members.fetch();
+                let assigned = 0;
+                let skipped = 0;
+
+                for (const member of allMembers.values()) {
+                    if (member.user.bot) continue;
+
+                    if (onlyOnline) {
+                        const status = member.presence?.status;
+                        if (status && !['online', 'idle', 'dnd'].includes(status)) {
+                            skipped++;
+                            continue;
+                        }
+                    }
+
+                    if (!member.roles.cache.has(targetRole.id)) {
+                        try {
+                            await member.roles.add(targetRole, 'Manuelle Autorole Synchronisation');
+                            assigned++;
+                            await new Promise(r => setTimeout(r, 180));
+                        } catch(e) {}
+                    } else {
+                        skipped++;
+                    }
+                }
+
+                const embed = new EmbedBuilder()
+                    .setTitle('👥 Auto-Rollen Synchronisation Abgeschlossen')
+                    .setDescription('Die Rolle <@&' + targetRole.id + '> (`' + targetRole.name + '`) wurde manuell synchronisiert!')
+                    .setColor(0x10b981)
+                    .addFields(
+                        { name: '✅ Zugewiesen', value: '`' + assigned + '` Mitglieder', inline: true },
+                        { name: '⏭️ Übersprungen', value: '`' + skipped + '` Mitglieder', inline: true },
+                        { name: '⚙️ Modus', value: onlyOnline ? 'Nur Online/Aktive' : 'Alle Mitglieder', inline: true }
+                    )
+                    .setFooter({ text: 'AeroGuard Core • Member Role Sync' })
+                    .setTimestamp();
+
+                return interaction.editReply({ embeds: [embed] });
             }
 
             const rolle = interaction.options.getRole('rolle');
@@ -3678,15 +3935,17 @@ client.on('interactionCreate', async interaction => {
             gSettings.autoRoleId = rolle.id;
             if (!gSettings.welcome) gSettings.welcome = {};
             gSettings.welcome.autoRoleId = rolle.id;
+            if (!cloudStorage.systemSettings) cloudStorage.systemSettings = {};
+            cloudStorage.systemSettings.autoRoleId = rolle.id;
             saveCloudVaultToDisk();
 
             const embed = new EmbedBuilder()
                 .setTitle('🎭 Automatische Beitrittsrolle Gespeichert')
-                .setDescription(`Ab sofort erhalten alle neuen Mitglieder automatisch die Rolle <@&${rolle.id}> (\`${rolle.name}\`) beim Server-Beitritt.`)
+                .setDescription('Ab sofort erhalten alle neuen Mitglieder automatisch die Rolle <@&' + rolle.id + '> (`' + rolle.name + '`) beim Server-Beitritt.')
                 .setColor(0x10b981)
                 .addFields(
-                    { name: '🛡️ Rolle', value: `<@&${rolle.id}> (\`${rolle.id}\`)`, inline: true },
-                    { name: '⚡ Manuell verteilen', value: 'Nutze \`/setup-autorole sync\` oder das Web-Dashboard, um die Rolle sofort an bestehende Online-Mitglieder zu vergeben.', inline: false }
+                    { name: '🛡️ Rolle', value: '<@&' + rolle.id + '> (`' + rolle.id + '`)', inline: true },
+                    { name: '⚡ Manuell verteilen', value: 'Nutze `/setup-autorole sync` oder das Web-Dashboard, um die Rolle sofort an bestehende Online-Mitglieder zu vergeben.', inline: false }
                 )
                 .setFooter({ text: 'AeroGuard Core • Auto-Role Engine' })
                 .setTimestamp();
@@ -5945,8 +6204,10 @@ const extendedCommandDefinitions = [
         .addSubcommand(sub => sub.setName('panel').setDescription('Support-Panel in einen Kanal projizieren').addChannelOption(o => o.setName('kanal').setDescription('Kanal').setRequired(true)))
         .addSubcommand(sub => sub.setName('close').setDescription('Schließt das aktuelle Ticket').addStringOption(o => o.setName('grund').setDescription('Schließungsgrund').setRequired(false)))
         .addSubcommand(sub => sub.setName('claim').setDescription('Beansprucht das Ticket als Supporter'))
+        .addSubcommand(sub => sub.setName('unclaim').setDescription('Gibt das Ticket wieder für das gesamte Team frei'))
         .addSubcommand(sub => sub.setName('add').setDescription('Fügt einen Nutzer zum Ticket hinzu').addUserOption(o => o.setName('nutzer').setDescription('Nutzer').setRequired(true)))
         .addSubcommand(sub => sub.setName('remove').setDescription('Entfernt einen Nutzer aus dem Ticket').addUserOption(o => o.setName('nutzer').setDescription('Nutzer').setRequired(true)))
+        .addSubcommand(sub => sub.setName('rename').setDescription('Benennt den aktuellen Ticket-Kanal um').addStringOption(o => o.setName('name').setDescription('Neuer Kanalname').setRequired(true)))
         .addSubcommand(sub => sub.setName('transcript').setDescription('Erstellt ein HTML-Transkript des Tickets'))
 ].map(cmd => cmd.toJSON());
 
@@ -8175,6 +8436,7 @@ app.post('/api/guild/:guildId/settings', async (req, res) => {
             };
         }
 
+        if (req.body.language !== undefined) gSettings.language = req.body.language;
         if (req.body.ticketCategoryId !== undefined) gSettings.ticketCategoryId = req.body.ticketCategoryId || null;
         if (req.body.supportRoleId !== undefined) gSettings.supportRoleId = req.body.supportRoleId || null;
         if (req.body.ticketLogChannelId !== undefined) gSettings.ticketLogChannelId = req.body.ticketLogChannelId || null;
