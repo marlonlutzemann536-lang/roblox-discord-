@@ -2920,6 +2920,24 @@ function buildTicketsModalHtml(guild) {
             }
         }
 
+                async function syncSocialAlertsToServer(guild) {
+            if (!guild || !guild.id || !guild.settings.socialAlerts) return;
+            try {
+                const res = await fetch('/api/guild/' + guild.id + '/social-alerts/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ socialAlerts: guild.settings.socialAlerts })
+                });
+                const data = await res.json().catch(() => null);
+                if (data && data.success) {
+                    guild.settings.socialAlerts = data.socialAlerts;
+                    showToast('💾 Streamer-Einstellungen dauerhaft auf Festplatte gesichert!');
+                }
+            } catch(e) {
+                console.warn('Hintergrund-Speicherung fehlgeschlagen:', e);
+            }
+        }
+
         function addCreatorToSocialList() {
             const guild = guilds.find(g => g.id === activeGuildId);
             if (!guild) return;
@@ -2951,6 +2969,7 @@ function buildTicketsModalHtml(guild) {
                 displayName
             });
             document.getElementById('modal-body-content').innerHTML = buildSocialAlertsModalHtml(guild);
+            syncSocialAlertsToServer(guild);
         }
 
         function removeCreatorFromSocialList(idx) {
@@ -2970,6 +2989,7 @@ function buildTicketsModalHtml(guild) {
 
             guild.settings.socialAlerts.creators.splice(idx, 1);
             document.getElementById('modal-body-content').innerHTML = buildSocialAlertsModalHtml(guild);
+            syncSocialAlertsToServer(guild);
         }
 
         async function sendTestSocialAlert() {
@@ -3194,6 +3214,7 @@ function deleteCategoryItem(index) {
                     }
                 };
             } else if (currentOpenModule === 'social_alerts') {
+                payload.modules.socialAlerts = isModuleActive;
                 payload.socialAlerts = {
                     enabled: isModuleActive,
                     channelId: document.getElementById('cfg-social-channel')?.value || null,

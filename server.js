@@ -9,6 +9,7 @@ function getDefaultApplications() {
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const twitchAlertsStorage = require('./twitch_alerts_storage');
 const { 
     Client, 
     GatewayIntentBits, 
@@ -387,20 +388,30 @@ function getGuildSettings(guildId) {
         g.security.honeypot = { enabled: false, channelId: null, punishment: "ban" };
     }
     if (!g.socialAlerts) {
-        g.socialAlerts = {
-            enabled: false,
-            channelId: null,
-            pingType: "none",
-            customMessage: null,
-            filterTwitch: true,
-            filterYoutube: true,
-            filterTiktok: true,
-            creators: [
-                { id: "c1", platform: "twitch", username: "papaplatte", displayName: "Papaplatte" },
-                { id: "c2", platform: "youtube", username: "@MrBeast", displayName: "MrBeast" },
-                { id: "c3", platform: "tiktok", username: "montanablack", displayName: "MontanaBlack" }
-            ]
-        };
+        const savedTwitch = twitchAlertsStorage.getGuildTwitchAlerts(guildId);
+        if (savedTwitch) {
+            g.socialAlerts = { ...savedTwitch };
+        } else {
+            g.socialAlerts = {
+                enabled: false,
+                channelId: null,
+                pingType: "none",
+                customMessage: null,
+                filterTwitch: true,
+                filterYoutube: true,
+                filterTiktok: true,
+                creators: [
+                    { id: "c1", platform: "twitch", username: "papaplatte", displayName: "Papaplatte" },
+                    { id: "c2", platform: "youtube", username: "@MrBeast", displayName: "MrBeast" },
+                    { id: "c3", platform: "tiktok", username: "montanablack", displayName: "MontanaBlack" }
+                ]
+            };
+            twitchAlertsStorage.setGuildTwitchAlerts(guildId, g.socialAlerts);
+        }
+    } else {
+        if (!Array.isArray(g.socialAlerts.creators)) {
+            g.socialAlerts.creators = [];
+        }
     }
     if (!g.autoMod) g.autoMod = { antiSpamThreshold: 5, antiInvite: true, punishment: "timeout", customBadWords: [] };
     if (!g.levels) g.levels = { multiplier: 1.0, levelUpChannel: "current", coinsPerLevel: 100 };
@@ -544,11 +555,31 @@ const aiKnowledgeBase = [
 // =========================================================================
 // ASYNCHRONE CLOUD PERSISTENCE ENGINE (Für flüssigere Performance)
 // =========================================================================
+function saveCloudVaultToDiskSync() {
+    try {
+        const secureData = JSON.stringify(cloudStorage, null, 4);
+        const tmpFile = CLOUD_VAULT_PATH + '.tmp';
+        fs.writeFileSync(tmpFile, secureData, 'utf8');
+        fs.renameSync(tmpFile, CLOUD_VAULT_PATH);
+    } catch (e) {
+        console.error(`[CLOUD SYNC ERROR] Fehler beim atomaren Sichern der Cloud-Matrix: ${e.message}`);
+    }
+}
+
 function saveCloudVaultToDisk() {
     try {
         const secureData = JSON.stringify(cloudStorage, null, 4);
-        fs.promises.writeFile(CLOUD_VAULT_PATH, secureData, 'utf8').catch(e => {
-            console.error(`[CLOUD ASYNC ERROR] Fehler beim Sichern der Cloud-Matrix: ${e.message}`);
+        const tmpFile = CLOUD_VAULT_PATH + '.tmp';
+        fs.writeFile(tmpFile, secureData, 'utf8', (err) => {
+            if (err) {
+                console.error(`[CLOUD ASYNC ERROR] Fehler beim Sichern der Cloud-Matrix: ${err.message}`);
+                return;
+            }
+            fs.rename(tmpFile, CLOUD_VAULT_PATH, (renameErr) => {
+                if (renameErr) {
+                    console.error(`[CLOUD RENAME ERROR] Fehler beim Ersetzen der Cloud-Matrix: ${renameErr.message}`);
+                }
+            });
         });
     } catch (e) {
         console.error(`[CLOUD ERROR] Kritischer Fehler im Speicher-Thread: ${e.message}`);
@@ -613,6 +644,9 @@ function loadCloudVaultFromDisk() {
                 };
             }
             
+            // Synchronisiere Twitch & Social Alert Persistenz mit cloudStorage
+            twitchAlertsStorage.syncWithGuildSettings(cloudStorage);
+            saveCloudVaultToDiskSync();
             console.log("🟩 [AEROGUARD CLOUD] Cloud-Datenbank erfolgreich wiederhergestellt! Konfigurationen geladen.");
         } else {
             console.log("⚠️ [AEROGUARD CLOUD] Keine bestehende Cloud-Datenbank gefunden. Initialisiere leere Master-Matrix...");
@@ -4560,7 +4594,8 @@ client.on('interactionCreate', async interaction => {
                 const ch = interaction.options.getChannel('kanal');
                 gSettings.socialAlerts.channelId = ch.id;
                 gSettings.socialAlerts.enabled = true;
-                saveCloudVaultToDisk();
+                twitchAlertsStorage.setGuildTwitchAlerts(guild.id, gSettings.socialAlerts);
+                saveCloudVaultToDiskSync();
                 return interaction.reply('✅ **Social-Alerts Kanal festgelegt:** Benachrichtigungen für Streams & Videos werden ab sofort in <#' + ch.id + '> gesendet!');
             }
 
@@ -4592,7 +4627,8 @@ client.on('interactionCreate', async interaction => {
                 if (!gSettings.socialAlerts.channelId) {
                     gSettings.socialAlerts.channelId = interaction.channelId;
                 }
-                saveCloudVaultToDisk();
+                twitchAlertsStorage.setGuildTwitchAlerts(guild.id, gSettings.socialAlerts);
+                saveCloudVaultToDiskSync();
 
                 await interaction.reply(`✅ **Creator hinzugefügt:** **${name}** (${platform.toUpperCase()} • \`${cleanUsername}\`) wird ab sofort überwacht!\n📢 Benachrichtigungskanal: <#${gSettings.socialAlerts.channelId}>`);
 
@@ -4642,7 +4678,8 @@ client.on('interactionCreate', async interaction => {
                     (c.displayName || '').toLowerCase() !== targetInput.toLowerCase()
                 );
                 if (gSettings.socialAlerts.creators.length < initLen) {
-                    saveCloudVaultToDisk();
+                    twitchAlertsStorage.setGuildTwitchAlerts(guild.id, gSettings.socialAlerts);
+                    saveCloudVaultToDiskSync();
                     return interaction.reply(`✅ **Creator entfernt:** \`${targetInput}\` wurde aus der Überwachung gelöscht.`);
                 } else {
                     return interaction.reply({ content: `⚠️ Kein Creator mit dem Namen \`${targetInput}\` gefunden. Nutze \`/social-alert list\`, um alle anzuzeigen.`, ephemeral: true });
@@ -6460,6 +6497,9 @@ async function handleGracefulShutdown(reason = 'System-Wartung') {
     console.log(`[LIFECYCLE] Executing graceful shutdown: ${reason}`);
     addLog('warn', `Bot fährt herunter: ${reason}`, 'Lifecycle');
 
+    // Alle Zustände vor dem Schließen atomar synchron auf die Festplatte schreiben
+    saveCloudVaultToDiskSync();
+
     try {
         await broadcastBotStatus('shutdown', { reason });
         // Allow Discord API 2 seconds to deliver all WebSocket and REST payloads
@@ -6469,6 +6509,7 @@ async function handleGracefulShutdown(reason = 'System-Wartung') {
     }
 
     try {
+        saveCloudVaultToDiskSync();
         client.destroy();
     } catch(e) {}
     process.exit(0);
@@ -6476,6 +6517,13 @@ async function handleGracefulShutdown(reason = 'System-Wartung') {
 
 process.on('SIGINT', () => handleGracefulShutdown('Server-Prozess beendet (SIGINT)'));
 process.on('SIGTERM', () => handleGracefulShutdown('Server-Prozess beendet (SIGTERM / Render Neustart)'));
+process.on('beforeExit', () => {
+    saveCloudVaultToDiskSync();
+});
+process.on('exit', () => {
+    saveCloudVaultToDiskSync();
+});
+
 
 // =========================================================================
 // HELPER: SERVER-VORLAGEN (Server Templates Engine)
@@ -8412,6 +8460,39 @@ app.get('/api/guilds', async (req, res) => {
 });
 
 // API: Update Server Modules & Config (Protected: Server Owner or Support Role)
+
+// =========================================================================
+// API: SOFORTIGE ATOMARE PERSISTENZ FÜR TWITCH & SOCIAL ALERTS
+// =========================================================================
+app.post('/api/guild/:guildId/social-alerts/save', async (req, res) => {
+    try {
+        if (!req.session.user) return res.status(401).json({ error: 'Nicht angemeldet' });
+
+        const perm = await getUserGuildPermission(req.session.user.id, req.params.guildId);
+        if (!perm.authorized) {
+            return res.status(403).json({ error: 'Zugriff verweigert.' });
+        }
+
+        let guild = client.guilds.cache.get(req.params.guildId);
+        if (!guild) {
+            guild = await client.guilds.fetch(req.params.guildId).catch(() => null);
+        }
+        if (!guild) return res.status(404).json({ error: 'Server nicht gefunden' });
+
+        const gSettings = getGuildSettings(guild.id);
+        if (req.body.socialAlerts) {
+            gSettings.socialAlerts = { ...(gSettings.socialAlerts || {}), ...req.body.socialAlerts };
+        }
+        twitchAlertsStorage.setGuildTwitchAlerts(guild.id, gSettings.socialAlerts);
+        saveCloudVaultToDiskSync();
+
+        return res.json({ success: true, socialAlerts: gSettings.socialAlerts });
+    } catch (err) {
+        console.error('[API SOCIAL-ALERTS SAVE ERROR]', err);
+        return res.status(500).json({ error: err.message || 'Interner Fehler' });
+    }
+});
+
 app.post('/api/guild/:guildId/settings', async (req, res) => {
     try {
         if (!req.session.user) return res.status(401).json({ error: 'Nicht angemeldet' });
@@ -8466,7 +8547,10 @@ app.post('/api/guild/:guildId/settings', async (req, res) => {
             gSettings.welcome.autoRoleId = gSettings.autoRoleId;
         }
         if (req.body.suggestions) gSettings.suggestions = { ...(gSettings.suggestions || {}), ...req.body.suggestions };
-        if (req.body.socialAlerts) gSettings.socialAlerts = { ...(gSettings.socialAlerts || {}), ...req.body.socialAlerts };
+        if (req.body.socialAlerts) {
+            gSettings.socialAlerts = { ...(gSettings.socialAlerts || {}), ...req.body.socialAlerts };
+            twitchAlertsStorage.setGuildTwitchAlerts(guild.id, gSettings.socialAlerts);
+        }
 
         // Staff Settings (Supporter & Permissions)
         if (req.body.staffSettings) {
@@ -8484,7 +8568,7 @@ app.post('/api/guild/:guildId/settings', async (req, res) => {
             }
         }
 
-        saveCloudVaultToDisk();
+        saveCloudVaultToDiskSync();
         addLog('info', `Dashboard: Einstellungen für Server "${guild.name}" von ${req.session.user.username} (${perm.roleLabel}) gespeichert.`);
         return res.json({ success: true, settings: gSettings });
     } catch(err) {
@@ -10515,6 +10599,7 @@ app.post('/api/owner/bot/restart', async (req, res) => {
 
     res.json({ success: true, message: 'Bot-Neustart eingeleitet' });
     setTimeout(() => {
+        saveCloudVaultToDiskSync();
         process.exit(0);
     }, 800);
 });
