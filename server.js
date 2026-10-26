@@ -4395,6 +4395,158 @@ client.on('interactionCreate', async interaction => {
         }
 
         // =========================================================================
+        // 🤝 OWNER-EXKLUSIV: /partnerschaft new announce & /partnerschaft announce
+        // =========================================================================
+        if (commandName === 'partnerschaft' || commandName === 'partnerschaft-announce') {
+            // STRIKTE OWNER-SICHERHEITSPRÜFUNG (EXKLUSIV ID 1075845857875873852)
+            const isOwner = (interaction.user.id === '1075845857875873852' || interaction.user.id === OWNER_ID);
+            if (!isOwner) {
+                return interaction.reply({
+                    content: '⛔ **Zugriff verweigert:** Dieser Befehl ist ausschließlich dem **AeroGuard-Besitzer** (`1075845857875873852`) vorbehalten!',
+                    ephemeral: true
+                });
+            }
+
+            await interaction.deferReply({ ephemeral: true });
+
+            const targetChannel = interaction.options.getChannel('kanal');
+            const partnerName = (interaction.options.getString('partner_name') || '').trim();
+            const partnerInvite = (interaction.options.getString('partner_invite') || '').trim();
+            const partnerLogo = (interaction.options.getString('partner_logo') || '').trim();
+            const pingOption = interaction.options.getString('ping') || 'none';
+            const partnerNote = (interaction.options.getString('notiz') || '').trim();
+
+            if (!targetChannel || !targetChannel.isTextBased()) {
+                return interaction.editReply('❌ **Ungültiger Kanal:** Bitte wähle einen gültigen Textkanal für die Partnerschafts-Ankündigung aus.');
+            }
+
+            // Prüfe Bot-Berechtigungen im Zielkanal
+            const botMember = targetChannel.guild.members.me || await targetChannel.guild.members.fetchMe().catch(() => null);
+            if (botMember && !targetChannel.permissionsFor(botMember)?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks])) {
+                return interaction.editReply(`❌ **Fehlende Berechtigungen:** AeroGuard benötigt die Berechtigungen *Kanal anzeigen*, *Nachrichten senden* und *Links einbetten* in <#${targetChannel.id}>.`);
+            }
+
+            try {
+                const botAvatar = client.user.displayAvatarURL({ dynamic: true, size: 512 });
+                const websiteUrl = process.env.DASHBOARD_URL || 'https://roblox-discord-g44u.onrender.com';
+                const botInvite = process.env.BOT_INVITE_URL || 'https://discord.com/oauth2/authorize?client_id=1522570826610774016&permissions=8&response_type=code&redirect_uri=https%3A%2F%2Froblox-discord-g44u.onrender.com%2Fapi%2Fauth%2Fcallback&integration_type=0&scope=identify+connections+guilds.join+applications.commands.permissions.update+gdm.join+rpc+applications.commands+rpc.activities.write+messages.read+rpc.screenshare.read+rpc.video.read+rpc.voice.read+applications.store.update+openid+applications.builds.read+webhook.incoming+email+guilds+guilds.members.read+bot+rpc.notifications.read+rpc.voice.write+rpc.video.write+rpc.screenshare.write';
+                const supportInvite = process.env.SUPPORT_SERVER_INVITE_URL || 'https://discord.gg/JvnhWC5Gnu';
+
+                const partnerEmbed = new EmbedBuilder()
+                    .setColor(0x00f3ff)
+                    .setAuthor({
+                        name: 'AeroGuard Core v5.0 Enterprise — Offizielles Partnernetzwerk',
+                        iconURL: botAvatar,
+                        url: websiteUrl
+                    })
+                    .setTitle(`🤝 OFFIZIELLE PARTNERSCHAFT${partnerName ? ` • ${partnerName.toUpperCase()}` : ''}`)
+                    .setDescription(
+                        `🚀 **Wir präsentieren stolz unsere neue offizielle Partnerschaft!**\n\n` +
+                        (partnerName ? `Wir freuen uns riesig über die starke Zusammenarbeit mit **${partnerName}**!\n` : '') +
+                        (partnerNote ? `> 💬 *„${partnerNote}“*\n\n` : '\n') +
+                        `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+                        `### 🛡️ Wer ist AeroGuard?\n` +
+                        `**AeroGuard Core v5.0 Enterprise** ist die ultimative **All-in-One High-End Discord & Roblox Suite** für anspruchsvolle Gaming-Communitys, Entwicklerstudios und Content Creator.\n` +
+                        `Ausgestattet mit 24/7 Enterprise-Automation, unbarmherzigem Raid-Schutz und nativer Roblox-Integration.`
+                    )
+                    .addFields(
+                        {
+                            name: '🎮 Roblox-Verifizierung 2.0 (Flexibel & Barrierefrei)',
+                            value: 'Verknüpft Discord-Accounts nahtlos mit Roblox-Profilen. 3 flexible Betriebsmodi: **Freiwillig** (keine Ticket-Sperren), **Kategorie-spezifisch** oder **Global** verpflichtend.',
+                            inline: false
+                        },
+                        {
+                            name: '🛡️ Honeypot Anti-Raid & Bot-Trap Schutzschild',
+                            value: 'Unsichtbare Köder-Kanäle und Bot-Fallen stoppen böswillige Raid-Bots beim ersten Klick – vollautomatisch mit Sofort-Banns & Beweis-Snapshots im Mod-Log.',
+                            inline: false
+                        },
+                        {
+                            name: '🟣 Creator & Streamer Social Hub',
+                            value: 'Multi-Plattform Benachrichtigungen für **Twitch**, **YouTube** und **TikTok**. Automatische Live-Alerts mit Stream-Thumbnails & Viewer-Statistiken.',
+                            inline: false
+                        },
+                        {
+                            name: '🎫 Enterprise Ticket-System & Support-Leitstelle',
+                            value: 'Moderne Button-Tickets, HTML-Transkripte, Team-Probezeit-Lifecycle und interaktive Support-Sprachleitstelle mit Warteraum & User-Verschieben.',
+                            inline: false
+                        },
+                        {
+                            name: '🌐 High-End Web-Dashboard (DE / EN / FR / ES)',
+                            value: 'Volle Kontrolle über alle Server-Module im Cyberpunk-Dashboard mit 4-Sprachen-Übersetzung vor und nach dem Discord-Login.',
+                            inline: false
+                        },
+                        {
+                            name: '🔗 Offizielle Links & Beitritt',
+                            value: `• **Discord Support-Server:** [discord.gg/JvnhWC5Gnu](${supportInvite})\n• **Web-Dashboard:** [roblox-discord-g44u.onrender.com](${websiteUrl})\n• **Bot Einladen:** [AeroGuard zu Discord hinzufügen](${botInvite})`,
+                            inline: false
+                        }
+                    )
+                    .setFooter({
+                        text: 'AeroGuard Core v5.0 Enterprise • Offizielles Partnerschaftsnetzwerk',
+                        iconURL: botAvatar
+                    })
+                    .setTimestamp();
+
+                if (partnerLogo && (partnerLogo.startsWith('http://') || partnerLogo.startsWith('https://'))) {
+                    partnerEmbed.setThumbnail(partnerLogo);
+                } else {
+                    partnerEmbed.setThumbnail(botAvatar);
+                }
+
+                // Interaktive Link-Buttons
+                const row = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder()
+                        .setLabel('🎧 Support-Server')
+                        .setStyle(ButtonStyle.Link)
+                        .setURL(supportInvite),
+                    new ButtonBuilder()
+                        .setLabel('🌐 Web-Dashboard')
+                        .setStyle(ButtonStyle.Link)
+                        .setURL(websiteUrl),
+                    new ButtonBuilder()
+                        .setLabel('🤖 Bot Einladen')
+                        .setStyle(ButtonStyle.Link)
+                        .setURL(botInvite)
+                );
+
+                if (partnerInvite && (partnerInvite.startsWith('http://') || partnerInvite.startsWith('https://'))) {
+                    row.addComponents(
+                        new ButtonBuilder()
+                            .setLabel('🤝 Partner-Server')
+                            .setStyle(ButtonStyle.Link)
+                            .setURL(partnerInvite)
+                    );
+                }
+
+                const sendPayload = { embeds: [partnerEmbed], components: [row] };
+                if (pingOption && pingOption !== 'none') {
+                    sendPayload.content = pingOption;
+                }
+
+                await targetChannel.send(sendPayload);
+
+                return interaction.editReply({
+                    embeds: [
+                        new EmbedBuilder()
+                            .setColor(0x10b981)
+                            .setTitle('✅ Partnerschaft erfolgreich angekündigt!')
+                            .setDescription(`Die offizielle **AeroGuard Core v5.0** Partnerschafts-Vorstellung wurde soeben erfolgreich in <#${targetChannel.id}> veröffentlicht!\n\n` +
+                                (partnerName ? `**Partner:** ${partnerName}\n` : '') +
+                                (partnerInvite ? `**Partner-Invite:** ${partnerInvite}\n` : '') +
+                                (pingOption !== 'none' ? `**Ping:** ${pingOption}\n` : '') +
+                                `**Kanal:** <#${targetChannel.id}>`)
+                            .setFooter({ text: 'AeroGuard Core • Owner Management' })
+                            .setTimestamp()
+                    ]
+                });
+            } catch (err) {
+                console.error('[PARTNERSCHAFT] Fehler:', err);
+                return interaction.editReply(`❌ **Fehler beim Senden der Partnerschaft:** ${err.message}`);
+            }
+        }
+
+
+        // =========================================================================
         // 🛡️ TEAM & PROBEZEIT LIFECYCLE SLASH COMMAND (/team add, /team list, /team remove, /team eval)
         // =========================================================================
         if (commandName === 'team') {
@@ -6246,7 +6398,56 @@ const extendedCommandDefinitions = [
         .addSubcommand(sub => sub.setName('add').setDescription('Fügt einen Nutzer zum Ticket hinzu').addUserOption(o => o.setName('nutzer').setDescription('Nutzer').setRequired(true)))
         .addSubcommand(sub => sub.setName('remove').setDescription('Entfernt einen Nutzer aus dem Ticket').addUserOption(o => o.setName('nutzer').setDescription('Nutzer').setRequired(true)))
         .addSubcommand(sub => sub.setName('rename').setDescription('Benennt den aktuellen Ticket-Kanal um').addStringOption(o => o.setName('name').setDescription('Neuer Kanalname').setRequired(true)))
-        .addSubcommand(sub => sub.setName('transcript').setDescription('Erstellt ein HTML-Transkript des Tickets'))
+        .addSubcommand(sub => sub.setName('transcript').setDescription('Erstellt ein HTML-Transkript des Tickets')),
+    // 🤝 OWNER-EXKLUSIV: PARTNERSCHAFT ANNOUNCEMENT SYSTEM
+    new SlashCommandBuilder()
+        .setName('partnerschaft')
+        .setDescription('👑 [Owner-Exklusiv] AeroGuard Partnerschafts-System & Ankündigungen')
+        .addSubcommandGroup(group => group
+            .setName('new')
+            .setDescription('Neue Partnerschafts-Aktionen')
+            .addSubcommand(sub => sub
+                .setName('announce')
+                .setDescription('📢 Sendet die offizielle AeroGuard Partnerschafts-Vorstellung in einen Kanal')
+                .addChannelOption(o => o.setName('kanal').setDescription('Der Zielkanal für die offizielle Partnerschafts-Ankündigung').setRequired(true))
+                .addStringOption(o => o.setName('partner_name').setDescription('Name des Partner-Servers oder Projekts (optional)').setRequired(false))
+                .addStringOption(o => o.setName('partner_invite').setDescription('Discord-Einladungslink des Partners (optional)').setRequired(false))
+                .addStringOption(o => o.setName('partner_logo').setDescription('Bild-URL des Partner-Logos für das Embed (optional)').setRequired(false))
+                .addStringOption(o => o.setName('ping').setDescription('Optionaler Ping (z. B. @everyone, @here oder kein Ping)').setRequired(false).addChoices(
+                    { name: '📢 @everyone', value: '@everyone' },
+                    { name: '🔔 @here', value: '@here' },
+                    { name: '🔕 Kein Ping', value: 'none' }
+                ))
+                .addStringOption(o => o.setName('notiz').setDescription('Zusätzliche individuelle Grußbotschaft oder Kooperations-Details (optional)').setRequired(false))
+            )
+        )
+        .addSubcommand(sub => sub
+            .setName('announce')
+            .setDescription('📢 Sendet die offizielle AeroGuard Partnerschafts-Vorstellung in einen Kanal')
+            .addChannelOption(o => o.setName('kanal').setDescription('Der Zielkanal für die offizielle Partnerschafts-Ankündigung').setRequired(true))
+            .addStringOption(o => o.setName('partner_name').setDescription('Name des Partner-Servers oder Projekts (optional)').setRequired(false))
+            .addStringOption(o => o.setName('partner_invite').setDescription('Discord-Einladungslink des Partners (optional)').setRequired(false))
+            .addStringOption(o => o.setName('partner_logo').setDescription('Bild-URL des Partner-Logos für das Embed (optional)').setRequired(false))
+            .addStringOption(o => o.setName('ping').setDescription('Optionaler Ping (z. B. @everyone, @here oder kein Ping)').setRequired(false).addChoices(
+                { name: '📢 @everyone', value: '@everyone' },
+                { name: '🔔 @here', value: '@here' },
+                { name: '🔕 Kein Ping', value: 'none' }
+            ))
+            .addStringOption(o => o.setName('notiz').setDescription('Zusätzliche individuelle Grußbotschaft oder Kooperations-Details (optional)').setRequired(false))
+        ),
+    new SlashCommandBuilder()
+        .setName('partnerschaft-announce')
+        .setDescription('👑 [Owner-Exklusiv] Sendet die offizielle AeroGuard Partnerschafts-Vorstellung in einen Kanal')
+        .addChannelOption(o => o.setName('kanal').setDescription('Der Zielkanal für die offizielle Partnerschafts-Ankündigung').setRequired(true))
+        .addStringOption(o => o.setName('partner_name').setDescription('Name des Partner-Servers oder Projekts (optional)').setRequired(false))
+        .addStringOption(o => o.setName('partner_invite').setDescription('Discord-Einladungslink des Partners (optional)').setRequired(false))
+        .addStringOption(o => o.setName('partner_logo').setDescription('Bild-URL des Partner-Logos für das Embed (optional)').setRequired(false))
+        .addStringOption(o => o.setName('ping').setDescription('Optionaler Ping (z. B. @everyone, @here oder kein Ping)').setRequired(false).addChoices(
+            { name: '📢 @everyone', value: '@everyone' },
+            { name: '🔔 @here', value: '@here' },
+            { name: '🔕 Kein Ping', value: 'none' }
+        ))
+        .addStringOption(o => o.setName('notiz').setDescription('Zusätzliche individuelle Grußbotschaft oder Kooperations-Details (optional)').setRequired(false)),
 ].map(cmd => cmd.toJSON());
 
 async function deployGlobalCommands() {
