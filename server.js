@@ -4428,9 +4428,11 @@ client.on('interactionCreate', async interaction => {
 
             try {
                 const botAvatar = client.user.displayAvatarURL({ dynamic: true, size: 512 });
-                const websiteUrl = process.env.DASHBOARD_URL || 'https://roblox-discord-g44u.onrender.com';
-                const botInvite = process.env.BOT_INVITE_URL || 'https://discord.com/oauth2/authorize?client_id=1522570826610774016&permissions=8&response_type=code&redirect_uri=https%3A%2F%2Froblox-discord-g44u.onrender.com%2Fapi%2Fauth%2Fcallback&integration_type=0&scope=identify+connections+guilds.join+applications.commands.permissions.update+gdm.join+rpc+applications.commands+rpc.activities.write+messages.read+rpc.screenshare.read+rpc.video.read+rpc.voice.read+applications.store.update+openid+applications.builds.read+webhook.incoming+email+guilds+guilds.members.read+bot+rpc.notifications.read+rpc.voice.write+rpc.video.write+rpc.screenshare.write';
-                const supportInvite = process.env.SUPPORT_SERVER_INVITE_URL || 'https://discord.gg/JvnhWC5Gnu';
+                const websiteUrl = (process.env.DASHBOARD_URL || 'https://roblox-discord-g44u.onrender.com').trim();
+                const defaultCleanBotInvite = 'https://discord.com/oauth2/authorize?client_id=1522570826610774016&permissions=8&scope=bot+applications.commands';
+                const rawBotInvite = (process.env.BOT_INVITE_URL || '').trim();
+                const botInvite = (rawBotInvite && rawBotInvite.length <= 512) ? rawBotInvite : defaultCleanBotInvite;
+                const supportInvite = (process.env.SUPPORT_SERVER_INVITE_URL || 'https://discord.gg/JvnhWC5Gnu').trim();
 
                 const partnerEmbed = new EmbedBuilder()
                     .setColor(0x00f3ff)
@@ -4509,7 +4511,7 @@ client.on('interactionCreate', async interaction => {
                         .setURL(botInvite)
                 );
 
-                if (partnerInvite && (partnerInvite.startsWith('http://') || partnerInvite.startsWith('https://'))) {
+                if (partnerInvite && (partnerInvite.startsWith('http://') || partnerInvite.startsWith('https://')) && partnerInvite.length <= 512) {
                     row.addComponents(
                         new ButtonBuilder()
                             .setLabel('🤝 Partner-Server')
@@ -9177,6 +9179,14 @@ app.get('/transcript/:ticketId', (req, res) => {
 // =========================================================================
 // ROUTE: PUBLIC LANDING PAGE (/) - AEROGUARD CORE v5.0 ENTERPRISE
 // =========================================================================
+// SHORT REDIRECT ROUTES
+app.get('/invite', (req, res) => {
+    res.redirect('https://discord.com/oauth2/authorize?client_id=1522570826610774016&permissions=8&scope=bot+applications.commands');
+});
+app.get('/support', (req, res) => {
+    res.redirect(process.env.SUPPORT_SERVER_INVITE_URL || 'https://discord.gg/JvnhWC5Gnu');
+});
+
 app.get('/', (req, res) => {
     const user = req.session.user;
     const uptimeSec = Math.floor(process.uptime());
