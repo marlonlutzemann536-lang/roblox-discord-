@@ -4998,6 +4998,38 @@ client.on('interactionCreate', async interaction => {
             }
         }
 
+        // 👑 BESITZER-FUNKTION: /bot-status (Manuelles Auslösen von Status-Broadcasts)
+        if (commandName === 'bot-status') {
+            const isOwner = (interaction.user.id === '1075845857875873852' || interaction.user.id === OWNER_ID);
+            if (!isOwner) {
+                return interaction.reply({
+                    content: '⛔ **Zugriff verweigert:** Dieser Befehl ist ausschließlich dem **AeroGuard-Besitzer** (`1075845857875873852`) vorbehalten!',
+                    ephemeral: true
+                });
+            }
+
+            await interaction.deferReply({ ephemeral: true });
+
+            const type = interaction.options.getString('typ') || 'online';
+            const reason = interaction.options.getString('grund') || 'Manuelles Status-Update durch Bot-Besitzer';
+            const customChannel = interaction.options.getChannel('kanal');
+
+            try {
+                if (customChannel && customChannel.isTextBased()) {
+                    const gSettings = getGuildSettings(guild.id);
+                    if (!gSettings.statusUpdates) gSettings.statusUpdates = { enabled: true };
+                    gSettings.statusUpdates.channelId = customChannel.id;
+                    gSettings.statusUpdates.enabled = true;
+                    saveCloudVaultToDisk();
+                }
+
+                const sentCount = await broadcastBotStatus(type, { reason });
+                return interaction.editReply(`✅ **Status-Update (${type.toUpperCase()}) erfolgreich an ${sentCount} Kanal/Kanäle gesendet!**\nGrund: ${reason}`);
+            } catch (e) {
+                return interaction.editReply(`❌ **Fehler beim Senden des Status-Updates:** ${e.message}`);
+            }
+        }
+
         if (commandName === 'bot-update') {
             await interaction.deferReply({ ephemeral: true });
             
@@ -6313,6 +6345,15 @@ const extendedCommandDefinitions = [
         .addSubcommand(sub => sub.setName('status').setDescription('Zeigt den aktuellen Honeypot-Status an'))
         .addSubcommand(sub => sub.setName('setup').setDescription('Richtet den Honeypot-Kanal automatisch ein')),
     new SlashCommandBuilder()
+        .setName('bot-status')
+        .setDescription('👑 [Owner] Sendet ein sofortiges Live-Status Update in den Bot-Status Kanal')
+        .addStringOption(o => o.setName('typ').setDescription('Status-Typ').setRequired(false).addChoices(
+            { name: '🟢 Online / Aktiv', value: 'online' },
+            { name: '🔴 Geplanter Shutdown / Wartungsmodus', value: 'shutdown' }
+        ))
+        .addStringOption(o => o.setName('grund').setDescription('Optionaler Grund für das Status-Update').setRequired(false))
+        .addChannelOption(o => o.setName('kanal').setDescription('Optional: Bestimmten Kanal wählen').setRequired(false)),
+    new SlashCommandBuilder()
         .setName('bot-update')
         .setDescription('Sendet die offizielle AeroGuard Core v5.0 Enterprise Update-Ankündigung in den Updates-Kanal')
         .addStringOption(o => 
@@ -6483,9 +6524,18 @@ client.on('guildCreate', async guild => {
 
 
 // =========================================================================
-// HELPER: BOT LIFECYCLE MONITOR (Online & Pre-Shutdown Broadcasts)
+// HELPER: BOT LIFECYCLE MONITOR & OFFIZIELLER SUPPORT-SERVER ERKENNUNG
 // =========================================================================
 let isShuttingDown = false;
+
+function isOfficialServer(guild) {
+    if (!guild) return false;
+    if (process.env.OFFICIAL_GUILD_ID && guild.id === process.env.OFFICIAL_GUILD_ID) return true;
+    if (process.env.GUILD_ID && guild.id === process.env.GUILD_ID) return true;
+    if (guild.ownerId === OWNER_ID || guild.ownerId === '1075845857875873852') return true;
+    const lowerName = (guild.name || '').toLowerCase();
+    return lowerName.includes('aeroguard') || lowerName.includes('official') || lowerName.includes('support') || lowerName.includes('headquarter') || lowerName.includes('zentrale');
+}
 
 async function broadcastBotStatus(type, details = {}) {
     const isOnline = type === 'online';
@@ -6516,25 +6566,50 @@ async function broadcastBotStatus(type, details = {}) {
             const gSettings = getGuildSettings(guild.id);
             let targetChannel = null;
 
-            // Status-Broadcasts nur senden, wenn ein Server dies explizit im Dashboard konfiguriert hat
+            // 1. Wenn ein Kanal explizit in den Server-Einstellungen hinterlegt ist:
             if (gSettings.statusUpdates && gSettings.statusUpdates.enabled === true && gSettings.statusUpdates.channelId) {
                 targetChannel = guild.channels.cache.get(gSettings.statusUpdates.channelId);
-            } else if (isOfficial) {
-                // Auf dem offiziellen Support-Server nach einem Status-Kanal suchen
-                targetChannel = guild.channels.cache.find(c => 
-                    (c.type === ChannelType.GuildText || c.type === ChannelType.GuildAnnouncement) &&
-                    (c.name.includes('bot-status') || c.name.includes('status-live') || c.name === 'status' || c.name.includes('system-status'))
-                );
+                if (!targetChannel) {
+                    targetChannel = await guild.channels.fetch(gSettings.statusUpdates.channelId).catch(() => null);
+                }
             }
 
-            if (targetChannel) {
-                await targetChannel.send({ embeds: [embed] });
-                sentCount++;
+            // 2. Auf dem offiziellen Support-Server oder jedem Server mit bot-status Kanal:
+            if (!targetChannel && (isOfficial || (gSettings.statusUpdates && gSettings.statusUpdates.enabled !== false))) {
+                targetChannel = guild.channels.cache.find(c => 
+                    (c.type === ChannelType.GuildText || c.type === ChannelType.GuildAnnouncement) &&
+                    (c.name.includes('bot-status') || c.name.includes('status-live') || c.name === 'status' || c.name.includes('system-status') || c.name.includes('bot-telemetrie'))
+                );
+
+                if (!targetChannel) {
+                    const fetchedChannels = await guild.channels.fetch().catch(() => null);
+                    if (fetchedChannels) {
+                        targetChannel = fetchedChannels.find(c => 
+                            c && (c.type === ChannelType.GuildText || c.type === ChannelType.GuildAnnouncement) &&
+                            (c.name.includes('bot-status') || c.name.includes('status-live') || c.name === 'status' || c.name.includes('system-status') || c.name.includes('bot-telemetrie'))
+                        );
+                    }
+                }
+            }
+
+            if (targetChannel && targetChannel.isTextBased()) {
+                const botMember = guild.members.me || await guild.members.fetchMe().catch(() => null);
+                const hasPerms = !botMember || targetChannel.permissionsFor(botMember)?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks]);
+                if (hasPerms) {
+                    await targetChannel.send({ embeds: [embed] });
+                    sentCount++;
+
+                    // Automatisches Speichern des gefundenen Status-Kanals
+                    if (!gSettings.statusUpdates) gSettings.statusUpdates = { enabled: true };
+                    gSettings.statusUpdates.channelId = targetChannel.id;
+                    gSettings.statusUpdates.enabled = true;
+                }
             }
         } catch(err) {
             console.error(`[LIFECYCLE] Fehler beim Senden an ${guild.name}:`, err.message);
         }
     }
+    saveCloudVaultToDisk();
     addLog(isOnline ? 'info' : 'warn', `Lifecycle: Status-Update (${type}) an ${sentCount} Server-Kanäle gesendet.`, 'Lifecycle');
     return sentCount;
 }
@@ -6607,13 +6682,7 @@ async function broadcastVersionUpdate(options = {}) {
     let sentCount = 0;
     const sentGuilds = [];
 
-    function isOfficialServer(guild) {
-        if (process.env.OFFICIAL_GUILD_ID && guild.id === process.env.OFFICIAL_GUILD_ID) return true;
-        if (process.env.GUILD_ID && guild.id === process.env.GUILD_ID) return true;
-        if (guild.ownerId === OWNER_ID) return true;
-        const lowerName = guild.name.toLowerCase();
-        return lowerName.includes('aeroguard') || lowerName.includes('official') || lowerName.includes('support') || lowerName.includes('headquarter');
-    }
+// [isOfficialServer moved to global scope]
 
     let targetGuilds = [];
     if (targetScope === 'this_server' && options.guildId) {
