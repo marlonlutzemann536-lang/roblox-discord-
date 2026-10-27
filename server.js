@@ -10,6 +10,7 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const twitchAlertsStorage = require('./twitch_alerts_storage');
+const firebaseStorage = require('./firebase_storage');
 const { 
     Client, 
     GatewayIntentBits, 
@@ -658,6 +659,38 @@ function loadCloudVaultFromDisk() {
 }
 
 loadCloudVaultFromDisk();
+
+// =========================================================================
+// ASYNCHRONE FIREBASE CLOUD FIRESTORE SYNCHRONISATION
+// =========================================================================
+async function syncSettingsWithFirebase() {
+    if (!firebaseStorage.isReady()) return;
+    try {
+        console.log(`[FIREBASE] 🔄 Synchronisiere Server-Einstellungen mit Firebase Firestore...`);
+        const remoteSettings = await firebaseStorage.loadAllGuildSettings();
+        const remoteCount = Object.keys(remoteSettings || {}).length;
+        if (remoteCount > 0) {
+            if (!cloudStorage.guildSettings) cloudStorage.guildSettings = {};
+            for (const [gId, gSet] of Object.entries(remoteSettings)) {
+                cloudStorage.guildSettings[gId] = {
+                    ...(cloudStorage.guildSettings[gId] || {}),
+                    ...gSet
+                };
+            }
+            saveCloudVaultToDiskSync();
+            console.log(`[FIREBASE] ✅ ${remoteCount} Server-Einstellungen aus Firebase Firestore geladen!`);
+        } else {
+            const localCount = Object.keys(cloudStorage.guildSettings || {}).length;
+            if (localCount > 0) {
+                console.log(`[FIREBASE] 📤 Firestore ist leer. Lade ${localCount} lokale Server-Einstellungen nach Firebase hoch...`);
+                await firebaseStorage.syncAllToFirebase(cloudStorage.guildSettings);
+            }
+        }
+    } catch (e) {
+        console.error(`[FIREBASE SYNC ERROR] ${e.message}`);
+    }
+}
+syncSettingsWithFirebase();
 // =========================================================================
 // AEROGUARD PERSISTENT TICKET RESTORATION & SYNC ENGINE
 // =========================================================================
@@ -8449,6 +8482,7 @@ client.once('ready', async () => {
 
     // 2. Ticket-Synchronisation im Hintergrund
     syncActiveTicketsFromDiscord().catch(e => console.error('[TICKETS] Fehler beim Sync:', e));
+    syncSettingsWithFirebase().catch(e => console.error('[FIREBASE] Sync Fehler bei Bot-Start:', e));
 
     // 3. Slash-Command Synchronisation im Hintergrund (vollständig Non-Blocking!)
     (async () => {
@@ -8698,7 +8732,8 @@ app.get('/api/status', (req, res) => {
         totalTicketsCount: cloudStorage.systemSettings.ticketCounter || 0,
         robloxPlayers: currentPlayersCount || 0,
         robloxMaxPlayers: maxPlayersCount || 0,
-        memoryUsageMb: memMb
+        memoryUsageMb: memMb,
+        firebase: firebaseStorage.getStatus()
     });
 });
 
@@ -8761,8 +8796,13 @@ app.post('/api/guild/:guildId/social-alerts/save', async (req, res) => {
         }
         twitchAlertsStorage.setGuildTwitchAlerts(guild.id, gSettings.socialAlerts);
         saveCloudVaultToDiskSync();
+        if (firebaseStorage.isReady()) {
+            firebaseStorage.saveGuildSettings(guild.id, gSettings).catch(err => {
+                console.error(`[FIREBASE SAVE ERROR] Guild ${guild.id} (social alerts):`, err.message);
+            });
+        }
 
-        return res.json({ success: true, socialAlerts: gSettings.socialAlerts });
+        return res.json({ success: true, socialAlerts: gSettings.socialAlerts, firebaseSaved: firebaseStorage.isReady() });
     } catch (err) {
         console.error('[API SOCIAL-ALERTS SAVE ERROR]', err);
         return res.status(500).json({ error: err.message || 'Interner Fehler' });
@@ -8845,8 +8885,14 @@ app.post('/api/guild/:guildId/settings', async (req, res) => {
         }
 
         saveCloudVaultToDiskSync();
+        // Asynchron in Firebase Firestore sichern
+        if (firebaseStorage.isReady()) {
+            firebaseStorage.saveGuildSettings(guild.id, gSettings).catch(err => {
+                console.error(`[FIREBASE SAVE ERROR] Guild ${guild.id}:`, err.message);
+            });
+        }
         addLog('info', `Dashboard: Einstellungen für Server "${guild.name}" von ${req.session.user.username} (${perm.roleLabel}) gespeichert.`);
-        return res.json({ success: true, settings: gSettings });
+        return res.json({ success: true, settings: gSettings, firebaseSaved: firebaseStorage.isReady() });
     } catch(err) {
         console.error('[SETTINGS API ERROR]', err);
         return res.status(500).json({ error: 'Serverfehler beim Speichern: ' + (err.message || 'Interner Fehler') });
@@ -10707,6 +10753,10 @@ app.get('/dashboard', async (req, res) => {
     template = template.replace(/\{\{TRANSCRIPTS_COUNT\}\}/g, String(savedTranscriptsList.length));
     template = template.replace(/\{\{PING\}\}/g, String(ping));
     template = template.replace(/\{\{UPTIME\}\}/g, uptimeStr);
+    const fbStatus = firebaseStorage.getStatus();
+    template = template.replace(/\{\{FIREBASE_STATUS_BADGE\}\}/g, fbStatus.connected 
+        ? '<span style="color:#10b981;font-weight:700;">🟢 Cloud Sync</span>' 
+        : '<span style="color:#f59e0b;font-weight:700;" title="Lokaler Modus: Warte auf Service-Account-Key">🟡 Lokal</span>');
     template = template.replace(/\{\{CURRENT_USER_JSON\}\}/g, JSON.stringify({
         id: currentUser.id,
         username: currentUser.username,

@@ -563,6 +563,10 @@
                         <span data-i18n="hero_stat_uptime">⏱️ Uptime:</span>
                         <span class="stat-val">{{UPTIME}}</span>
                     </div>
+                    <div class="stat-pill" title="Firebase Firestore Cloud Synchronisation (Projekt: aerogurd-6ad97)">
+                        <span>🔥 Firebase:</span>
+                        <span class="stat-val" id="hero-stat-firebase">{{FIREBASE_STATUS_BADGE}}</span>
+                    </div>
                     <div class="stat-pill">
                         <span data-i18n="hero_stat_user">👥 User:</span>
                         <span class="stat-val" id="hero-stat-members">...</span>
@@ -3280,7 +3284,8 @@ function deleteCategoryItem(index) {
                     guild.settings = data.settings;
                     try { updateModuleBadges(); } catch(err) { console.error('Badge update error:', err); }
                     closeModuleModal();
-                    showToast('✅ Einstellungen für ' + guild.name + ' erfolgreich gespeichert!');
+                    const fbMsg = data.firebaseSaved ? ' (in Firebase Cloud gesichert)' : '';
+                    showToast('✅ Einstellungen für ' + guild.name + ' erfolgreich gespeichert!' + fbMsg);
                 } else {
                     const errMsg = (data && data.error) ? data.error : ('Serverfehler (Status ' + res.status + ')');
                     alert('Fehler beim Speichern: ' + errMsg);

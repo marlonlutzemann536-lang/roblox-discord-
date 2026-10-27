@@ -1,0 +1,11 @@
+node_modules/
+.env
+*.tmp
+*.log
+
+# Sensitive Credentials & Keys
+*firebase-adminsdk*.json
+firebase-service-account.json
+firebase-credentials.json
+serviceAccountKey.json
+google-credentials.json
